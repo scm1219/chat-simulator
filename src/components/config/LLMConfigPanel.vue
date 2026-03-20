@@ -1,12 +1,7 @@
 <template>
   <div class="llm-config-panel">
     <div class="panel-header">
-      <div class="header-left">
-        <button class="btn-back" @click="$emit('close')" title="返回角色面板">
-          ←
-        </button>
-        <h3>LLM 配置管理</h3>
-      </div>
+      <h3>LLM 配置管理</h3>
       <button class="btn btn-primary btn-sm" @click="handleAddProfile">
         + 添加配置
       </button>
@@ -115,8 +110,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import LLMProfileForm from './LLMProfileForm.vue'
-
-const emit = defineEmits(['close'])
 
 const store = useLLMProfilesStore()
 
@@ -288,31 +281,9 @@ function closeFormDialog() {
   justify-content: space-between;
   align-items: center;
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: $spacing-md;
-  }
-
   h3 {
-    font-size: $font-size-md;
+    font-size: $font-size-lg;
     font-weight: $font-weight-medium;
-  }
-
-  .btn-back {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    border-radius: $border-radius-sm;
-    cursor: pointer;
-    font-size: 18px;
-    transition: background 0.2s;
-
-    &:hover {
-      background: $bg-secondary;
-    }
   }
 }
 

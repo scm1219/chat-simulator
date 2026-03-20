@@ -13,17 +13,18 @@
       >
         角色库
       </button>
+      <button
+        :class="['tab-btn', { active: activeTab === 'llm-config' }]"
+        @click="activeTab = 'llm-config'"
+      >
+        LLM配置
+      </button>
     </div>
 
     <div class="tab-content">
-      <GroupList
-        v-show="activeTab === 'groups'"
-        @show-llm-config="$emit('show-llm-config')"
-      />
-      <CharacterLibrary
-        v-show="activeTab === 'library'"
-        @show-llm-config="$emit('show-llm-config')"
-      />
+      <GroupList v-show="activeTab === 'groups'" />
+      <CharacterLibrary v-show="activeTab === 'library'" />
+      <LLMConfigPanel v-show="activeTab === 'llm-config'" />
     </div>
   </div>
 </template>
@@ -32,16 +33,14 @@
 import { ref, onMounted } from 'vue'
 import GroupList from './GroupList.vue'
 import CharacterLibrary from './CharacterLibrary.vue'
+import LLMConfigPanel from '../config/LLMConfigPanel.vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
-
-defineEmits(['show-llm-config'])
 
 const activeTab = ref('groups')
 const globalCharsStore = useGlobalCharactersStore()
 
 onMounted(() => {
-  // 切换到角色库 Tab 时加载角色
-  // 这里预加载，避免切换时的延迟
+  // 预加载角色库数据，避免切换时的延迟
   globalCharsStore.loadCharacters()
 })
 </script>

@@ -173,6 +173,7 @@ async function handleSave() {
       thinkingEnabled: form.value.thinkingEnabled
     })
     emit('saved')
+    emit('close')
   } catch (error) {
     alert('保存群设置失败: ' + error.message)
   }

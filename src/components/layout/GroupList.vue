@@ -3,9 +3,6 @@
     <div class="group-list-header">
       <h3>聊天群</h3>
       <div class="header-actions">
-        <button class="btn-icon" @click="$emit('show-llm-config')" title="LLM 配置管理">
-          ⚙️
-        </button>
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
           + 新建
         </button>
@@ -18,6 +15,7 @@
         :key="group.id"
         :class="['group-item', { active: group.id === groupsStore.currentGroupId }]"
         @click="selectGroup(group)"
+        @dblclick="openGroupSettings(group)"
         @mouseenter="hoveredGroupId = group.id"
         @mouseleave="hoveredGroupId = null"
       >
@@ -58,6 +56,14 @@
       @close="showCreateDialog = false"
       @created="handleGroupCreated"
     />
+
+    <!-- 群设置对话框 -->
+    <GroupSettingsDialog
+      v-if="showSettingsDialog && settingsGroupId"
+      :group-id="settingsGroupId"
+      @close="closeGroupSettings"
+      @saved="handleGroupSettingsSaved"
+    />
   </div>
 </template>
 
@@ -65,13 +71,31 @@
 import { ref } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import CreateGroupDialog from '../config/CreateGroupDialog.vue'
+import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 
 const groupsStore = useGroupsStore()
 const showCreateDialog = ref(false)
 const hoveredGroupId = ref(null)
+const showSettingsDialog = ref(false)
+const settingsGroupId = ref(null)
 
 function selectGroup(group) {
   groupsStore.selectGroup(group.id)
+}
+
+function openGroupSettings(group) {
+  settingsGroupId.value = group.id
+  showSettingsDialog.value = true
+}
+
+function closeGroupSettings() {
+  showSettingsDialog.value = false
+  settingsGroupId.value = null
+}
+
+function handleGroupSettingsSaved() {
+  // 重新加载群组列表以更新显示
+  groupsStore.loadGroups()
 }
 
 function handleGroupCreated(group) {

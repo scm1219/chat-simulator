@@ -31,8 +31,6 @@
           v-for="character in displayCharacters"
           :key="character.id"
           class="character-card"
-          @mouseenter="hoveredId = character.id"
-          @mouseleave="hoveredId = null"
         >
           <div class="char-info">
             <div class="char-name">{{ character.name }}</div>
@@ -49,11 +47,9 @@
             </div>
           </div>
 
-          <div
-            :class="['char-actions', { visible: hoveredId === character.id }]"
-          >
+          <div class="char-actions">
             <button
-              v-if="groupsStore.currentGroupId"
+              v-if="groupsStore.currentGroupId && !isCharacterInGroup(character.name)"
               class="btn-icon btn-action btn-import"
               @click="handleImport(character)"
               title="导入到当前群组"
@@ -101,14 +97,11 @@ import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
 
-const emit = defineEmits(['show-llm-config'])
-
 const globalCharsStore = useGlobalCharactersStore()
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
 
 const searchKeyword = ref('')
-const hoveredId = ref(null)
 const showCreateDialog = ref(false)
 const editingCharacter = ref(null)
 
@@ -134,6 +127,11 @@ function getGenderLabel(gender) {
 function truncateText(text, maxLength) {
   if (!text) return ''
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
+}
+
+// 检查角色是否已在当前群组中（通过名称匹配）
+function isCharacterInGroup(characterName) {
+  return charactersStore.characters.some(c => c.name === characterName)
 }
 
 // 搜索
@@ -300,12 +298,6 @@ onMounted(() => {
   display: flex;
   gap: $spacing-xs;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.2s;
-
-  &.visible {
-    opacity: 1;
-  }
 }
 
 .btn-icon {

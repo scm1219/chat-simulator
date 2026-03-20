@@ -1,28 +1,25 @@
 <template>
   <div class="main-layout">
     <aside class="left-pane">
-      <LeftPanel @show-llm-config="showLLMConfig = true" />
+      <LeftPanel />
     </aside>
     <main class="center-pane">
       <ChatWindow />
     </main>
     <aside class="right-pane">
-      <CharacterPanel v-if="!showLLMConfig" @show-llm-config="showLLMConfig = true" />
-      <LLMConfigPanel v-else @close="showLLMConfig = false" />
+      <CharacterPanel />
     </aside>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import LeftPanel from './LeftPanel.vue'
 import ChatWindow from '../chat/ChatWindow.vue'
 import CharacterPanel from '../chat/CharacterPanel.vue'
-import LLMConfigPanel from '../config/LLMConfigPanel.vue'
 
 const groupsStore = useGroupsStore()
-const showLLMConfig = ref(false)
 
 onMounted(() => {
   groupsStore.loadGroups()
