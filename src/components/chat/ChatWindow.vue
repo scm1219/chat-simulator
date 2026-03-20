@@ -4,23 +4,33 @@
       <!-- 聊天头部 -->
       <div class="chat-header">
         <h2>{{ currentGroup.name }}</h2>
-        <div class="model-selector">
-          <select
-            v-model="selectedProfileId"
-            class="model-select"
-            :disabled="switchingModel"
-            @change="handleModelChange"
+        <div class="header-actions">
+          <button
+            class="export-button"
+            @click="handleExportMessages"
+            :disabled="exporting"
+            title="导出聊天记录"
           >
-            <option value="" disabled>-- 请选择模型 --</option>
-            <option
-              v-for="profile in llmProfilesStore.profiles"
-              :key="profile.id"
-              :value="profile.id"
+            {{ exporting ? '导出中...' : '导出' }}
+          </button>
+          <div class="model-selector">
+            <select
+              v-model="selectedProfileId"
+              class="model-select"
+              :disabled="switchingModel"
+              @change="handleModelChange"
             >
-              {{ profile.name }} ({{ profile.model }})
-            </option>
-          </select>
-          <span v-if="switchingModel" class="switching-indicator">切换中...</span>
+              <option value="" disabled>-- 请选择模型 --</option>
+              <option
+                v-for="profile in llmProfilesStore.profiles"
+                :key="profile.id"
+                :value="profile.id"
+              >
+                {{ profile.name }} ({{ profile.model }})
+              </option>
+            </select>
+            <span v-if="switchingModel" class="switching-indicator">切换中...</span>
+          </div>
         </div>
       </div>
 
@@ -77,6 +87,7 @@ const currentGroup = computed(() => groupsStore.currentGroup)
 // 模型选择器状态
 const selectedProfileId = ref('')
 const switchingModel = ref(false)
+const exporting = ref(false)
 
 // 根据当前群组配置找到对应的 profile ID
 function findCurrentProfileId() {
@@ -153,6 +164,48 @@ async function handleClearMessages() {
     toast.success('消息已清空')
   } catch (error) {
     toast.error('清空消息失败: ' + error.message)
+  }
+}
+
+// 导出聊天记录
+async function handleExportMessages() {
+  if (!currentGroup.value) return
+
+  exporting.value = true
+  try {
+    const result = await window.electronAPI.message.exportToZip(
+      currentGroup.value.id,
+      currentGroup.value.name
+    )
+
+    if (result.success) {
+      // 将 base64 数据转换为 Blob
+      const binaryString = atob(result.data.buffer)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+
+      const blob = new Blob([bytes], { type: 'application/zip' })
+
+      // 创建下载链接并触发下载
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = result.data.filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.success(`导出成功！文件大小：${(result.data.size / 1024).toFixed(2)} KB`)
+    } else {
+      toast.error('导出失败: ' + result.error)
+    }
+  } catch (error) {
+    toast.error('导出失败: ' + error.message)
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -239,6 +292,32 @@ onMounted(async () => {
   h2 {
     font-size: $font-size-lg;
     font-weight: $font-weight-medium;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+  }
+
+  .export-button {
+    padding: 6px 16px;
+    background: $wechat-green;
+    color: white;
+    border: none;
+    border-radius: $border-radius-md;
+    font-size: $font-size-sm;
+    cursor: pointer;
+    transition: opacity 0.2s;
+
+    &:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
 
   .model-selector {

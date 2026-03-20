@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, content) => ipcRenderer.invoke('message:update', id, content),
     delete: (id) => ipcRenderer.invoke('message:delete', id),
     clearByGroupId: (groupId) => ipcRenderer.invoke('message:clearByGroupId', groupId),
+    exportToZip: (groupId, groupName) => ipcRenderer.invoke('message:exportToZip', groupId, groupName),
     onNewMessage: (callback) => {
       const listener = (event, message) => callback(message)
       ipcRenderer.on('message:new', listener)
