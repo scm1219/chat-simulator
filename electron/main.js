@@ -58,20 +58,28 @@ function createWindow() {
   })
 }
 
+// 全局角色库管理器
+let globalCharManager = null
+
 // 应用就绪时创建窗口
 app.whenReady().then(async () => {
   createWindow()
 
   // 动态导入模块
   const { DatabaseManager } = await import('./database/manager.js')
+  const { GlobalCharacterManager } = await import('./database/global-character-manager.js')
   const { setupGroupHandlers } = await import('./ipc/handlers/group.js')
   const { setupCharacterHandlers } = await import('./ipc/handlers/character.js')
   const { setupMessageHandlers } = await import('./ipc/handlers/message.js')
   const { setupLLMHandlers } = await import('./ipc/handlers/llm.js')
   const { setupConfigHandlers } = await import('./ipc/handlers/config.js')
+  const { setupGlobalCharacterHandlers } = await import('./ipc/handlers/global-character.js')
 
   // 初始化数据库管理器
   dbManager = new DatabaseManager()
+
+  // 初始化全局角色库管理器
+  globalCharManager = new GlobalCharacterManager()
 
   // 设置 IPC 处理器
   setupGroupHandlers(dbManager)
@@ -79,6 +87,7 @@ app.whenReady().then(async () => {
   setupMessageHandlers(dbManager)
   setupLLMHandlers(dbManager)
   setupConfigHandlers()
+  setupGlobalCharacterHandlers(dbManager, globalCharManager)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -99,6 +108,10 @@ app.on('before-quit', () => {
   // 关闭所有数据库连接
   if (dbManager) {
     dbManager.closeAll()
+  }
+  // 关闭全局角色库数据库连接
+  if (globalCharManager) {
+    globalCharManager.close()
   }
 })
 

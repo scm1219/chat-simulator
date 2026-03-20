@@ -106,17 +106,17 @@ async function handleDelete(group) {
 
 <style lang="scss" scoped>
 .group-list {
-  height: 100%;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .group-list-header {
   padding: $spacing-lg;
-  border-bottom: 1px solid $border-color;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 
   h3 {
     font-size: $font-size-lg;

@@ -68,6 +68,7 @@ export const useCharactersStore = defineStore('characters', () => {
       const result = await window.electronAPI.character.delete(id)
       if (result.success) {
         characters.value = characters.value.filter(c => c.id !== id)
+        return
       }
       throw new Error(result.error)
     } catch (error) {

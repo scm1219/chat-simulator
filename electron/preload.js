@@ -94,6 +94,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       update: (id, data) => ipcRenderer.invoke('systemPrompt:update', id, data),
       delete: (id) => ipcRenderer.invoke('systemPrompt:delete', id)
     }
+  },
+
+  // ============ 全局角色库操作 ============
+  globalCharacter: {
+    getAll: () => ipcRenderer.invoke('globalCharacter:getAll'),
+    getById: (id) => ipcRenderer.invoke('globalCharacter:getById', id),
+    create: (data) => ipcRenderer.invoke('globalCharacter:create', data),
+    update: (id, data) => ipcRenderer.invoke('globalCharacter:update', id, data),
+    delete: (id) => ipcRenderer.invoke('globalCharacter:delete', id),
+    search: (keyword) => ipcRenderer.invoke('globalCharacter:search', keyword),
+    importToGroup: (characterId, groupId) =>
+      ipcRenderer.invoke('globalCharacter:importToGroup', characterId, groupId)
   }
 })
 

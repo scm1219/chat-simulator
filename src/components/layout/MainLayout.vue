@@ -1,7 +1,7 @@
 <template>
   <div class="main-layout">
     <aside class="left-pane">
-      <GroupList @show-llm-config="showLLMConfig = true" />
+      <LeftPanel @show-llm-config="showLLMConfig = true" />
     </aside>
     <main class="center-pane">
       <ChatWindow />
@@ -16,7 +16,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
-import GroupList from './GroupList.vue'
+import LeftPanel from './LeftPanel.vue'
 import ChatWindow from '../chat/ChatWindow.vue'
 import CharacterPanel from '../chat/CharacterPanel.vue'
 import LLMConfigPanel from '../config/LLMConfigPanel.vue'
