@@ -75,6 +75,12 @@ export function setupLLMHandlers(dbManager) {
       }
       console.log('[LLM] 启用的角色', characters.map(c => c.name))
 
+      // 3.1 获取所有角色（包含用户角色，用于群成员介绍）
+      const allCharacters = db.prepare(`
+        SELECT * FROM characters WHERE group_id = ? AND enabled = 1
+      `).all(groupId)
+      console.log('[LLM] 群成员介绍包含角色', allCharacters.map(c => c.name))
+
       // 4. 获取历史消息（根据 max_history 限制）
       const maxMessages = (group.max_history || 10) * 2 + 1 // +1 是刚才添加的用户消息
       const history = db.prepare(`
@@ -133,14 +139,14 @@ export function setupLLMHandlers(dbManager) {
       if (responseMode === 'parallel') {
         // 并行模式：同时调用所有角色
         const promises = characters.map(character =>
-          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, characters)
+          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters)
         )
         const results = await Promise.all(promises)
         responses.push(...results)
       } else {
         // 顺序模式：依次调用每个角色
         for (const character of characters) {
-          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, characters)
+          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters)
           responses.push(response)
 
           // 将上一个角色的回复添加到历史上下文
@@ -598,14 +604,18 @@ function buildContextMessages(character, history, userContent, background = null
   // 6. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
   messages.push({
     role: 'system',
-    content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。`
+    content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。注意用户会提及其它角色，你只要扮演"${character.name}"这个角色回答就好了。`
   })
 
   // 7. 添加当前用户消息
-  messages.push({
-    role: 'user',
-    content: userContent
-  })
+  const lastMessage = roleMessages[roleMessages.length - 1]
+  if (!lastMessage || lastMessage.role !== 'user') {
+    // 只有最后一条不是用户消息时，才添加
+    messages.push({
+      role: 'user',
+      content: userContent
+    })
+  }
 
   return messages
 }
