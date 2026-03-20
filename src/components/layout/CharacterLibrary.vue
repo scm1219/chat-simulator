@@ -20,6 +20,15 @@
       />
     </div>
 
+    <!-- 标签筛选 -->
+    <div class="filter-section">
+      <TagFilter
+        v-model="globalCharsStore.selectedTagIds"
+        :tags="globalCharsStore.tags"
+        @clear="globalCharsStore.clearTagFilter"
+      />
+    </div>
+
     <!-- 角色列表 -->
     <div class="character-list">
       <div v-if="globalCharsStore.loading" class="loading-state">
@@ -44,6 +53,17 @@
             </div>
             <div class="char-prompt-preview">
               {{ truncateText(character.system_prompt, 50) }}
+            </div>
+            <!-- 角色标签 -->
+            <div v-if="character.tags && character.tags.length > 0" class="char-tags">
+              <span
+                v-for="tag in character.tags"
+                :key="tag.id"
+                class="char-tag"
+                :style="{ backgroundColor: tag.color }"
+              >
+                {{ tag.name }}
+              </span>
             </div>
           </div>
 
@@ -75,8 +95,8 @@
       </template>
 
       <div v-else class="empty-state">
-        <p>{{ searchKeyword ? '未找到匹配的角色' : '角色库为空' }}</p>
-        <p v-if="!searchKeyword" class="hint">点击右上角"新建"添加角色</p>
+        <p>{{ hasFilter ? '未找到匹配的角色' : '角色库为空' }}</p>
+        <p v-if="!hasFilter" class="hint">点击右上角"新建"添加角色</p>
       </div>
     </div>
 
@@ -96,6 +116,7 @@ import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
+import TagFilter from '../common/TagFilter.vue'
 
 const globalCharsStore = useGlobalCharactersStore()
 const groupsStore = useGroupsStore()
@@ -105,12 +126,14 @@ const searchKeyword = ref('')
 const showCreateDialog = ref(false)
 const editingCharacter = ref(null)
 
+// 是否有筛选条件
+const hasFilter = computed(() => {
+  return searchKeyword.value.trim() || globalCharsStore.selectedTagIds.length > 0
+})
+
 // 显示的角色列表
 const displayCharacters = computed(() => {
-  if (searchKeyword.value.trim()) {
-    return globalCharsStore.filteredCharacters
-  }
-  return globalCharsStore.characters
+  return globalCharsStore.filteredCharacters
 })
 
 // 性别标签
@@ -186,12 +209,15 @@ function closeDialog() {
 }
 
 // 保存成功
-function handleSaved() {
+async function handleSaved() {
   closeDialog()
+  // 重新加载角色列表
+  await globalCharsStore.loadCharacters()
 }
 
-onMounted(() => {
-  globalCharsStore.loadCharacters()
+onMounted(async () => {
+  await globalCharsStore.loadCharacters()
+  await globalCharsStore.loadTags()
 })
 </script>
 
@@ -230,6 +256,11 @@ onMounted(() => {
 
 .search-input {
   width: 100%;
+}
+
+.filter-section {
+  padding: 0 $spacing-lg;
+  flex-shrink: 0;
 }
 
 .character-list {
@@ -292,6 +323,21 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-bottom: 6px;
+}
+
+.char-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.char-tag {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  color: white;
 }
 
 .char-actions {

@@ -55,6 +55,17 @@
             {{ form.systemPrompt.length }}/5000
           </div>
         </div>
+
+        <!-- 标签选择 -->
+        <div class="form-group">
+          <label class="form-label">标签</label>
+          <TagSelector
+            v-model="form.tagIds"
+            :tags="globalCharsStore.tags"
+            :show-add-tag="true"
+            @create-tag="handleCreateTag"
+          />
+        </div>
       </div>
 
       <div class="dialog-footer">
@@ -74,8 +85,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, toRaw } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
+import TagSelector from '../common/TagSelector.vue'
 
 const props = defineProps({
   character: {
@@ -94,7 +106,8 @@ const form = ref({
   name: '',
   gender: '',
   age: null,
-  systemPrompt: ''
+  systemPrompt: '',
+  tagIds: []
 })
 
 const saving = ref(false)
@@ -107,16 +120,29 @@ const isFormValid = computed(() => {
 })
 
 // 初始化表单
-onMounted(() => {
+onMounted(async () => {
+  // 加载标签
+  await globalCharsStore.loadTags()
+
   if (props.character) {
     form.value = {
       name: props.character.name || '',
       gender: props.character.gender || '',
       age: props.character.age || null,
-      systemPrompt: props.character.system_prompt || ''
+      systemPrompt: props.character.system_prompt || '',
+      tagIds: props.character.tags ? props.character.tags.map(t => t.id) : []
     }
   }
 })
+
+// 创建标签
+async function handleCreateTag(data) {
+  try {
+    await globalCharsStore.createTag(data)
+  } catch (error) {
+    alert('创建标签失败：' + error.message)
+  }
+}
 
 async function handleSave() {
   if (!isFormValid.value || saving.value) return
@@ -128,7 +154,8 @@ async function handleSave() {
       name: form.value.name.trim(),
       gender: form.value.gender || null,
       age: form.value.age || null,
-      systemPrompt: form.value.systemPrompt.trim()
+      systemPrompt: form.value.systemPrompt.trim(),
+      tagIds: toRaw(form.value.tagIds)
     }
 
     if (isEditing.value) {

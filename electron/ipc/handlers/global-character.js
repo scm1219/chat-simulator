@@ -45,6 +45,13 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
         systemPrompt: data.systemPrompt.trim()
       })
 
+      // 设置角色标签
+      if (data.tagIds && data.tagIds.length > 0) {
+        globalCharManager.setCharacterTags(character.id, data.tagIds)
+      }
+
+      // 返回带标签的角色
+      character.tags = globalCharManager.getCharacterTags(character.id)
       return { success: true, data: character }
     } catch (error) {
       return { success: false, error: error.message }
@@ -67,6 +74,14 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
       }
 
       const character = globalCharManager.update(id, data)
+
+      // 更新角色标签
+      if (data.tagIds !== undefined) {
+        globalCharManager.setCharacterTags(id, data.tagIds)
+      }
+
+      // 返回带标签的角色
+      character.tags = globalCharManager.getCharacterTags(id)
       return { success: true, data: character }
     } catch (error) {
       return { success: false, error: error.message }
@@ -143,6 +158,128 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
 
       const newCharacter = db.prepare('SELECT * FROM characters WHERE id = ?').get(newCharId)
       return { success: true, data: newCharacter }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // ============ 标签管理 ============
+
+  // 获取所有标签
+  ipcMain.handle('globalCharacter:getAllTags', async () => {
+    try {
+      const tags = globalCharManager.getAllTags()
+      return { success: true, data: tags }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 创建标签
+  ipcMain.handle('globalCharacter:createTag', async (event, data) => {
+    try {
+      if (!data.name || !data.name.trim()) {
+        return { success: false, error: '标签名称不能为空' }
+      }
+
+      // 检查标签名是否已存在
+      const existing = globalCharManager.getAllTags().find(
+        t => t.name.toLowerCase() === data.name.trim().toLowerCase()
+      )
+      if (existing) {
+        return { success: false, error: '标签名称已存在' }
+      }
+
+      const tag = globalCharManager.createTag({
+        name: data.name.trim(),
+        color: data.color || '#07c160'
+      })
+      return { success: true, data: tag }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 更新标签
+  ipcMain.handle('globalCharacter:updateTag', async (event, id, data) => {
+    try {
+      const tag = globalCharManager.db.prepare('SELECT * FROM tags WHERE id = ?').get(id)
+      if (!tag) {
+        return { success: false, error: '标签不存在' }
+      }
+
+      // 检查新名称是否与其他标签冲突
+      if (data.name !== undefined) {
+        const existing = globalCharManager.getAllTags().find(
+          t => t.id !== id && t.name.toLowerCase() === data.name.trim().toLowerCase()
+        )
+        if (existing) {
+          return { success: false, error: '标签名称已存在' }
+        }
+      }
+
+      const updatedTag = globalCharManager.updateTag(id, data)
+      return { success: true, data: updatedTag }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 删除标签
+  ipcMain.handle('globalCharacter:deleteTag', async (event, id) => {
+    try {
+      const result = globalCharManager.deleteTag(id)
+      return result
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取角色的标签
+  ipcMain.handle('globalCharacter:getCharacterTags', async (event, characterId) => {
+    try {
+      const tags = globalCharManager.getCharacterTags(characterId)
+      return { success: true, data: tags }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 设置角色的标签
+  ipcMain.handle('globalCharacter:setCharacterTags', async (event, characterId, tagIds) => {
+    try {
+      globalCharManager.setCharacterTags(characterId, tagIds)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 根据标签筛选角色
+  ipcMain.handle('globalCharacter:getByTags', async (event, tagIds) => {
+    try {
+      const characters = globalCharManager.getCharactersByTags(tagIds)
+      return { success: true, data: characters }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取所有角色（含标签）
+  ipcMain.handle('globalCharacter:getAllWithTags', async () => {
+    try {
+      const characters = globalCharManager.getAllWithTags()
+      return { success: true, data: characters }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 搜索角色（支持标签筛选）
+  ipcMain.handle('globalCharacter:searchWithTags', async (event, keyword, tagIds) => {
+    try {
+      const characters = globalCharManager.searchWithTags(keyword, tagIds)
+      return { success: true, data: characters }
     } catch (error) {
       return { success: false, error: error.message }
     }

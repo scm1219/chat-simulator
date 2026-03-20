@@ -15,12 +15,13 @@
           :class="['character-item', { 'user-character': char.is_user === 1 }]"
         >
           <div class="character-header">
-            <input
-              v-model="char.name"
-              class="character-name-input"
-              @change="updateCharacter(char)"
-              placeholder="角色名称"
-            />
+            <button
+              v-if="char.is_user !== 1"
+              class="btn-delete-icon"
+              @click="deleteCharacter(char.id)"
+              title="删除角色"
+            >❌</button>
+            <span class="character-name">{{ char.name }}</span>
             <label v-if="char.is_user !== 1" class="toggle-switch">
               <input
                 type="checkbox"
@@ -32,13 +33,21 @@
             <span v-else class="user-badge">用户</span>
           </div>
 
-          <textarea
-            v-model="char.system_prompt"
-            class="character-prompt-input"
-            @change="updateCharacter(char)"
-            :placeholder="char.is_user === 1 ? '用户设定...' : '角色设定...'"
-            rows="4"
-          />
+          <!-- 折叠的角色设定（只读） -->
+          <div class="character-prompt-collapsed" v-if="!expandedPrompts[char.id]">
+            <button class="btn btn-link btn-sm expand-btn" @click="togglePromptExpand(char.id)">
+              📄 展开设定
+            </button>
+          </div>
+          <div class="character-prompt-expanded" v-else>
+            <div class="prompt-header">
+              <span class="prompt-label">角色设定（只读）</span>
+              <button class="btn btn-link btn-sm collapse-btn" @click="togglePromptExpand(char.id)">
+                ▲ 收起
+              </button>
+            </div>
+            <div class="character-prompt-readonly">{{ char.system_prompt || '暂无设定' }}</div>
+          </div>
 
           <!-- 指令输入和发送（仅 AI 角色） -->
           <div v-if="char.is_user !== 1" class="character-command">
@@ -55,12 +64,6 @@
               :disabled="!char.command || char.sending"
             >
               {{ char.sending ? '发送中...' : '发送' }}
-            </button>
-          </div>
-
-          <div v-if="char.is_user !== 1" class="character-actions">
-            <button class="btn btn-danger btn-sm" @click="deleteCharacter(char.id)">
-              删除
             </button>
           </div>
         </div>
@@ -139,18 +142,12 @@ const charactersStore = useCharactersStore()
 const messagesStore = useMessagesStore()
 const showCreateDialog = ref(false)
 const showGroupSettings = ref(false)
+const expandedPrompts = ref({})
 
 const currentGroup = computed(() => groupsStore.currentGroup)
 
-async function updateCharacter(char) {
-  try {
-    await charactersStore.updateCharacter(char.id, {
-      name: char.name,
-      systemPrompt: char.system_prompt
-    })
-  } catch (error) {
-    alert('更新角色失败: ' + error.message)
-  }
+function togglePromptExpand(charId) {
+  expandedPrompts.value[charId] = !expandedPrompts.value[charId]
 }
 
 async function toggleCharacter(char) {
@@ -273,26 +270,6 @@ async function sendCommand(char) {
     color: white;
     border: 2px solid #5a67d8;
 
-    .character-name-input {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      border-color: rgba(255, 255, 255, 0.3);
-
-      &::placeholder {
-        color: rgba(255, 255, 255, 0.6);
-      }
-    }
-
-    .character-prompt-input {
-      background: rgba(255, 255, 255, 0.15);
-      color: white;
-      border-color: rgba(255, 255, 255, 0.3);
-
-      &::placeholder {
-        color: rgba(255, 255, 255, 0.6);
-      }
-    }
-
     .user-badge {
       background: rgba(255, 255, 255, 0.3);
       color: white;
@@ -315,20 +292,60 @@ async function sendCommand(char) {
         border-color: rgba(255, 255, 255, 0.5);
       }
     }
+
+    .character-prompt-collapsed .expand-btn {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .character-prompt-expanded {
+      background: rgba(255, 255, 255, 0.1);
+
+      .prompt-header {
+        background: rgba(255, 255, 255, 0.15);
+        border-bottom-color: rgba(255, 255, 255, 0.2);
+
+        .prompt-label {
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .collapse-btn {
+          color: rgba(255, 255, 255, 0.8);
+        }
+      }
+
+      .character-prompt-readonly {
+        color: rgba(255, 255, 255, 0.95);
+      }
+    }
   }
 }
 
 .character-header {
   display: flex;
   align-items: center;
-  gap: $spacing-md;
+  gap: $spacing-sm;
   margin-bottom: $spacing-sm;
 }
 
-.character-name-input {
+.btn-delete-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.character-name {
   flex: 1;
-  @extend .input !optional;
   font-weight: $font-weight-medium;
+  font-size: $font-size-md;
 }
 
 .character-prompt-input {
@@ -353,9 +370,51 @@ async function sendCommand(char) {
   }
 }
 
-.character-actions {
-  display: flex;
-  justify-content: flex-end;
+.character-prompt-collapsed {
+  margin-bottom: $spacing-sm;
+
+  .expand-btn {
+    font-size: $font-size-sm;
+    color: $text-secondary;
+  }
+}
+
+.character-prompt-expanded {
+  margin-bottom: $spacing-sm;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: $border-radius-sm;
+  overflow: hidden;
+
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid $border-color;
+
+    .prompt-label {
+      font-size: $font-size-sm;
+      color: $text-secondary;
+      font-weight: $font-weight-medium;
+    }
+
+    .collapse-btn {
+      font-size: $font-size-xs;
+      color: $text-secondary;
+    }
+  }
+
+  .character-prompt-readonly {
+    padding: 10px;
+    font-size: $font-size-sm;
+    color: $text-primary;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
 }
 
 .character-command {

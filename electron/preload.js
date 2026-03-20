@@ -105,7 +105,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id) => ipcRenderer.invoke('globalCharacter:delete', id),
     search: (keyword) => ipcRenderer.invoke('globalCharacter:search', keyword),
     importToGroup: (characterId, groupId) =>
-      ipcRenderer.invoke('globalCharacter:importToGroup', characterId, groupId)
+      ipcRenderer.invoke('globalCharacter:importToGroup', characterId, groupId),
+    // 标签管理
+    getAllTags: () => ipcRenderer.invoke('globalCharacter:getAllTags'),
+    createTag: (data) => ipcRenderer.invoke('globalCharacter:createTag', data),
+    updateTag: (id, data) => ipcRenderer.invoke('globalCharacter:updateTag', id, data),
+    deleteTag: (id) => ipcRenderer.invoke('globalCharacter:deleteTag', id),
+    getCharacterTags: (characterId) =>
+      ipcRenderer.invoke('globalCharacter:getCharacterTags', characterId),
+    setCharacterTags: (characterId, tagIds) =>
+      ipcRenderer.invoke('globalCharacter:setCharacterTags', characterId, tagIds),
+    getByTags: (tagIds) => ipcRenderer.invoke('globalCharacter:getByTags', tagIds),
+    getAllWithTags: () => ipcRenderer.invoke('globalCharacter:getAllWithTags'),
+    searchWithTags: (keyword, tagIds) =>
+      ipcRenderer.invoke('globalCharacter:searchWithTags', keyword, tagIds)
   }
 })
 
