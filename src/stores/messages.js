@@ -165,17 +165,27 @@ export const useMessagesStore = defineStore('messages', () => {
       messages.value.push({
         ...data,
         isStreaming: true,
-        streamContent: '' // 存储流式内容
+        streamContent: '', // 存储流式内容
+        streamReasoningContent: '' // 存储流式思考内容
       })
     })
 
     // 监听流式内容片段
     streamChunkListener = window.electronAPI.message.onStreamChunk((data) => {
-      console.log('[Messages] 收到流式内容片段', data.tempId, data.content?.length)
+      console.log('[Messages] 收到流式内容片段', data.tempId, data.type, data.content?.length)
       // 更新临时消息的流式内容
       const message = messages.value.find(msg => msg.id === data.tempId || msg.tempId === data.tempId)
       if (message) {
-        message.streamContent = (message.streamContent || '') + data.content
+        if (data.type === 'reasoning') {
+          // 思考内容片段
+          message.streamReasoningContent = (message.streamReasoningContent || '') + data.content
+        } else if (data.type === 'content') {
+          // 回答内容片段
+          message.streamContent = (message.streamContent || '') + data.content
+        } else {
+          // 兼容旧格式（没有 type 字段）
+          message.streamContent = (message.streamContent || '') + data.content
+        }
       }
     })
 
@@ -184,7 +194,7 @@ export const useMessagesStore = defineStore('messages', () => {
       console.log('[Messages] 流式消息结束', data)
       // 移除临时消息
       messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
-      // 添加最终消息
+      // 添加最终消息（包含思考内容）
       messages.value.push({
         id: data.finalId,
         group_id: data.groupId,
@@ -192,6 +202,7 @@ export const useMessagesStore = defineStore('messages', () => {
         characterName: data.characterName,
         role: data.role,
         content: data.content,
+        reasoning_content: data.reasoningContent || null,
         timestamp: data.timestamp
       })
     })

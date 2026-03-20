@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS messages (
   character_id TEXT,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
+  reasoning_content TEXT,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
   FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE SET NULL

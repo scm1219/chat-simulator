@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS messages (
   character_id TEXT,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
+  reasoning_content TEXT,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
   FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE SET NULL
@@ -117,6 +118,24 @@ export class DatabaseManager {
    */
   initSchema(db) {
     db.exec(SCHEMA_SQL)
+
+    // 执行数据库迁移
+    this.runMigrations(db)
+  }
+
+  /**
+   * 执行数据库迁移
+   */
+  runMigrations(db) {
+    // 检查 messages 表是否有 reasoning_content 字段
+    const tableInfo = db.pragma('table_info(messages)')
+    const hasReasoningContent = tableInfo.some(col => col.name === 'reasoning_content')
+
+    if (!hasReasoningContent) {
+      console.log('[Database] 执行迁移：添加 messages.reasoning_content 字段')
+      db.exec('ALTER TABLE messages ADD COLUMN reasoning_content TEXT')
+      console.log('[Database] 迁移完成：reasoning_content 字段已添加')
+    }
   }
 
   /**

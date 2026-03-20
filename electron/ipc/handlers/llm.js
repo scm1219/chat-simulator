@@ -78,9 +78,14 @@ export function setupLLMHandlers(dbManager) {
       // 4. 获取历史消息（根据 max_history 限制）
       const maxMessages = (group.max_history || 10) * 2 + 1 // +1 是刚才添加的用户消息
       const history = db.prepare(`
-        SELECT * FROM messages
-        WHERE group_id = ?
-        ORDER BY timestamp DESC
+        SELECT
+          m.*,
+          c.name as character_name,
+          c.is_user as character_is_user
+        FROM messages m
+        LEFT JOIN characters c ON m.character_id = c.id
+        WHERE m.group_id = ?
+        ORDER BY m.timestamp DESC
         LIMIT ?
       `).all(groupId, maxMessages).reverse()
       console.log('[LLM] 历史消息数量', history.length)
@@ -200,9 +205,14 @@ export function setupLLMHandlers(dbManager) {
       // 5. 获取历史消息
       const maxMessages = (group.max_history || 10) * 2 + 1
       const history = db.prepare(`
-        SELECT * FROM messages
-        WHERE group_id = ?
-        ORDER BY timestamp DESC
+        SELECT
+          m.*,
+          c.name as character_name,
+          c.is_user as character_is_user
+        FROM messages m
+        LEFT JOIN characters c ON m.character_id = c.id
+        WHERE m.group_id = ?
+        ORDER BY m.timestamp DESC
         LIMIT ?
       `).all(groupId, maxMessages).reverse()
 
@@ -410,25 +420,37 @@ async function generateCharacterResponse(client, character, history, userContent
     const result = await client.chat(messages, {
       thinkingEnabled: thinkingEnabled,
       onChunk: (chunk) => {
-        // 实时推送内容片段
-        event.sender.send('message:stream:chunk', {
-          tempId: tempMessageId,
-          content: chunk
-        })
+        // chunk 格式: { type: 'reasoning' | 'content', content: string }
+        if (chunk.type === 'reasoning') {
+          // 推送思考过程片段
+          event.sender.send('message:stream:chunk', {
+            tempId: tempMessageId,
+            type: 'reasoning',
+            content: chunk.content
+          })
+        } else if (chunk.type === 'content') {
+          // 推送回答内容片段
+          event.sender.send('message:stream:chunk', {
+            tempId: tempMessageId,
+            type: 'content',
+            content: chunk.content
+          })
+        }
       }
     })
 
     if (result.success) {
       console.log(`[LLM] ${character.name} - 回复生成成功`, {
-        contentLength: result.content?.length
+        contentLength: result.content?.length,
+        hasReasoningContent: !!result.reasoningContent
       })
 
-      // 保存完整回复到数据库
+      // 保存完整回复到数据库（包含思考内容）
       const assistantMsgId = generateUUID()
       db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content)
+        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null)
 
       // 通知渲染进程：流式结束，发送完整消息
       event.sender.send('message:stream:end', {
@@ -439,6 +461,7 @@ async function generateCharacterResponse(client, character, history, userContent
         characterName: character.name,
         role: 'assistant',
         content: result.content,
+        reasoningContent: result.reasoningContent || null,
         timestamp: new Date().toISOString()
       })
 
@@ -446,7 +469,8 @@ async function generateCharacterResponse(client, character, history, userContent
         success: true,
         characterId: character.id,
         characterName: character.name,
-        content: result.content
+        content: result.content,
+        reasoningContent: result.reasoningContent || null
       }
     } else {
       console.error(`[LLM] ${character.name} - 回复生成失败`, result.error)
@@ -515,23 +539,69 @@ function buildContextMessages(character, history, userContent, background = null
     content: character.system_prompt
   })
 
-  // 4.5 添加强制性指令：只扮演当前角色
+  // 5. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
+  const roleMessages = history
+    .filter(msg => {
+      // 过滤掉系统消息
+      if (msg.role === 'system') return false
+
+      // 检查消息内容是否存在
+      if (!msg.content) return false
+
+      const content = msg.content.trim()
+
+      // 过滤掉【角色指令】消息（这些是一次性指令，不应该出现在历史中）
+      if (content.includes('【角色指令】')) {
+        console.log(`[LLM] 过滤掉角色指令消息:`, content.substring(0, 100))
+        return false
+      }
+
+      // 过滤掉给其他角色的定向用户指令
+      // 判断标准：user 消息中包含 @角色名 格式，且不是给当前角色的
+      if (msg.role === 'user') {
+        // 检测 @角色名 格式
+        const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
+        if (atMatch) {
+          const targetCharacterName = atMatch[1]
+
+          // 如果这条指令不是给当前角色的，过滤掉
+          if (targetCharacterName !== character.name) {
+            console.log(`[LLM] 过滤掉给角色"${targetCharacterName}"的定向指令:`, content)
+            return false
+          }
+        }
+      }
+
+      return true
+    })
+    .map(msg => {
+      // 构建消息内容
+      let content = msg.content
+
+      // 如果是 assistant 消息且有角色名称，添加角色名前缀
+      if (msg.role === 'assistant' && msg.character_name) {
+        content = `${msg.character_name}：${content}`
+      }
+      // 如果是 user 消息且有角色名称（用户角色），也添加角色名前缀
+      else if (msg.role === 'user' && msg.character_name) {
+        content = `${msg.character_name}：${content}`
+      }
+
+      return {
+        role: msg.role,
+        content: content
+      }
+    })
+
+  messages.push(...roleMessages)
+
+  // 6. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
   messages.push({
     role: 'system',
     content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。`
   })
 
-  // 5. 添加历史消息（排除当前角色的 assistant 消息，避免重复）
-  const roleMessages = history
-    .filter(msg => msg.role !== 'system')
-    .map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-
-  messages.push(...roleMessages)
-
-  // 6. 添加当前用户消息
+  // 7. 添加当前用户消息
   messages.push({
     role: 'user',
     content: userContent

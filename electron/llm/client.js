@@ -168,7 +168,9 @@ export class LLMClient {
           }
         }
 
-        const content = response.data.choices[0].message?.content
+        const message = response.data.choices[0].message
+        const content = message?.content
+        const reasoningContent = message?.reasoning_content
 
         if (!content) {
           console.error('[LLM Client] 响应中没有 content', response.data.choices[0])
@@ -181,6 +183,7 @@ export class LLMClient {
         return {
           success: true,
           content: content,
+          reasoningContent: reasoningContent,
           usage: response.data.usage
         }
       }
@@ -199,6 +202,7 @@ export class LLMClient {
       })
 
       let fullContent = ''
+      let fullReasoningContent = ''
 
       return new Promise((resolve, reject) => {
         response.data.on('data', (chunk) => {
@@ -212,19 +216,29 @@ export class LLMClient {
                 // 流式结束
                 resolve({
                   success: true,
-                  content: fullContent
+                  content: fullContent,
+                  reasoningContent: fullReasoningContent || null
                 })
                 return
               }
 
               try {
                 const parsed = JSON.parse(data)
-                const content = parsed.choices?.[0]?.delta?.content
+                const delta = parsed.choices?.[0]?.delta
+
+                const content = delta?.content
+                const reasoningContent = delta?.reasoning_content
+
+                if (reasoningContent) {
+                  fullReasoningContent += reasoningContent
+                  // 推送思考内容片段
+                  onChunk({ type: 'reasoning', content: reasoningContent })
+                }
 
                 if (content) {
                   fullContent += content
-                  // 实时推送内容片段
-                  onChunk(content)
+                  // 推送回答内容片段
+                  onChunk({ type: 'content', content: content })
                 }
               } catch (e) {
                 console.warn('[LLM] 解析流式数据失败', e.message)
@@ -234,12 +248,11 @@ export class LLMClient {
         })
 
         response.data.on('end', () => {
-          if (fullContent) {
-            resolve({
-              success: true,
-              content: fullContent
-            })
-          }
+          resolve({
+            success: true,
+            content: fullContent,
+            reasoningContent: fullReasoningContent || null
+          })
         })
 
         response.data.on('error', (error) => {

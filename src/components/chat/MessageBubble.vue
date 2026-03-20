@@ -40,6 +40,19 @@
           </button>
         </div>
       </div>
+
+      <!-- 思考过程展示区域 -->
+      <div v-if="showReasoningContent" class="reasoning-content">
+        <div class="reasoning-header" @click="toggleReasoningExpanded">
+          <span class="reasoning-icon">🧠</span>
+          <span class="reasoning-title">思考过程</span>
+          <span class="reasoning-toggle">{{ reasoningExpanded ? '收起' : '展开' }}</span>
+        </div>
+        <div v-show="reasoningExpanded" class="reasoning-text">
+          {{ displayReasoningContent }}
+        </div>
+      </div>
+
       <div
         v-if="!editing"
         class="bubble-content"
@@ -95,6 +108,35 @@ const formattedTime = computed(() => {
     minute: '2-digit'
   })
 })
+
+// 思考过程相关状态
+const reasoningExpanded = ref(false)
+
+// 是否显示思考内容
+const showReasoningContent = computed(() => {
+  if (isUser.value) return false
+
+  // 检查是否有 reasoning_content
+  const hasReasoning = props.message.reasoning_content ||
+                       props.message.reasoningContent ||
+                       (props.message.streamReasoningContent && props.message.streamReasoningContent.length > 0)
+
+  return !!hasReasoning
+})
+
+// 显示的思考内容
+const displayReasoningContent = computed(() => {
+  // 优先使用 reasoning_content，其次 reasoningContent，最后 streamReasoningContent
+  return props.message.reasoning_content ||
+         props.message.reasoningContent ||
+         props.message.streamReasoningContent ||
+         ''
+})
+
+// 切换思考内容展开/折叠
+function toggleReasoningExpanded() {
+  reasoningExpanded.value = !reasoningExpanded.value
+}
 
 // 显示的内容
 // - 用户消息：直接显示
@@ -336,5 +378,61 @@ async function deleteMessage() {
 
 .assistant .message-time {
   text-align: left;
+}
+
+// 思考过程样式
+.reasoning-content {
+  margin-bottom: $spacing-sm;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  background: $bg-secondary;
+  overflow: hidden;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  cursor: pointer;
+  user-select: none;
+  background: $bg-tertiary;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: darken($bg-tertiary, 5%);
+  }
+}
+
+.reasoning-icon {
+  font-size: $font-size-md;
+}
+
+.reasoning-title {
+  flex: 1;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  color: $text-secondary;
+}
+
+.reasoning-toggle {
+  font-size: $font-size-xs;
+  color: $text-placeholder;
+  transition: color 0.2s ease;
+
+  .reasoning-header:hover & {
+    color: $text-secondary;
+  }
+}
+
+.reasoning-text {
+  padding: $spacing-md;
+  font-size: $font-size-sm;
+  line-height: 1.6;
+  color: $text-secondary;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: $bg-secondary;
+  border-top: 1px solid $border-color;
 }
 </style>
