@@ -13,6 +13,7 @@ export class LLMClient {
     this.baseURL = config.baseURL
     this.model = config.model
     this.timeout = config.timeout || 60000 // 默认 60 秒
+    this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true // 默认启用流式输出
 
     // 获取供应商默认配置
     const providerConfig = getProviderConfig(this.provider)
@@ -27,6 +28,46 @@ export class LLMClient {
       headers: this.buildHeaders(),
       proxy: buildAxiosProxyConfig(config.proxy || {})
     })
+
+    // 添加请求拦截器用于调试
+    this.client.interceptors.request.use(
+      (request) => {
+        console.log('[LLM Client] 发送请求:', {
+          url: request.url,
+          method: request.method,
+          baseURL: request.baseURL,
+          fullURL: `${request.baseURL}${request.url}`,
+          model: request.data?.model
+        })
+        return request
+      },
+      (error) => {
+        console.error('[LLM Client] 请求错误:', error)
+        return Promise.reject(error)
+      }
+    )
+
+    // 添加响应拦截器用于调试
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log('[LLM Client] 收到响应:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          dataKeys: Object.keys(response.data || {}),
+          hasChoices: !!response.data?.choices
+        })
+        return response
+      },
+      (error) => {
+        console.error('[LLM Client] 响应错误:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        })
+        return Promise.reject(error)
+      }
+    )
   }
 
   /**
@@ -51,7 +92,20 @@ export class LLMClient {
    * @param {Function} options.onChunk - 流式输出回调函数
    */
   async chat(messages, options = {}) {
-    const isStreaming = options.onChunk && typeof options.onChunk === 'function'
+    // 确定是否使用流式输出：
+    // 1. 如果 options 明确指定了 onChunk，则使用流式
+    // 2. 否则使用配置中的 streamEnabled 设置
+    const hasOnChunk = options.onChunk && typeof options.onChunk === 'function'
+    const useStreaming = hasOnChunk || (this.streamEnabled && options.streaming !== false)
+    const isStreaming = useStreaming && typeof options.onChunk === 'function'
+
+    console.log('[LLM Client] 流式输出设置:', {
+      configStreamEnabled: this.streamEnabled,
+      hasOnChunk: hasOnChunk,
+      optionsStreaming: options.streaming,
+      useStreaming: useStreaming,
+      isStreaming: isStreaming
+    })
 
     try {
       const requestData = {
@@ -62,12 +116,33 @@ export class LLMClient {
         stream: isStreaming // 启用流式输出
       }
 
-      // 如果启用思考模式，添加 thinking 参数
-      if (options.thinkingEnabled) {
+      // 处理思考模式参数（智谱 GLM 等模型支持）
+      if (options.thinkingEnabled === true) {
+        // 明确启用思考模式
         requestData.thinking = {
           type: 'enabled'
         }
+      } else if (options.thinkingEnabled === false) {
+        // 明确禁用思考模式
+        requestData.thinking = {
+          type: 'disabled'
+        }
       }
+      // 如果 options.thinkingEnabled 为 undefined，则不添加 thinking 参数，让模型自动决定
+
+      // 打印请求参数（用于调试）
+      console.log('[LLM Client] 请求参数:', {
+        model: requestData.model,
+        messageCount: requestData.messages.length,
+        messages: requestData.messages.map(msg => ({
+          role: msg.role,
+          content: msg.content?.substring(0, 100) + (msg.content?.length > 100 ? '...' : '')
+        })),
+        temperature: requestData.temperature,
+        max_tokens: requestData.max_tokens,
+        stream: requestData.stream,
+        thinking: requestData.thinking || '未设置（模型自动决定）'
+      })
 
       if (isStreaming) {
         // 流式请求
@@ -76,9 +151,36 @@ export class LLMClient {
         // 非流式请求
         const response = await this.client.post('/chat/completions', requestData)
 
+        console.log('[LLM Client] API 响应数据:', {
+          status: response.status,
+          hasData: !!response.data,
+          hasChoices: !!response.data?.choices,
+          choicesLength: response.data?.choices?.length,
+          firstChoice: response.data?.choices?.[0]
+        })
+
+        // 检查响应格式
+        if (!response.data || !response.data.choices || response.data.choices.length === 0) {
+          console.error('[LLM Client] 响应格式错误', response.data)
+          return {
+            success: false,
+            error: 'API 返回格式错误：缺少 choices 字段'
+          }
+        }
+
+        const content = response.data.choices[0].message?.content
+
+        if (!content) {
+          console.error('[LLM Client] 响应中没有 content', response.data.choices[0])
+          return {
+            success: false,
+            error: 'API 返回的内容为空'
+          }
+        }
+
         return {
           success: true,
-          content: response.data.choices[0].message.content,
+          content: content,
           usage: response.data.usage
         }
       }
@@ -162,12 +264,22 @@ export class LLMClient {
         max_tokens: 10
       })
 
+      console.log('[LLM Client] 测试连接响应:', {
+        status: response.status,
+        dataKeys: Object.keys(response.data || {})
+      })
+
       return {
         success: true,
         message: '连接成功',
         model: this.model
       }
     } catch (error) {
+      console.error('[LLM Client] 测试连接失败:', error.message)
+      console.error('[LLM Client] 错误详情:', {
+        response: error.response?.data,
+        status: error.response?.status
+      })
       return this.handleError(error)
     }
   }

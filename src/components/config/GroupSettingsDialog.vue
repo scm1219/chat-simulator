@@ -38,12 +38,12 @@
           </small>
         </div>
 
-        <div class="form-group">
+        <div class="form-group inline-group">
           <label>最大历史轮数</label>
           <input
             v-model.number="form.maxHistory"
             type="number"
-            class="input"
+            class="input number-input"
             min="1"
             max="50"
           />
@@ -54,14 +54,24 @@
 
         <div class="form-group">
           <label>回复模式</label>
-          <select v-model="form.responseMode" class="input">
-            <option value="sequential">顺序模式</option>
-            <option value="parallel">并行模式</option>
-          </select>
-          <small class="hint">
-            顺序模式：角色依次回复，后回复的角色能看到前面的回复
-            并行模式：所有角色同时回复，互不干扰
-          </small>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input
+                type="radio"
+                v-model="form.responseMode"
+                value="sequential"
+              />
+              <span>顺序模式</span>
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                v-model="form.responseMode"
+                value="parallel"
+              />
+              <span>并行模式</span>
+            </label>
+          </div>
         </div>
 
         <div class="form-group">
@@ -251,6 +261,28 @@ async function handleSave() {
     color: $text-secondary;
   }
 
+  &.inline-group {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+
+    label {
+      flex-shrink: 0;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+
+    .number-input {
+      width: 100px;
+      flex-shrink: 0;
+    }
+
+    .hint {
+      margin-bottom: 0;
+      margin-left: auto;
+    }
+  }
+
   .input {
     width: 100%;
     padding: 8px 12px;
@@ -275,6 +307,36 @@ async function handleSave() {
       min-height: 120px;
       font-family: inherit;
       line-height: 1.5;
+    }
+  }
+
+  .radio-group {
+    display: flex;
+    gap: $spacing-lg;
+    padding: $spacing-sm 0;
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: $spacing-xs;
+      cursor: pointer;
+      user-select: none;
+
+      input[type="radio"] {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+        accent-color: $color-primary;
+      }
+
+      span {
+        font-size: $font-size-md;
+        color: $text-primary;
+      }
+
+      &:hover span {
+        color: $color-primary;
+      }
     }
   }
 }

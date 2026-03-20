@@ -38,6 +38,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
   async function sendMessage(content) {
     const groupsStore = useGroupsStore()
+    const charactersStore = useCharactersStore()
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
@@ -49,10 +50,17 @@ export const useMessagesStore = defineStore('messages', () => {
     sending.value = true
 
     try {
+      // 找到用户角色
+      const userCharacter = charactersStore.characters.find(c => c.is_user === 1)
+      const userCharacterId = userCharacter?.id || null
+      const userCharacterName = userCharacter?.name || '用户'
+
       // 立即添加用户消息到界面
       const userMessage = {
         id: 'user_' + Date.now(),
         group_id: groupId,
+        character_id: userCharacterId,
+        characterName: userCharacterName,
         role: 'user',
         content: content,
         timestamp: new Date().toISOString()
@@ -79,6 +87,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
   async function sendMessageToCharacter(characterId, instruction) {
     const groupsStore = useGroupsStore()
+    const charactersStore = useCharactersStore()
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
@@ -90,10 +99,17 @@ export const useMessagesStore = defineStore('messages', () => {
     sending.value = true
 
     try {
+      // 找到用户角色
+      const userCharacter = charactersStore.characters.find(c => c.is_user === 1)
+      const userCharacterId = userCharacter?.id || null
+      const userCharacterName = userCharacter?.name || '用户'
+
       // 立即添加用户消息到界面
       const userMessage = {
         id: 'user_' + Date.now(),
         group_id: groupId,
+        character_id: userCharacterId,
+        characterName: userCharacterName,
         role: 'user',
         content: instruction,
         timestamp: new Date().toISOString()

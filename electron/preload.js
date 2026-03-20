@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('llm:generate', groupId, content, characterId),
     generateCharacterCommand: (groupId, characterId, instruction) =>
       ipcRenderer.invoke('llm:generateCharacterCommand', groupId, characterId, instruction),
+    generateCharacter: (hint) => ipcRenderer.invoke('llm:generateCharacter', hint),
     onProgress: (callback) => {
       const listener = (event, data) => callback(data)
       ipcRenderer.on('llm:progress', listener)

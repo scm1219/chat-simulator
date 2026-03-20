@@ -283,6 +283,8 @@ onMounted(async () => {
   flex: 1;
   overflow-y: auto;
   padding: $spacing-lg;
+  display: flex;
+  flex-direction: column;
 }
 
 .empty-state,

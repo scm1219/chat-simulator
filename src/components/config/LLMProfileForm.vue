@@ -118,6 +118,20 @@
     <div class="form-group">
       <label class="checkbox-label">
         <input
+          v-model="form.streamEnabled"
+          type="checkbox"
+          :disabled="submitting"
+        />
+        <span>启用流式输出</span>
+      </label>
+      <small class="hint">
+        启用后，AI 回复会逐字显示，提升响应体验（推荐开启）
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input
           v-model="form.thinkingEnabled"
           type="checkbox"
           :disabled="submitting"
@@ -163,6 +177,7 @@ const props = defineProps({
       apiKey: '',
       baseURL: '',
       model: '',
+      streamEnabled: true,    // 默认启用流式输出
       thinkingEnabled: false
     })
   },

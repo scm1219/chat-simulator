@@ -6,6 +6,7 @@ import { LLMClient } from '../../llm/client.js'
 import { getAllProviders } from '../../llm/providers/index.js'
 import { getProxyConfig } from '../../llm/proxy.js'
 import { getGlobalLLMConfig } from '../../config/manager.js'
+import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { generateUUID } from '../../utils/uuid.js'
 
 export function setupLLMHandlers(dbManager) {
@@ -98,14 +99,25 @@ export function setupLLMHandlers(dbManager) {
 
       // 6. 创建 LLM 客户端
       const proxyConfig = getProxyConfig()
+
+      // 获取 LLM 配置文件，读取流式输出设置
+      const llmProfiles = getLLMProfiles()
+      const currentProfile = llmProfiles.find(p =>
+        p.provider === group.llm_provider && p.model === group.llm_model
+      )
+      const streamEnabled = currentProfile?.streamEnabled !== undefined
+        ? currentProfile.streamEnabled
+        : true
+
       const client = new LLMClient({
         provider: group.llm_provider,
         apiKey: apiKey,
         baseURL: group.llm_base_url,
         model: group.llm_model,
-        proxy: proxyConfig
+        proxy: proxyConfig,
+        streamEnabled: streamEnabled
       })
-      console.log('[LLM] LLM 客户端创建成功')
+      console.log('[LLM] LLM 客户端创建成功', { streamEnabled })
 
       // 7. 根据回复模式调用 LLM
       const responseMode = group.response_mode || 'sequential'
@@ -207,12 +219,23 @@ export function setupLLMHandlers(dbManager) {
 
       // 7. 创建 LLM 客户端
       const proxyConfig = getProxyConfig()
+
+      // 获取 LLM 配置文件，读取流式输出设置
+      const llmProfiles = getLLMProfiles()
+      const currentProfile = llmProfiles.find(p =>
+        p.provider === group.llm_provider && p.model === group.llm_model
+      )
+      const streamEnabled = currentProfile?.streamEnabled !== undefined
+        ? currentProfile.streamEnabled
+        : true
+
       const client = new LLMClient({
         provider: group.llm_provider,
         apiKey: apiKey,
         baseURL: group.llm_base_url,
         model: group.llm_model,
-        proxy: proxyConfig
+        proxy: proxyConfig,
+        streamEnabled: streamEnabled
       })
 
       // 8. 生成单角色回复
@@ -236,6 +259,119 @@ export function setupLLMHandlers(dbManager) {
       return { success: true, data: [response] }
     } catch (error) {
       console.error('[LLM] 生成单角色指令回复失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 生成角色信息（角色抽卡）
+  ipcMain.handle('llm:generateCharacter', async (event, hint = '') => {
+    console.log('[LLM] 开始生成角色信息', { hint })
+
+    try {
+      // 1. 获取 LLM 配置文件列表
+      const llmProfiles = getLLMProfiles()
+
+      if (llmProfiles.length === 0) {
+        return { success: false, error: '请先在 LLM 配置管理中添加配置' }
+      }
+
+      // 2. 使用第一个配置文件
+      const profile = llmProfiles[0]
+      console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
+
+      // 3. 创建 LLM 客户端
+      const proxyConfig = getProxyConfig()
+      const client = new LLMClient({
+        provider: profile.provider,
+        apiKey: profile.apiKey,
+        baseURL: profile.baseURL,
+        model: profile.model,
+        proxy: proxyConfig,
+        streamEnabled: false // 抽卡功能强制禁用流式输出，确保获取完整 JSON
+      })
+
+      // 4. 构建生成角色的提示词
+      const systemPrompt = `你是一个专业的角色设定专家。根据用户的提示（如果有的话），创造一个有趣、立体的角色。
+
+请严格按照以下 JSON 格式返回角色信息，不要添加任何其他文字：
+
+{
+  "name": "角色名称",
+  "gender": "male 或 female 或 other",
+  "age": 数字年龄,
+  "systemPrompt": "详细的人物设定，包括性格特点、背景故事、说话风格等（200-500字）"
+}
+
+要求：
+1. 角色名称简洁有趣，2-8个字符
+2. 性别必须是 male、female 或 other 之一
+3. 年龄必须是数字
+4. 人物设定要详细且有特色，包括：性格、背景、说话风格、行为习惯等
+5. 避免创造过于常见或陈词滥调的角色
+6. 如果用户提供了提示，请参考用户的提示生成角色
+7. 只返回 JSON，不要有其他文字`
+
+      const userPrompt = hint ? `请根据以下提示生成一个角色：${hint}` : '请随机生成一个有趣的角色'
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+
+      // 5. 调用 LLM（禁用思考模式，确保返回纯 JSON）
+      const result = await client.chat(messages, {
+        temperature: 0.9, // 提高创造性
+        maxTokens: 1000,
+        thinkingEnabled: false // 明确禁用思考模式
+      })
+
+      console.log('[LLM] LLM 响应', {
+        success: result.success,
+        hasContent: !!result.content,
+        contentLength: result.content?.length,
+        error: result.error
+      })
+
+      if (!result.success) {
+        console.error('[LLM] 生成角色信息失败', result.error)
+        return { success: false, error: result.error }
+      }
+
+      if (!result.content || result.content.trim().length === 0) {
+        console.error('[LLM] LLM 返回了空响应')
+        return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
+      }
+
+      // 6. 解析 JSON 响应
+      let characterData
+      try {
+        // 提取 JSON（可能有 markdown 代码块）
+        let jsonStr = result.content.trim()
+
+        console.log('[LLM] 原始响应内容（前 200 字符）:', jsonStr.substring(0, 200))
+
+        // 移除可能的 markdown 代码块标记
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+        }
+
+        characterData = JSON.parse(jsonStr)
+      } catch (parseError) {
+        console.error('[LLM] 解析 JSON 失败', parseError.message)
+        console.error('[LLM] 原始响应', result.content)
+        return { success: false, error: 'LLM 返回的格式不正确，请重试' }
+      }
+
+      // 7. 验证数据
+      if (!characterData.name || !characterData.systemPrompt) {
+        return { success: false, error: '角色信息不完整，请重试' }
+      }
+
+      console.log('[LLM] 角色信息生成成功', characterData)
+
+      return { success: true, data: characterData }
+    } catch (error) {
+      console.error('[LLM] 生成角色信息失败', error)
       return { success: false, error: error.message }
     }
   })

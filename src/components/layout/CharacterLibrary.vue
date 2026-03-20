@@ -3,6 +3,9 @@
     <div class="library-header">
       <h3>角色库</h3>
       <div class="header-actions">
+        <button class="btn btn-gacha btn-sm" @click="showGachaDialog = true" title="AI 角色抽卡">
+          🎲 抽卡
+        </button>
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
           + 新建
         </button>
@@ -107,6 +110,13 @@
       @close="closeDialog"
       @saved="handleSaved"
     />
+
+    <!-- 角色抽卡对话框 -->
+    <CharacterGachaDialog
+      v-if="showGachaDialog"
+      @close="closeGachaDialog"
+      @created="handleGachaCreated"
+    />
   </div>
 </template>
 
@@ -118,6 +128,7 @@ import { useCharactersStore } from '../../stores/characters.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
+import CharacterGachaDialog from '../config/CharacterGachaDialog.vue'
 import TagFilter from '../common/TagFilter.vue'
 
 const globalCharsStore = useGlobalCharactersStore()
@@ -128,6 +139,7 @@ const { confirm } = useDialog()
 
 const searchKeyword = ref('')
 const showCreateDialog = ref(false)
+const showGachaDialog = ref(false)
 const editingCharacter = ref(null)
 
 // 是否有筛选条件
@@ -221,6 +233,18 @@ async function handleDelete(character) {
 function closeDialog() {
   showCreateDialog.value = false
   editingCharacter.value = null
+}
+
+// 关闭抽卡对话框
+function closeGachaDialog() {
+  showGachaDialog.value = false
+}
+
+// 抽卡成功
+async function handleGachaCreated() {
+  closeGachaDialog()
+  // 重新加载角色列表
+  await globalCharsStore.loadCharacters()
 }
 
 // 保存成功
@@ -377,6 +401,21 @@ onMounted(async () => {
 
   &:hover {
     background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.btn-gacha {
+  background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+  color: white;
+  border: none;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 107, 107, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 

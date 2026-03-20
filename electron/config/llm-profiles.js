@@ -26,7 +26,24 @@ export function getLLMProfiles() {
   try {
     if (fs.existsSync(LLM_PROFILES_FILE)) {
       const data = fs.readFileSync(LLM_PROFILES_FILE, 'utf-8')
-      return JSON.parse(data)
+      const profiles = JSON.parse(data)
+
+      // 迁移：为没有 streamEnabled 字段的配置添加默认值
+      let migrated = false
+      profiles.forEach(profile => {
+        if (profile.streamEnabled === undefined) {
+          profile.streamEnabled = true // 默认启用
+          migrated = true
+        }
+      })
+
+      // 如果有迁移，保存更新后的配置
+      if (migrated) {
+        saveLLMProfiles(profiles)
+        console.log('[LLM Profiles] 已迁移配置，添加 streamEnabled 字段')
+      }
+
+      return profiles
     }
   } catch (error) {
     console.error('Failed to load LLM profiles:', error)

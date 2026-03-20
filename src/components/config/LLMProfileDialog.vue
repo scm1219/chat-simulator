@@ -184,7 +184,8 @@ async function handleTest(profile) {
       provider: profile.provider,
       apiKey: profile.apiKey,
       baseURL: profile.baseURL,
-      model: profile.model
+      model: profile.model,
+      streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true
     })
 
     if (result.success) {

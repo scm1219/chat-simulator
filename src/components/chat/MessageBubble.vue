@@ -2,7 +2,9 @@
   <div :class="['message-bubble', message.role]" ref="messageContainer">
     <div v-if="isUser" class="message-content-user">
       <div class="message-header">
-        <div v-if="character" class="character-name">{{ character.name }}</div>
+        <div v-if="character || message.characterName" class="character-name">
+          {{ character?.name || message.characterName || '用户' }}
+        </div>
         <div class="message-actions">
           <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
             ✏️

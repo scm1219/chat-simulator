@@ -1,6 +1,53 @@
 <template>
   <div class="character-panel">
     <div v-if="currentGroup" class="panel-content">
+      <!-- 群设置 -->
+      <div class="panel-section">
+        <div class="section-header">
+          <h3>群设置</h3>
+          <button class="btn btn-link btn-sm" @click="showGroupSettings = true">
+            ⚙️ 编辑
+          </button>
+        </div>
+        <div class="setting-item inline-setting">
+          <label>最大历史轮数</label>
+          <input
+            type="number"
+            :value="currentGroup.max_history"
+            @change="updateMaxHistory"
+            class="input setting-input number-input"
+            min="1"
+            max="50"
+          />
+        </div>
+        <div class="setting-item inline-setting">
+          <label>回复模式</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="response-mode"
+                :value="currentGroup.response_mode"
+                :checked="currentGroup.response_mode === 'sequential'"
+                @change="updateResponseMode({ target: { value: 'sequential' }})"
+              />
+              <span>顺序</span>
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="response-mode"
+                :value="currentGroup.response_mode"
+                :checked="currentGroup.response_mode === 'parallel'"
+                @change="updateResponseMode({ target: { value: 'parallel' }})"
+              />
+              <span>并行</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 角色列表 -->
       <div class="panel-section">
         <h3>角色列表</h3>
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
@@ -30,7 +77,12 @@
               />
               <span class="slider"></span>
             </label>
-            <span v-else class="user-badge">用户</span>
+            <div v-else class="user-actions">
+              <span class="user-badge">用户</span>
+              <button class="btn-edit-icon" @click="editCharacter(char)" title="编辑用户设定">
+                ✏️
+              </button>
+            </div>
           </div>
 
           <!-- 折叠的角色设定（只读） -->
@@ -73,38 +125,6 @@
           <p class="hint">点击"添加角色"创建一个</p>
         </div>
       </div>
-
-      <!-- 群设置 -->
-      <div class="panel-section">
-        <div class="section-header">
-          <h3>群设置</h3>
-          <button class="btn btn-link btn-sm" @click="showGroupSettings = true">
-            ⚙️ 编辑
-          </button>
-        </div>
-        <div class="setting-item">
-          <label>最大历史轮数</label>
-          <input
-            type="number"
-            :value="currentGroup.max_history"
-            @change="updateMaxHistory"
-            class="input setting-input"
-            min="1"
-            max="50"
-          />
-        </div>
-        <div class="setting-item">
-          <label>回复模式</label>
-          <select
-            :value="currentGroup.response_mode"
-            @change="updateResponseMode"
-            class="input setting-input"
-          >
-            <option value="sequential">顺序</option>
-            <option value="parallel">并行</option>
-          </select>
-        </div>
-      </div>
     </div>
 
     <div v-else class="empty-panel">
@@ -117,6 +137,14 @@
       :group-id="currentGroup?.id"
       @close="showCreateDialog = false"
       @created="handleCharacterCreated"
+    />
+
+    <!-- 编辑角色对话框 -->
+    <EditCharacterDialog
+      v-if="showEditDialog"
+      :character="editingCharacter"
+      @close="showEditDialog = false"
+      @saved="handleCharacterSaved"
     />
 
     <!-- 群设置对话框 -->
@@ -137,6 +165,7 @@ import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
+import EditCharacterDialog from '../config/EditCharacterDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 
 const groupsStore = useGroupsStore()
@@ -145,8 +174,10 @@ const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
+const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
+const editingCharacter = ref(null)
 
 const currentGroup = computed(() => groupsStore.currentGroup)
 
@@ -196,7 +227,6 @@ async function updateResponseMode(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       responseMode: event.target.value
     })
-    toast.success('回复模式已切换')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
   }
@@ -204,6 +234,16 @@ async function updateResponseMode(event) {
 
 function handleCharacterCreated() {
   showCreateDialog.value = false
+}
+
+function editCharacter(char) {
+  editingCharacter.value = char
+  showEditDialog.value = true
+}
+
+function handleCharacterSaved() {
+  showEditDialog.value = false
+  editingCharacter.value = null
 }
 
 function handleGroupSettingsSaved() {
@@ -356,6 +396,27 @@ async function sendCommand(char) {
   }
 }
 
+.btn-edit-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
 .character-name {
   flex: 1;
   font-weight: $font-weight-medium;
@@ -504,8 +565,55 @@ async function sendCommand(char) {
     margin-bottom: $spacing-sm;
   }
 
+  &.inline-setting {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+
+    label {
+      flex-shrink: 0;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+
+    .number-input {
+      width: 80px;
+      flex-shrink: 0;
+    }
+  }
+
   .setting-input {
     width: 100%;
+  }
+
+  .radio-group {
+    display: flex;
+    gap: $spacing-lg;
+    padding: 0;
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: $spacing-xs;
+      cursor: pointer;
+      user-select: none;
+
+      input[type="radio"] {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+        accent-color: $color-primary;
+      }
+
+      span {
+        font-size: $font-size-md;
+        color: $text-primary;
+      }
+
+      &:hover span {
+        color: $color-primary;
+      }
+    }
   }
 }
 
