@@ -39,6 +39,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useCharactersStore } from '../../stores/characters.js'
+import { useToastStore } from '../../stores/toast'
 
 const props = defineProps({
   groupId: {
@@ -50,6 +51,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'created'])
 
 const charactersStore = useCharactersStore()
+const toast = useToastStore()
 
 const form = ref({
   name: '',
@@ -70,8 +72,9 @@ async function handleCreate() {
       systemPrompt: form.value.systemPrompt
     })
     emit('created')
+    toast.success('角色创建成功')
   } catch (error) {
-    alert('创建角色失败: ' + error.message)
+    toast.error('创建角色失败: ' + error.message)
   }
 }
 </script>

@@ -33,6 +33,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useDialog } from '../../composables/useDialog'
 
 const props = defineProps({
   disabled: {
@@ -43,6 +44,7 @@ const props = defineProps({
 
 const emit = defineEmits(['send', 'clear'])
 
+const { confirm } = useDialog()
 const content = ref('')
 
 const canSend = computed(() => {
@@ -63,8 +65,14 @@ function handleKeyDown(event) {
   }
 }
 
-function handleClearMessages() {
-  if (confirm('确认清空所有消息吗？此操作不可恢复。')) {
+async function handleClearMessages() {
+  const confirmed = await confirm({
+    title: '清空消息',
+    message: '确认清空所有消息吗？此操作不可恢复。',
+    confirmText: '清空',
+    cancelText: '取消'
+  })
+  if (confirmed) {
     emit('clear')
   }
 }

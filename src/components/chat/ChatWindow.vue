@@ -61,6 +61,7 @@ import { useGroupsStore } from '../../stores/groups.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
+import { useToastStore } from '../../stores/toast'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 
@@ -68,6 +69,7 @@ const groupsStore = useGroupsStore()
 const messagesStore = useMessagesStore()
 const charactersStore = useCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
+const toast = useToastStore()
 
 const messagesContainer = ref(null)
 const currentGroup = computed(() => groupsStore.currentGroup)
@@ -119,8 +121,9 @@ async function handleModelChange() {
       llmBaseUrl: profile.baseURL || null,
       useGlobalApiKey: !profile.apiKey // 如果配置有 API Key，则使用独立配置
     })
+    toast.success('模型已切换')
   } catch (error) {
-    alert('切换模型失败: ' + error.message)
+    toast.error('切换模型失败: ' + error.message)
     // 恢复原来的选择
     selectedProfileId.value = findCurrentProfileId()
   } finally {
@@ -139,7 +142,7 @@ async function handleSendMessage(content) {
   try {
     await messagesStore.sendMessage(content)
   } catch (error) {
-    alert('发送消息失败: ' + error.message)
+    toast.error('发送消息失败: ' + error.message)
   }
 }
 
@@ -147,8 +150,9 @@ async function handleSendMessage(content) {
 async function handleClearMessages() {
   try {
     await messagesStore.clearMessages()
+    toast.success('消息已清空')
   } catch (error) {
-    alert('清空消息失败: ' + error.message)
+    toast.error('清空消息失败: ' + error.message)
   }
 }
 

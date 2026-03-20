@@ -70,10 +70,14 @@
 <script setup>
 import { ref } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
+import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 import CreateGroupDialog from '../config/CreateGroupDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 
 const groupsStore = useGroupsStore()
+const toast = useToastStore()
+const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const hoveredGroupId = ref(null)
 const showSettingsDialog = ref(false)
@@ -108,22 +112,29 @@ async function handleDuplicate(group) {
     const newGroup = await groupsStore.duplicateGroup(group.id)
     // 自动选中新复制的群组
     groupsStore.selectGroup(newGroup.id)
+    toast.success('群组已复制')
   } catch (error) {
     console.error('复制群组失败:', error)
-    alert('复制群组失败：' + error.message)
+    toast.error('复制群组失败：' + error.message)
   }
 }
 
 async function handleDelete(group) {
   // 确认删除
-  const confirmed = confirm(`确定要删除群组"${group.name}"吗？此操作不可撤销！`)
+  const confirmed = await confirm({
+    title: '删除群组',
+    message: `确定要删除群组"${group.name}"吗？此操作不可撤销！`,
+    confirmText: '删除',
+    cancelText: '取消'
+  })
   if (!confirmed) return
 
   try {
     await groupsStore.deleteGroup(group.id)
+    toast.success('群组已删除')
   } catch (error) {
     console.error('删除群组失败:', error)
-    alert('删除群组失败：' + error.message)
+    toast.error('删除群组失败：' + error.message)
   }
 }
 </script>

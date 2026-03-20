@@ -106,6 +106,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
+import { useToastStore } from '../../stores/toast'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 
 const props = defineProps({
@@ -118,6 +119,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved'])
 
 const groupsStore = useGroupsStore()
+const toast = useToastStore()
 
 const group = computed(() => groupsStore.groups.find(g => g.id === props.groupId))
 
@@ -174,8 +176,9 @@ async function handleSave() {
     })
     emit('saved')
     emit('close')
+    toast.success('设置已保存')
   } catch (error) {
-    alert('保存群设置失败: ' + error.message)
+    toast.error('保存群设置失败: ' + error.message)
   }
 }
 </script>

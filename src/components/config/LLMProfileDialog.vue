@@ -97,12 +97,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
+import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import LLMProfileForm from './LLMProfileForm.vue'
 
 const emit = defineEmits(['close'])
 
 const store = useLLMProfilesStore()
+const toast = useToastStore()
+const { confirm } = useDialog()
 
 const profiles = computed(() => store.profiles)
 const loading = computed(() => store.loading)
@@ -155,15 +159,19 @@ function handleEdit(profile) {
 
 // 删除配置
 async function handleDelete(profile) {
-  if (!confirm(`确定要删除配置"${profile.name}"吗？`)) {
-    return
-  }
+  const confirmed = await confirm({
+    title: '删除配置',
+    message: `确定要删除配置"${profile.name}"吗？`,
+    confirmText: '删除',
+    cancelText: '取消'
+  })
+  if (!confirmed) return
 
   const result = await store.deleteProfile(profile.id)
   if (result.success) {
-    alert('删除成功')
+    toast.success('删除成功')
   } else {
-    alert('删除失败: ' + result.error)
+    toast.error('删除失败: ' + result.error)
   }
 }
 
@@ -180,12 +188,12 @@ async function handleTest(profile) {
     })
 
     if (result.success) {
-      alert(`连接成功！\n模型：${result.model}`)
+      toast.success(`连接成功！模型：${result.model}`, 5000)
     } else {
-      alert('连接失败: ' + result.error)
+      toast.error('连接失败: ' + result.error)
     }
   } catch (error) {
-    alert('连接失败: ' + error.message)
+    toast.error('连接失败: ' + error.message)
   } finally {
     testingId.value = null
   }
@@ -202,10 +210,10 @@ async function handleFormSubmit(data) {
   }
 
   if (result.success) {
-    alert(editingProfile.value ? '保存成功' : '添加成功')
+    toast.success(editingProfile.value ? '保存成功' : '添加成功')
     closeFormDialog()
   } else {
-    alert((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
+    toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
   }
 }
 

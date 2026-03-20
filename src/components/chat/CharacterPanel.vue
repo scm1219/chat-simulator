@@ -134,12 +134,16 @@ import { ref, computed } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
+import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
 const messagesStore = useMessagesStore()
+const toast = useToastStore()
+const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
@@ -153,18 +157,26 @@ function togglePromptExpand(charId) {
 async function toggleCharacter(char) {
   try {
     await charactersStore.toggleCharacter(char.id, char.enabled === 0)
+    toast.success('角色状态已切换')
   } catch (error) {
-    alert('切换角色状态失败: ' + error.message)
+    toast.error('切换角色状态失败: ' + error.message)
   }
 }
 
 async function deleteCharacter(id) {
-  if (!confirm('确定要删除这个角色吗？')) return
+  const confirmed = await confirm({
+    title: '删除角色',
+    message: '确定要删除这个角色吗？',
+    confirmText: '删除',
+    cancelText: '取消'
+  })
+  if (!confirmed) return
 
   try {
     await charactersStore.deleteCharacter(id)
+    toast.success('角色已删除')
   } catch (error) {
-    alert('删除角色失败: ' + error.message)
+    toast.error('删除角色失败: ' + error.message)
   }
 }
 
@@ -173,8 +185,9 @@ async function updateMaxHistory(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       maxHistory: parseInt(event.target.value)
     })
+    toast.success('设置已更新')
   } catch (error) {
-    alert('更新设置失败: ' + error.message)
+    toast.error('更新设置失败: ' + error.message)
   }
 }
 
@@ -183,8 +196,9 @@ async function updateResponseMode(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       responseMode: event.target.value
     })
+    toast.success('回复模式已切换')
   } catch (error) {
-    alert('更新设置失败: ' + error.message)
+    toast.error('更新设置失败: ' + error.message)
   }
 }
 
@@ -209,7 +223,7 @@ async function sendCommand(char) {
 
     await messagesStore.sendMessageToCharacter(char.id, instructionMessage)
   } catch (error) {
-    alert('发送指令失败: ' + error.message)
+    toast.error('发送指令失败: ' + error.message)
     // 如果失败，恢复指令内容
     char.command = command
   } finally {

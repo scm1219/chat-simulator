@@ -144,10 +144,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
+import { useToastStore } from '../../stores/toast'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import LLMProfileDialog from './LLMProfileDialog.vue'
 
 const emit = defineEmits(['close', 'created'])
+const toast = useToastStore()
 
 const groupsStore = useGroupsStore()
 const profilesStore = useLLMProfilesStore()
@@ -277,9 +279,10 @@ async function handleCreate() {
 
     const group = await groupsStore.createGroup(groupData)
     emit('created', group)
+    toast.success('群组创建成功')
   } catch (error) {
     console.error('[CreateGroup] 创建失败', error)
-    alert('创建群组失败: ' + error.message)
+    toast.error('创建群组失败: ' + error.message)
   }
 }
 </script>

@@ -17,7 +17,8 @@
       "Read(//e/work_tools/chat-simulator/$APPDATA/chat-simulator/config/**)",
       "Bash(timeout 20 npm run dev)",
       "Bash(rm -rf out node_modules/.vite)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(tasklist)"
     ]
   }
 }

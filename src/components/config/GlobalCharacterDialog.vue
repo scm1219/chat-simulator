@@ -87,6 +87,7 @@
 <script setup>
 import { ref, computed, onMounted, toRaw } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
+import { useToastStore } from '../../stores/toast'
 import TagSelector from '../common/TagSelector.vue'
 
 const props = defineProps({
@@ -99,6 +100,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved'])
 
 const globalCharsStore = useGlobalCharactersStore()
+const toast = useToastStore()
 
 const isEditing = computed(() => !!props.character)
 
@@ -139,8 +141,9 @@ onMounted(async () => {
 async function handleCreateTag(data) {
   try {
     await globalCharsStore.createTag(data)
+    toast.success('标签创建成功')
   } catch (error) {
-    alert('创建标签失败：' + error.message)
+    toast.error('创建标签失败：' + error.message)
   }
 }
 
@@ -165,8 +168,9 @@ async function handleSave() {
     }
 
     emit('saved')
+    toast.success('保存成功')
   } catch (error) {
-    alert('保存失败：' + error.message)
+    toast.error('保存失败：' + error.message)
   } finally {
     saving.value = false
   }

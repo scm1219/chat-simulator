@@ -66,6 +66,8 @@
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue'
 import { useMessagesStore } from '../../stores/messages.js'
+import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 
 const props = defineProps({
   message: {
@@ -79,6 +81,8 @@ const props = defineProps({
 })
 
 const messagesStore = useMessagesStore()
+const toast = useToastStore()
+const { confirm } = useDialog()
 
 const isUser = computed(() => props.message.role === 'user')
 
@@ -157,8 +161,9 @@ async function saveEdit() {
   if (editContent.value.trim() !== props.message.content && editContent.value.trim().length > 0) {
     try {
       await messagesStore.updateMessage(props.message.id, editContent.value.trim())
+      toast.success('消息已更新')
     } catch (error) {
-      alert('编辑消息失败: ' + error.message)
+      toast.error('编辑消息失败: ' + error.message)
       // 恢复原内容
       editContent.value = props.message.content
     }
@@ -167,8 +172,14 @@ async function saveEdit() {
   editing.value = false
 }
 
-function confirmDelete() {
-  if (confirm('确定要删除这条消息吗？')) {
+async function confirmDelete() {
+  const confirmed = await confirm({
+    title: '删除消息',
+    message: '确定要删除这条消息吗？',
+    confirmText: '删除',
+    cancelText: '取消'
+  })
+  if (confirmed) {
     deleteMessage()
   }
 }
@@ -176,8 +187,9 @@ function confirmDelete() {
 async function deleteMessage() {
   try {
     await messagesStore.deleteMessage(props.message.id)
+    toast.success('消息已删除')
   } catch (error) {
-    alert('删除消息失败: ' + error.message)
+    toast.error('删除消息失败: ' + error.message)
   }
 }
 </script>

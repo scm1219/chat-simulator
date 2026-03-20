@@ -115,12 +115,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
+import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
 import TagFilter from '../common/TagFilter.vue'
 
 const globalCharsStore = useGlobalCharactersStore()
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
+const toast = useToastStore()
+const { confirm } = useDialog()
 
 const searchKeyword = ref('')
 const showCreateDialog = ref(false)
@@ -165,11 +169,16 @@ function handleSearch() {
 // 导入到群组
 async function handleImport(character) {
   if (!groupsStore.currentGroupId) {
-    alert('请先选择一个群组')
+    toast.warning('请先选择一个群组')
     return
   }
 
-  const confirmed = confirm(`确定要将"${character.name}"导入到当前群组吗？`)
+  const confirmed = await confirm({
+    title: '导入角色',
+    message: `确定要将"${character.name}"导入到当前群组吗？`,
+    confirmText: '导入',
+    cancelText: '取消'
+  })
   if (!confirmed) return
 
   try {
@@ -179,9 +188,9 @@ async function handleImport(character) {
     )
     // 刷新群组角色列表
     await charactersStore.loadCharacters(groupsStore.currentGroupId)
-    alert(`角色"${character.name}"已成功导入`)
+    toast.success(`角色"${character.name}"已成功导入`)
   } catch (error) {
-    alert('导入失败：' + error.message)
+    toast.error('导入失败：' + error.message)
   }
 }
 
@@ -192,13 +201,19 @@ function handleEdit(character) {
 
 // 删除
 async function handleDelete(character) {
-  const confirmed = confirm(`确定要删除角色"${character.name}"吗？此操作不可撤销！`)
+  const confirmed = await confirm({
+    title: '删除角色',
+    message: `确定要删除角色"${character.name}"吗？此操作不可撤销！`,
+    confirmText: '删除',
+    cancelText: '取消'
+  })
   if (!confirmed) return
 
   try {
     await globalCharsStore.deleteCharacter(character.id)
+    toast.success('角色已删除')
   } catch (error) {
-    alert('删除失败：' + error.message)
+    toast.error('删除失败：' + error.message)
   }
 }
 

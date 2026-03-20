@@ -63,8 +63,6 @@ let globalCharManager = null
 
 // 应用就绪时创建窗口
 app.whenReady().then(async () => {
-  createWindow()
-
   // 动态导入模块
   const { DatabaseManager } = await import('./database/manager.js')
   const { GlobalCharacterManager } = await import('./database/global-character-manager.js')
@@ -81,13 +79,16 @@ app.whenReady().then(async () => {
   // 初始化全局角色库管理器
   globalCharManager = new GlobalCharacterManager()
 
-  // 设置 IPC 处理器
+  // 设置 IPC 处理器（必须在创建窗口之前完成）
   setupGroupHandlers(dbManager)
   setupCharacterHandlers(dbManager)
   setupMessageHandlers(dbManager)
   setupLLMHandlers(dbManager)
   setupConfigHandlers()
   setupGlobalCharacterHandlers(dbManager, globalCharManager)
+
+  // 所有处理程序注册完成后再创建窗口
+  createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
