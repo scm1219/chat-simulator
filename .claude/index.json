@@ -1,0 +1,135 @@
+{
+  "lastUpdated": "2026-03-20T02:01:09.000Z",
+  "projectName": "chat",
+  "projectType": "electron-vue3-desktop-app",
+  "summary": "基于 Electron + Vite + Vue3 的 LLM 角色扮演聊天模拟器，支持多角色对话、多 LLM 供应商、本地 SQLite 存储、群背景设定、思考模式、用户角色",
+  "root": {
+    "path": "/",
+    "documentation": "CLAUDE.md",
+    "entryPoints": [
+      "electron/main.js",
+      "src/main.js"
+    ],
+    "configFiles": [
+      "package.json",
+      "electron.vite.config.js",
+      "vite.config.js",
+      ".gitignore"
+    ]
+  },
+  "modules": [
+    {
+      "name": "electron-main",
+      "path": "electron",
+      "documentation": "electron/CLAUDE.md",
+      "type": "electron-main-process",
+      "entryPoint": "electron/main.js",
+      "description": "Electron 主进程，负责窗口管理、IPC 通信、数据库管理、LLM 调用、数据迁移"
+    },
+    {
+      "name": "renderer-ui",
+      "path": "src",
+      "documentation": "src/CLAUDE.md",
+      "type": "vue-renderer-process",
+      "entryPoint": "src/main.js",
+      "description": "Vue 渲染进程，包含所有 UI 组件、状态管理、样式、LLM 配置管理"
+    }
+  ],
+  "coverage": {
+    "totalFiles": 33,
+    "scannedFiles": 33,
+    "coveragePercent": 100,
+    "ignoredFiles": 0,
+    "details": {
+      "electron": {
+        "total": 15,
+        "scanned": 15,
+        "keyFiles": [
+          "electron/main.js",
+          "electron/preload.js",
+          "electron/database/manager.js",
+          "electron/database/schema.sql",
+          "electron/database/migrations/add_user_character.js",
+          "electron/llm/client.js",
+          "electron/llm/providers/index.js",
+          "electron/llm/proxy.js",
+          "electron/config/manager.js",
+          "electron/ipc/handlers/group.js",
+          "electron/ipc/handlers/character.js",
+          "electron/ipc/handlers/message.js",
+          "electron/ipc/handlers/llm.js",
+          "electron/ipc/handlers/config.js",
+          "electron/utils/uuid.js"
+        ]
+      },
+      "src": {
+        "total": 18,
+        "scanned": 18,
+        "keyFiles": [
+          "src/main.js",
+          "src/App.vue",
+          "src/stores/groups.js",
+          "src/stores/characters.js",
+          "src/stores/messages.js",
+          "src/stores/config.js",
+          "src/stores/llm-profiles.js",
+          "src/components/layout/MainLayout.vue",
+          "src/components/layout/GroupList.vue",
+          "src/components/chat/ChatWindow.vue",
+          "src/components/chat/MessageBubble.vue",
+          "src/components/chat/MessageInput.vue",
+          "src/components/chat/CharacterPanel.vue",
+          "src/components/config/CreateGroupDialog.vue",
+          "src/components/config/CreateCharacterDialog.vue",
+          "src/components/config/GroupSettingsDialog.vue",
+          "src/components/config/LLMProfileDialog.vue",
+          "src/styles/variables.scss",
+          "src/styles/global.scss"
+        ]
+      }
+    }
+  },
+  "gaps": [],
+  "ignoredPatterns": [
+    "node_modules/**",
+    ".git/**",
+    ".github/**",
+    "dist/**",
+    "dist-electron/**",
+    "out/**",
+    "data/groups/*.sqlite",
+    "data/groups/*.db",
+    "*.log",
+    ".vscode/*",
+    ".idea/",
+    "*.swp",
+    ".DS_Store",
+    "Thumbs.db",
+    ".env",
+    ".env.local",
+    "electron/config/llm-config.json",
+    "electron/config/proxy-config.json"
+  ],
+  "recentChanges": [
+    "添加群背景设定功能（background 字段）",
+    "添加思考模式支持（thinking_enabled 字段）",
+    "添加用户角色支持（is_user 字段）",
+    "新增 LLM 配置管理系统（Profile 管理）",
+    "新增群设置对话框（GroupSettingsDialog.vue）",
+    "新增数据库迁移脚本（migrations/add_user_character.js）",
+    "改进角色面板 UI，用户角色显示特殊样式",
+    "优化创建群组流程，支持从配置列表选择"
+  ],
+  "techStack": {
+    "framework": "Electron 41.0.3",
+    "frontend": "Vue 3.5.30",
+    "buildTool": "electron-vite 5.0.0 + Vite 8.0.1",
+    "stateManagement": "Pinia 3.0.4",
+    "database": "better-sqlite3 12.8.0",
+    "httpClient": "axios 1.13.6",
+    "styling": "SCSS/Sass 1.98.0",
+    "language": "JavaScript (ES Modules)"
+  },
+  "truncated": false,
+  "recommendations": []
+}

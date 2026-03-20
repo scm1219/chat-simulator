@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(printf \"a\\\\ny\\\\n\")",
+      "Bash(pnpm rebuild:*)",
+      "Bash(pnpm run:*)",
+      "Bash(set VITE_DEV_SERVER_URL=http://localhost:5173)",
+      "Bash(pnpm exec:*)",
+      "Bash(cd:*)",
+      "Bash(npx @electron/rebuild -f -w better-sqlite3)",
+      "mcp__web-reader__webReader",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm remove:*)",
+      "Read(//e/work_tools/chat-simulator/$APPDATA/chat-simulator/**)",
+      "Read(//e/work_tools/chat-simulator/$APPDATA/chat-simulator/config/**)"
+    ]
+  }
+}

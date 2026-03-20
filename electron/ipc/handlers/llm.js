@@ -1,0 +1,405 @@
+/**
+ * LLM IPC 处理器
+ */
+import { ipcMain } from 'electron'
+import { LLMClient } from '../../llm/client.js'
+import { getAllProviders } from '../../llm/providers/index.js'
+import { getProxyConfig } from '../../llm/proxy.js'
+import { getGlobalLLMConfig } from '../../config/manager.js'
+import { generateUUID } from '../../utils/uuid.js'
+
+export function setupLLMHandlers(dbManager) {
+  // 获取所有 LLM 供应商
+  ipcMain.handle('llm:getProviders', async () => {
+    try {
+      return { success: true, data: getAllProviders() }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 测试 LLM 连接
+  ipcMain.handle('llm:testConnection', async (event, config) => {
+    try {
+      const proxyConfig = getProxyConfig()
+      const client = new LLMClient({
+        ...config,
+        proxy: proxyConfig
+      })
+
+      const result = await client.testConnection()
+      return result
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 生成 AI 回复（多角色对话）
+  ipcMain.handle('llm:generate', async (event, groupId, userContent) => {
+    console.log('[LLM] 开始生成回复', { groupId, userContent })
+
+    try {
+      const db = dbManager.getGroupDB(groupId)
+      console.log('[LLM] 数据库连接成功')
+
+      // 1. 保存用户消息
+      const userMsgId = generateUUID()
+      db.prepare(`
+        INSERT INTO messages (id, group_id, role, content)
+        VALUES (?, ?, ?, ?)
+      `).run(userMsgId, groupId, 'user', userContent)
+      console.log('[LLM] 用户消息已保存', { userMsgId })
+
+      // 2. 获取群组配置
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
+      if (!group) {
+        console.error('[LLM] 群组不存在', { groupId })
+        return { success: false, error: '群组不存在' }
+      }
+      console.log('[LLM] 群组配置', {
+        name: group.name,
+        provider: group.llm_provider,
+        model: group.llm_model,
+        useGlobalKey: group.use_global_api_key
+      })
+
+      // 3. 获取启用的角色（排除用户角色）
+      const characters = db.prepare(`
+        SELECT * FROM characters WHERE group_id = ? AND enabled = 1 AND is_user = 0
+      `).all(groupId)
+
+      if (characters.length === 0) {
+        console.error('[LLM] 没有启用的角色')
+        return { success: false, error: '没有启用的角色' }
+      }
+      console.log('[LLM] 启用的角色', characters.map(c => c.name))
+
+      // 4. 获取历史消息（根据 max_history 限制）
+      const maxMessages = (group.max_history || 10) * 2 + 1 // +1 是刚才添加的用户消息
+      const history = db.prepare(`
+        SELECT * FROM messages
+        WHERE group_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      `).all(groupId, maxMessages).reverse()
+      console.log('[LLM] 历史消息数量', history.length)
+
+      // 5. 获取 API Key（优先使用群组独立 Key）
+      const globalLLMConfig = getGlobalLLMConfig()
+      const apiKey = group.use_global_api_key
+        ? globalLLMConfig.apiKey
+        : (group.llm_api_key || globalLLMConfig.apiKey)
+
+      if (!apiKey) {
+        console.error('[LLM] API Key 未配置')
+        return { success: false, error: '请先配置 API Key' }
+      }
+      console.log('[LLM] API Key 已配置', { hasKey: !!apiKey })
+
+      // 6. 创建 LLM 客户端
+      const proxyConfig = getProxyConfig()
+      const client = new LLMClient({
+        provider: group.llm_provider,
+        apiKey: apiKey,
+        baseURL: group.llm_base_url,
+        model: group.llm_model,
+        proxy: proxyConfig
+      })
+      console.log('[LLM] LLM 客户端创建成功')
+
+      // 7. 根据回复模式调用 LLM
+      const responseMode = group.response_mode || 'sequential'
+      const thinkingEnabled = group.thinking_enabled === 1
+      console.log('[LLM] 回复模式', responseMode, '思考模式', thinkingEnabled)
+      const responses = []
+
+      if (responseMode === 'parallel') {
+        // 并行模式：同时调用所有角色
+        const promises = characters.map(character =>
+          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, characters)
+        )
+        const results = await Promise.all(promises)
+        responses.push(...results)
+      } else {
+        // 顺序模式：依次调用每个角色
+        for (const character of characters) {
+          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, characters)
+          responses.push(response)
+
+          // 将上一个角色的回复添加到历史上下文
+          if (response.success) {
+            history.push({
+              role: 'assistant',
+              content: response.content
+            })
+          }
+        }
+      }
+
+      console.log('[LLM] 所有角色回复生成完成', {
+        total: responses.length,
+        success: responses.filter(r => r.success).length,
+        failed: responses.filter(r => !r.success).length
+      })
+
+      return { success: true, data: responses }
+    } catch (error) {
+      console.error('[LLM] 生成回复失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 生成单角色指令回复
+  ipcMain.handle('llm:generateCharacterCommand', async (event, groupId, characterId, instruction) => {
+    console.log('[LLM] 开始生成单角色指令回复', { groupId, characterId, instruction })
+
+    try {
+      const db = dbManager.getGroupDB(groupId)
+
+      // 1. 保存用户指令消息
+      const userMsgId = generateUUID()
+      db.prepare(`
+        INSERT INTO messages (id, group_id, role, content)
+        VALUES (?, ?, ?, ?)
+      `).run(userMsgId, groupId, 'user', instruction)
+      console.log('[LLM] 用户指令消息已保存', { userMsgId })
+
+      // 2. 获取群组配置
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
+      if (!group) {
+        console.error('[LLM] 群组不存在', { groupId })
+        return { success: false, error: '群组不存在' }
+      }
+
+      // 3. 获取指定角色
+      const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+      if (!character) {
+        console.error('[LLM] 角色不存在', { characterId })
+        return { success: false, error: '角色不存在' }
+      }
+
+      console.log('[LLM] 目标角色', { name: character.name })
+
+      // 4. 获取所有角色（用于成员介绍）
+      const allCharacters = db.prepare(`
+        SELECT * FROM characters WHERE group_id = ? AND enabled = 1
+      `).all(groupId)
+
+      // 5. 获取历史消息
+      const maxMessages = (group.max_history || 10) * 2 + 1
+      const history = db.prepare(`
+        SELECT * FROM messages
+        WHERE group_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      `).all(groupId, maxMessages).reverse()
+
+      // 6. 获取 API Key
+      const globalLLMConfig = getGlobalLLMConfig()
+      const apiKey = group.use_global_api_key
+        ? globalLLMConfig.apiKey
+        : (group.llm_api_key || globalLLMConfig.apiKey)
+
+      if (!apiKey) {
+        console.error('[LLM] API Key 未配置')
+        return { success: false, error: '请先配置 API Key' }
+      }
+
+      // 7. 创建 LLM 客户端
+      const proxyConfig = getProxyConfig()
+      const client = new LLMClient({
+        provider: group.llm_provider,
+        apiKey: apiKey,
+        baseURL: group.llm_base_url,
+        model: group.llm_model,
+        proxy: proxyConfig
+      })
+
+      // 8. 生成单角色回复
+      const thinkingEnabled = group.thinking_enabled === 1
+      const response = await generateCharacterResponse(
+        client,
+        character,
+        history,
+        instruction, // 使用指令作为用户内容
+        event,
+        groupId,
+        db,
+        thinkingEnabled,
+        group.background,
+        group.system_prompt,
+        allCharacters
+      )
+
+      console.log('[LLM] 单角色指令回复生成完成')
+
+      return { success: true, data: [response] }
+    } catch (error) {
+      console.error('[LLM] 生成单角色指令回复失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+}
+
+/**
+ * 为单个角色生成回复（支持流式输出）
+ */
+async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = []) {
+  try {
+    console.log(`[LLM] 开始为角色 ${character.name} 生成回复`)
+
+    // 构建消息上下文
+    const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters)
+    console.log(`[LLM] ${character.name} - 消息上下文构建完成`, {
+      messageCount: messages.length,
+      hasBackground: !!background,
+      hasSystemPrompt: !!systemPrompt
+    })
+
+    // 创建临时消息 ID
+    const tempMessageId = 'temp_' + Date.now() + '_' + character.id
+
+    // 通知渲染进程：开始生成
+    event.sender.send('message:stream:start', {
+      tempId: tempMessageId,
+      groupId: groupId,
+      characterId: character.id,
+      characterName: character.name,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString()
+    })
+
+    // 调用 LLM（使用流式输出）
+    const result = await client.chat(messages, {
+      thinkingEnabled: thinkingEnabled,
+      onChunk: (chunk) => {
+        // 实时推送内容片段
+        event.sender.send('message:stream:chunk', {
+          tempId: tempMessageId,
+          content: chunk
+        })
+      }
+    })
+
+    if (result.success) {
+      console.log(`[LLM] ${character.name} - 回复生成成功`, {
+        contentLength: result.content?.length
+      })
+
+      // 保存完整回复到数据库
+      const assistantMsgId = generateUUID()
+      db.prepare(`
+        INSERT INTO messages (id, group_id, character_id, role, content)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content)
+
+      // 通知渲染进程：流式结束，发送完整消息
+      event.sender.send('message:stream:end', {
+        tempId: tempMessageId,
+        finalId: assistantMsgId,
+        groupId: groupId,
+        characterId: character.id,
+        characterName: character.name,
+        role: 'assistant',
+        content: result.content,
+        timestamp: new Date().toISOString()
+      })
+
+      return {
+        success: true,
+        characterId: character.id,
+        characterName: character.name,
+        content: result.content
+      }
+    } else {
+      console.error(`[LLM] ${character.name} - 回复生成失败`, result.error)
+
+      // 通知渲染进程：生成失败
+      event.sender.send('message:stream:error', {
+        tempId: tempMessageId,
+        error: result.error
+      })
+
+      return {
+        success: false,
+        characterId: character.id,
+        characterName: character.name,
+        error: result.error
+      }
+    }
+  } catch (error) {
+    console.error(`[LLM] ${character.name} - 生成过程异常`, error)
+    return {
+      success: false,
+      characterId: character.id,
+      characterName: character.name,
+      error: error.message
+    }
+  }
+}
+
+/**
+ * 构建对话上下文消息
+ */
+function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = []) {
+  const messages = []
+
+  // 1. 添加系统提示词（最高优先级，如果存在）
+  if (systemPrompt && systemPrompt.trim()) {
+    messages.push({
+      role: 'system',
+      content: systemPrompt.trim()
+    })
+  }
+
+  // 2. 添加群背景设定
+  if (background && background.trim()) {
+    messages.push({
+      role: 'system',
+      content: `【群背景设定】\n${background.trim()}`
+    })
+  }
+
+  // 3. 添加群成员介绍
+  if (allCharacters.length > 0) {
+    const membersIntro = allCharacters.map(char => {
+      return `- ${char.name}: ${char.system_prompt.split('\n')[0]}`
+    }).join('\n')
+
+    messages.push({
+      role: 'system',
+      content: `【群成员介绍】\n${membersIntro}`
+    })
+  }
+
+  // 4. 添加角色系统提示词（人设）
+  messages.push({
+    role: 'system',
+    content: character.system_prompt
+  })
+
+  // 4.5 添加强制性指令：只扮演当前角色
+  messages.push({
+    role: 'system',
+    content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。`
+  })
+
+  // 5. 添加历史消息（排除当前角色的 assistant 消息，避免重复）
+  const roleMessages = history
+    .filter(msg => msg.role !== 'system')
+    .map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }))
+
+  messages.push(...roleMessages)
+
+  // 6. 添加当前用户消息
+  messages.push({
+    role: 'user',
+    content: userContent
+  })
+
+  return messages
+}

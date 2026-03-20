@@ -1,0 +1,259 @@
+/**
+ * 群组 IPC 处理器
+ */
+import { ipcMain } from 'electron'
+import { generateUUID } from '../../utils/uuid.js'
+
+export function setupGroupHandlers(dbManager) {
+  // 创建群组
+  ipcMain.handle('group:create', async (event, data) => {
+    try {
+      console.log('[Group] 创建群组 - 原始数据', data)
+
+      // 转换数据类型，确保兼容 SQLite3
+      const id = generateUUID()
+
+      // 确保所有值都是 SQLite3 支持的类型
+      const values = {
+        id: id,
+        name: String(data.name || ''),
+        llm_provider: String(data.llmProvider || 'openai'),
+        llm_model: String(data.llmModel || 'gpt-3.5-turbo'),
+        llm_api_key: data.llmApiKey ? String(data.llmApiKey) : null,
+        llm_base_url: data.llmBaseUrl ? String(data.llmBaseUrl) : null,
+        max_history: parseInt(data.maxHistory) || 10,
+        response_mode: String(data.responseMode || 'sequential'),
+        use_global_api_key: (data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : 1),
+        thinking_enabled: (data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : 0),
+        background: data.background ? String(data.background) : null,
+        system_prompt: data.systemPrompt ? String(data.systemPrompt) : null
+      }
+
+      console.log('[Group] 创建群组 - 转换后数据', values)
+
+      const db = dbManager.getGroupDB(id)
+      db.prepare(`
+        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, background, system_prompt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        values.id,
+        values.name,
+        values.llm_provider,
+        values.llm_model,
+        values.llm_api_key,
+        values.llm_base_url,
+        values.max_history,
+        values.response_mode,
+        values.use_global_api_key,
+        values.thinking_enabled,
+        values.background,
+        values.system_prompt
+      )
+
+      // 自动创建默认用户角色
+      const userCharacterId = generateUUID()
+      db.prepare(`
+        INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(userCharacterId, id, '用户', '你是用户，正在参与群聊对话。', 1, 1)
+
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
+      console.log('[Group] 群组创建成功', { id, name: group.name, hasApiKey: !!group.llm_api_key })
+      return { success: true, data: group }
+    } catch (error) {
+      console.error('[Group] 创建群组失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取所有群组
+  ipcMain.handle('group:getAll', async () => {
+    try {
+      const groupIds = dbManager.getGroupDBFiles()
+      const groups = []
+
+      for (const id of groupIds) {
+        try {
+          const db = dbManager.getGroupDB(id)
+          const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
+          if (group) {
+            groups.push(group)
+          }
+        } catch (error) {
+          console.error(`Failed to load group ${id}:`, error)
+        }
+      }
+
+      return { success: true, data: groups }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 获取单个群组
+  ipcMain.handle('group:getById', async (event, id) => {
+    try {
+      const db = dbManager.getGroupDB(id)
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
+
+      if (!group) {
+        return { success: false, error: '群组不存在' }
+      }
+
+      return { success: true, data: group }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 更新群组
+  ipcMain.handle('group:update', async (event, id, data) => {
+    try {
+      const db = dbManager.getGroupDB(id)
+
+      // 构建更新字段
+      const updates = []
+      const values = []
+
+      if (data.name !== undefined) {
+        updates.push('name = ?')
+        values.push(data.name)
+      }
+      if (data.llmProvider !== undefined) {
+        updates.push('llm_provider = ?')
+        values.push(data.llmProvider)
+      }
+      if (data.llmModel !== undefined) {
+        updates.push('llm_model = ?')
+        values.push(data.llmModel)
+      }
+      if (data.llmApiKey !== undefined) {
+        updates.push('llm_api_key = ?')
+        values.push(data.llmApiKey)
+      }
+      if (data.llmBaseUrl !== undefined) {
+        updates.push('llm_base_url = ?')
+        values.push(data.llmBaseUrl)
+      }
+      if (data.maxHistory !== undefined) {
+        updates.push('max_history = ?')
+        values.push(data.maxHistory)
+      }
+      if (data.responseMode !== undefined) {
+        updates.push('response_mode = ?')
+        values.push(data.responseMode)
+      }
+      if (data.useGlobalApiKey !== undefined) {
+        updates.push('use_global_api_key = ?')
+        values.push(data.useGlobalApiKey ? 1 : 0)
+      }
+      if (data.thinkingEnabled !== undefined) {
+        updates.push('thinking_enabled = ?')
+        values.push(data.thinkingEnabled ? 1 : 0)
+      }
+      if (data.background !== undefined) {
+        updates.push('background = ?')
+        values.push(data.background)
+      }
+      if (data.systemPrompt !== undefined) {
+        updates.push('system_prompt = ?')
+        values.push(data.systemPrompt)
+      }
+
+      if (updates.length === 0) {
+        return { success: false, error: '没有要更新的字段' }
+      }
+
+      values.push(id)
+      db.prepare(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
+      return { success: true, data: group }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 删除群组
+  ipcMain.handle('group:delete', async (event, id) => {
+    try {
+      // 关闭数据库连接
+      dbManager.closeGroupDB(id)
+
+      // 删除数据库文件
+      dbManager.deleteGroupDB(id)
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 复制群组
+  ipcMain.handle('group:duplicate', async (event, sourceId) => {
+    try {
+      console.log('[Group] 复制群组 - 源群组 ID', sourceId)
+
+      // 获取源群组数据
+      const sourceDb = dbManager.getGroupDB(sourceId)
+      const sourceGroup = sourceDb.prepare('SELECT * FROM groups WHERE id = ?').get(sourceId)
+
+      if (!sourceGroup) {
+        return { success: false, error: '源群组不存在' }
+      }
+
+      // 获取源群组的所有角色
+      const sourceCharacters = sourceDb.prepare('SELECT * FROM characters WHERE group_id = ?').all(sourceId)
+
+      // 创建新群组
+      const newId = generateUUID()
+      const newDb = dbManager.getGroupDB(newId)
+
+      // 复制群组信息（添加"副本"后缀）
+      const duplicateName = sourceGroup.name.endsWith('(副本)')
+        ? sourceGroup.name
+        : `${sourceGroup.name}(副本)`
+
+      newDb.prepare(`
+        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, background, system_prompt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        newId,
+        duplicateName,
+        sourceGroup.llm_provider,
+        sourceGroup.llm_model,
+        sourceGroup.llm_api_key,
+        sourceGroup.llm_base_url,
+        sourceGroup.max_history,
+        sourceGroup.response_mode,
+        sourceGroup.use_global_api_key,
+        sourceGroup.thinking_enabled,
+        sourceGroup.background,
+        sourceGroup.system_prompt
+      )
+
+      // 复制所有角色（不复制消息）
+      for (const character of sourceCharacters) {
+        const newCharacterId = generateUUID()
+        newDb.prepare(`
+          INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          newCharacterId,
+          newId,
+          character.name,
+          character.system_prompt,
+          character.enabled,
+          character.is_user || 0
+        )
+      }
+
+      const newGroup = newDb.prepare('SELECT * FROM groups WHERE id = ?').get(newId)
+      console.log('[Group] 群组复制成功', { id: newId, name: newGroup.name })
+      return { success: true, data: newGroup }
+    } catch (error) {
+      console.error('[Group] 复制群组失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+}
