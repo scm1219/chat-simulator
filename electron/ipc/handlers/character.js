@@ -28,7 +28,7 @@ export function setupCharacterHandlers(dbManager) {
   ipcMain.handle('character:getByGroupId', async (event, groupId) => {
     try {
       const db = dbManager.getGroupDB(groupId)
-      const characters = db.prepare('SELECT * FROM characters WHERE group_id = ? ORDER BY is_user DESC').all(groupId)
+      const characters = db.prepare('SELECT * FROM characters WHERE group_id = ? ORDER BY is_user DESC, position ASC').all(groupId)
       return { success: true, data: characters }
     } catch (error) {
       return { success: false, error: error.message }
@@ -115,6 +115,72 @@ export function setupCharacterHandlers(dbManager) {
         if (result.changes > 0) {
           const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(id)
           return { success: true, data: character }
+        }
+      }
+
+      return { success: false, error: '角色不存在' }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 调整角色顺序
+  ipcMain.handle('character:reorder', async (event, id, direction) => {
+    try {
+      const groupIds = dbManager.getGroupDBFiles()
+
+      for (const groupId of groupIds) {
+        const db = dbManager.getGroupDB(groupId)
+        const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(id)
+
+        if (character) {
+          // 用户角色不可调整顺序
+          if (character.is_user === 1) {
+            return { success: false, error: '用户角色不可调整顺序' }
+          }
+
+          // 获取所有非用户角色并按 position 排序
+          const allCharacters = db.prepare(
+            'SELECT * FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC'
+          ).all(groupId)
+
+          // 找到当前角色的索引
+          const currentIndex = allCharacters.findIndex(c => c.id === id)
+
+          if (currentIndex === -1) {
+            return { success: false, error: '角色不存在' }
+          }
+
+          // 计算新的索引
+          let newIndex
+          if (direction === 'up') {
+            newIndex = Math.max(0, currentIndex - 1)
+          } else if (direction === 'down') {
+            newIndex = Math.min(allCharacters.length - 1, currentIndex + 1)
+          } else {
+            return { success: false, error: '无效的移动方向' }
+          }
+
+          // 如果位置没有变化，直接返回
+          if (newIndex === currentIndex) {
+            return { success: true, data: character }
+          }
+
+          // 交换位置
+          const targetCharacter = allCharacters[newIndex]
+          const currentPosition = character.position
+          const targetPosition = targetCharacter.position
+
+          // 交换 position 值
+          db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(targetPosition, id)
+          db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(currentPosition, targetCharacter.id)
+
+          // 返回更新后的角色列表
+          const updatedCharacters = db.prepare(
+            'SELECT * FROM characters WHERE group_id = ? ORDER BY is_user DESC, position ASC'
+          ).all(groupId)
+
+          return { success: true, data: updatedCharacters }
         }
       }
 

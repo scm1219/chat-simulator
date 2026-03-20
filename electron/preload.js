@@ -18,7 +18,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getByGroupId: (groupId) => ipcRenderer.invoke('character:getByGroupId', groupId),
     update: (id, data) => ipcRenderer.invoke('character:update', id, data),
     delete: (id) => ipcRenderer.invoke('character:delete', id),
-    toggle: (id, enabled) => ipcRenderer.invoke('character:toggle', id, enabled)
+    toggle: (id, enabled) => ipcRenderer.invoke('character:toggle', id, enabled),
+    reorder: (id, direction) => ipcRenderer.invoke('character:reorder', id, direction)
   },
 
   // ============ 消息操作 ============

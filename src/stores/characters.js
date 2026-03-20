@@ -94,6 +94,21 @@ export const useCharactersStore = defineStore('characters', () => {
     }
   }
 
+  async function reorderCharacter(id, direction) {
+    try {
+      const result = await window.electronAPI.character.reorder(id, direction)
+      if (result.success) {
+        // 更新整个角色列表
+        characters.value = result.data
+        return result.data
+      }
+      throw new Error(result.error)
+    } catch (error) {
+      console.error('Failed to reorder character:', error)
+      throw error
+    }
+  }
+
   return {
     characters,
     enabledCharacters,
@@ -102,6 +117,7 @@ export const useCharactersStore = defineStore('characters', () => {
     createCharacter,
     updateCharacter,
     deleteCharacter,
-    toggleCharacter
+    toggleCharacter,
+    reorderCharacter
   }
 })

@@ -57,31 +57,56 @@
 
       <div class="character-list">
         <div
-          v-for="char in charactersStore.characters"
+          v-for="(char, index) in charactersStore.characters"
           :key="char.id"
           :class="['character-item', { 'user-character': char.is_user === 1 }]"
         >
           <div class="character-header">
-            <button
-              v-if="char.is_user !== 1"
-              class="btn-delete-icon"
-              @click="deleteCharacter(char.id)"
-              title="删除角色"
-            >❌</button>
+            <div class="character-actions-left">
+              <button
+                v-if="char.is_user !== 1"
+                class="btn-delete-icon"
+                @click="deleteCharacter(char.id)"
+                title="删除角色"
+              >❌</button>
+            </div>
             <span class="character-name">{{ char.name }}</span>
-            <label v-if="char.is_user !== 1" class="toggle-switch">
-              <input
-                type="checkbox"
-                :checked="char.enabled === 1"
-                @change="toggleCharacter(char)"
-              />
-              <span class="slider"></span>
-            </label>
-            <div v-else class="user-actions">
-              <span class="user-badge">用户</span>
-              <button class="btn-edit-icon" @click="editCharacter(char)" title="编辑用户设定">
-                ✏️
-              </button>
+            <div class="character-actions-right">
+              <!-- AI 角色的控制按钮 -->
+              <template v-if="char.is_user !== 1">
+                <!-- 上移按钮 -->
+                <button
+                  class="btn-order-icon"
+                  @click="moveCharacter(char, 'up')"
+                  :disabled="!canMoveUp(index)"
+                  :class="{ 'btn-disabled': !canMoveUp(index) }"
+                  title="上移"
+                >⬆️</button>
+                <!-- 下移按钮 -->
+                <button
+                  class="btn-order-icon"
+                  @click="moveCharacter(char, 'down')"
+                  :disabled="!canMoveDown(index)"
+                  :class="{ 'btn-disabled': !canMoveDown(index) }"
+                  title="下移"
+                >⬇️</button>
+                <!-- 启用开关 -->
+                <label class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    :checked="char.enabled === 1"
+                    @change="toggleCharacter(char)"
+                  />
+                  <span class="slider"></span>
+                </label>
+              </template>
+              <!-- 用户角色的操作 -->
+              <div v-else class="user-actions">
+                <span class="user-badge">用户</span>
+                <button class="btn-edit-icon" @click="editCharacter(char)" title="编辑用户设定">
+                  ✏️
+                </button>
+              </div>
             </div>
           </div>
 
@@ -181,8 +206,44 @@ const editingCharacter = ref(null)
 
 const currentGroup = computed(() => groupsStore.currentGroup)
 
+// 获取非用户角色的数量
+const aiCharacterCount = computed(() => {
+  return charactersStore.characters.filter(c => c.is_user !== 1).length
+})
+
 function togglePromptExpand(charId) {
   expandedPrompts.value[charId] = !expandedPrompts.value[charId]
+}
+
+// 判断角色是否可以上移
+function canMoveUp(index) {
+  const char = charactersStore.characters[index]
+  // 用户角色不能移动
+  if (char.is_user === 1) return false
+  // 找到当前角色在 AI 角色中的位置
+  const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
+  const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
+  return aiIndex > 0
+}
+
+// 判断角色是否可以下移
+function canMoveDown(index) {
+  const char = charactersStore.characters[index]
+  // 用户角色不能移动
+  if (char.is_user === 1) return false
+  // 找到当前角色在 AI 角色中的位置
+  const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
+  const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
+  return aiIndex < aiCharacters.length - 1
+}
+
+// 移动角色
+async function moveCharacter(char, direction) {
+  try {
+    await charactersStore.reorderCharacter(char.id, direction)
+  } catch (error) {
+    toast.error(`移动角色失败: ${error.message}`)
+  }
 }
 
 async function toggleCharacter(char) {
@@ -381,6 +442,18 @@ async function sendCommand(char) {
   margin-bottom: $spacing-sm;
 }
 
+.character-actions-left {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.character-actions-right {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
 .btn-delete-icon {
   background: none;
   border: none;
@@ -393,6 +466,26 @@ async function sendCommand(char) {
 
   &:hover {
     opacity: 1;
+  }
+}
+
+.btn-order-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+
+  &:hover:not(.btn-disabled) {
+    opacity: 1;
+  }
+
+  &.btn-disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
   }
 }
 
