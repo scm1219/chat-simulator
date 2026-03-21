@@ -157,7 +157,7 @@ const profilesStore = useLLMProfilesStore()
 const form = ref({
   name: '',
   selectedProfileId: '',
-  maxHistory: 10,
+  maxHistory: 20,
   thinkingEnabled: false,
   systemPrompt: '',
   background: ''

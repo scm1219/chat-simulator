@@ -21,7 +21,7 @@ export function setupGroupHandlers(dbManager) {
         llm_model: String(data.llmModel || 'gpt-3.5-turbo'),
         llm_api_key: data.llmApiKey ? String(data.llmApiKey) : null,
         llm_base_url: data.llmBaseUrl ? String(data.llmBaseUrl) : null,
-        max_history: parseInt(data.maxHistory) || 10,
+        max_history: parseInt(data.maxHistory) || 20,
         response_mode: String(data.responseMode || 'sequential'),
         use_global_api_key: (data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : 1),
         thinking_enabled: (data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : 0),

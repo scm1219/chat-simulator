@@ -81,8 +81,8 @@ export function setupLLMHandlers(dbManager) {
       `).all(groupId)
       console.log('[LLM] 群成员介绍包含角色', allCharacters.map(c => c.name))
 
-      // 4. 获取历史消息（根据 max_history 限制）
-      const maxMessages = (group.max_history || 10) * 2 + 1 // +1 是刚才添加的用户消息
+      // 4. 获取历史消息（根据 max_history 限制，系统自动加 10 轮）
+      const maxMessages = ((group.max_history || 20) + 10) * 2 + 1 // +1 是刚才添加的用户消息
       const history = db.prepare(`
         SELECT
           m.*,
@@ -208,8 +208,8 @@ export function setupLLMHandlers(dbManager) {
         SELECT * FROM characters WHERE group_id = ? AND enabled = 1
       `).all(groupId)
 
-      // 5. 获取历史消息
-      const maxMessages = (group.max_history || 10) * 2 + 1
+      // 5. 获取历史消息（系统自动加 10 轮）
+      const maxMessages = ((group.max_history || 20) + 10) * 2 + 1
       const history = db.prepare(`
         SELECT
           m.*,

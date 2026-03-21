@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS groups (
   llm_model TEXT NOT NULL,
   llm_api_key TEXT,
   llm_base_url TEXT,
-  max_history INTEGER DEFAULT 10,
+  max_history INTEGER DEFAULT 20,
   response_mode TEXT DEFAULT 'sequential',
   use_global_api_key INTEGER DEFAULT 1,
   thinking_enabled INTEGER DEFAULT 0,

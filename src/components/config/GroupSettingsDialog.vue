@@ -137,7 +137,7 @@ const form = ref({
   name: '',
   systemPrompt: '',
   background: '',
-  maxHistory: 10,
+  maxHistory: 20,
   responseMode: 'sequential',
   thinkingEnabled: false
 })
