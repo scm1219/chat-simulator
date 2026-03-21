@@ -342,11 +342,9 @@ async function handleResend() {
   border-radius: $border-radius-sm;
   font-size: $font-size-sm;
   transition: background 0.2s ease;
-  opacity: 0.6;
 
   &:hover {
     background: $bg-tertiary;
-    opacity: 1;
   }
 
   &.danger:hover {
@@ -355,7 +353,6 @@ async function handleResend() {
   }
 
   &.confirming {
-    opacity: 1;
     background: #dc2626;
     color: white;
     animation: pulse 0.5s ease-in-out infinite alternate;
@@ -372,7 +369,6 @@ async function handleResend() {
 
     &:hover {
       background: none;
-      opacity: 0.3;
     }
   }
 }
@@ -399,10 +395,6 @@ async function handleResend() {
   white-space: pre-wrap;
   cursor: pointer;
   transition: background 0.2s ease;
-
-  &:hover {
-    opacity: 0.9;
-  }
 }
 
 .user .bubble-content {
