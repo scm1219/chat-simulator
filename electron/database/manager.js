@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS characters (
   enabled INTEGER DEFAULT 1,
   is_user INTEGER DEFAULT 0,
   position INTEGER DEFAULT 0,
+  thinking_enabled INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
@@ -153,6 +154,15 @@ export class DatabaseManager {
       })
 
       console.log('[Database] 迁移完成：position 字段已添加并初始化')
+    }
+
+    // 检查 characters 表是否有 thinking_enabled 字段
+    const hasThinkingEnabled = charTableInfo.some(col => col.name === 'thinking_enabled')
+
+    if (!hasThinkingEnabled) {
+      console.log('[Database] 执行迁移：添加 characters.thinking_enabled 字段')
+      db.exec('ALTER TABLE characters ADD COLUMN thinking_enabled INTEGER DEFAULT 0')
+      console.log('[Database] 迁移完成：thinking_enabled 字段已添加')
     }
   }
 

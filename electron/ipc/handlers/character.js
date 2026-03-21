@@ -57,6 +57,10 @@ export function setupCharacterHandlers(dbManager) {
             updates.push('system_prompt = ?')
             values.push(data.systemPrompt)
           }
+          if (data.thinkingEnabled !== undefined) {
+            updates.push('thinking_enabled = ?')
+            values.push(data.thinkingEnabled ? 1 : 0)
+          }
 
           if (updates.length > 0) {
             values.push(id)

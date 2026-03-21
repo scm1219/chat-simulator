@@ -10,9 +10,14 @@ export function setupMessageHandlers(dbManager) {
     try {
       const db = dbManager.getGroupDB(groupId)
       const messages = db.prepare(`
-        SELECT * FROM messages
-        WHERE group_id = ?
-        ORDER BY timestamp ASC
+        SELECT
+          m.*,
+          c.name as characterName,
+          c.is_user as characterIsUser
+        FROM messages m
+        LEFT JOIN characters c ON m.character_id = c.id
+        WHERE m.group_id = ?
+        ORDER BY m.timestamp ASC
       `).all(groupId)
 
       return { success: true, data: messages }
@@ -152,9 +157,14 @@ export function setupMessageHandlers(dbManager) {
       // 获取群组消息
       const db = dbManager.getGroupDB(groupId)
       const messages = db.prepare(`
-        SELECT * FROM messages
-        WHERE group_id = ?
-        ORDER BY timestamp ASC
+        SELECT
+          m.*,
+          c.name as characterName,
+          c.is_user as characterIsUser
+        FROM messages m
+        LEFT JOIN characters c ON m.character_id = c.id
+        WHERE m.group_id = ?
+        ORDER BY m.timestamp ASC
       `).all(groupId)
 
       // 获取群组角色信息

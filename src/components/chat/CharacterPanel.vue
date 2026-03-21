@@ -45,6 +45,29 @@
             </label>
           </div>
         </div>
+        <div class="setting-item inline-setting">
+          <label>思考模式</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="thinking-mode"
+                :checked="currentGroup.thinking_enabled === 1"
+                @change="updateThinkingMode({ target: { checked: true }})"
+              />
+              <span>是</span>
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="thinking-mode"
+                :checked="currentGroup.thinking_enabled === 0"
+                @change="updateThinkingMode({ target: { checked: false }})"
+              />
+              <span>否</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- 角色列表 -->
@@ -90,6 +113,15 @@
                   :class="{ 'btn-disabled': !canMoveDown(index) }"
                   title="下移"
                 >⬇️</button>
+                <!-- 思考模式开关 -->
+                <label class="checkbox-switch" :title="char.thinking_enabled === 1 ? '思考模式已开启' : '思考模式已关闭'">
+                  <input
+                    type="checkbox"
+                    :checked="char.thinking_enabled === 1"
+                    @change="toggleCharacterThinking(char)"
+                  />
+                  <span class="checkbox-icon">🧠</span>
+                </label>
                 <!-- 启用开关 -->
                 <label class="toggle-switch">
                   <input
@@ -288,8 +320,46 @@ async function updateResponseMode(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       responseMode: event.target.value
     })
+    toast.success('回复模式已更新')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
+  }
+}
+
+async function updateThinkingMode(event) {
+  try {
+    const enabled = event.target.checked
+    await groupsStore.updateGroup(currentGroup.value.id, {
+      thinkingEnabled: enabled
+    })
+
+    // 同步更新所有 AI 角色的思考模式
+    const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
+    for (const char of aiCharacters) {
+      try {
+        await charactersStore.updateCharacter(char.id, {
+          thinkingEnabled: enabled
+        })
+      } catch (err) {
+        console.error(`更新角色 ${char.name} 思考模式失败:`, err)
+      }
+    }
+
+    // 重新加载角色列表以确保 UI 正确刷新
+    await charactersStore.loadCharacters(currentGroup.value.id)
+  } catch (error) {
+    toast.error('更新设置失败: ' + error.message)
+  }
+}
+
+async function toggleCharacterThinking(char) {
+  try {
+    const newEnabled = char.thinking_enabled === 0
+    await charactersStore.updateCharacter(char.id, {
+      thinkingEnabled: newEnabled
+    })
+  } catch (error) {
+    toast.error('更新角色思考模式失败: ' + error.message)
   }
 }
 
@@ -500,6 +570,39 @@ async function sendCommand(char) {
   transition: opacity 0.2s;
 
   &:hover {
+    opacity: 1;
+  }
+}
+
+.checkbox-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .checkbox-icon {
+    font-size: 16px;
+    opacity: 0.3;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+
+  input:checked + .checkbox-icon {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  &:hover .checkbox-icon {
+    opacity: 0.6;
+  }
+
+  input:checked:hover + .checkbox-icon {
     opacity: 1;
   }
 }

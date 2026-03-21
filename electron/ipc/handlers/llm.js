@@ -101,6 +101,26 @@ export function setupLLMHandlers(dbManager) {
 
       // 4. 获取历史消息（根据 max_history 限制，系统自动加 10 轮）
       const maxMessages = ((group.max_history || 20) + 10) * 2 + 1 // +1 是刚才添加的用户消息
+
+      // 先检查数据库中 assistant 消息的 character_id 情况
+      const assistantMessagesCheck = db.prepare(`
+        SELECT
+          m.id,
+          m.character_id,
+          c.name as character_name
+        FROM messages m
+        LEFT JOIN characters c ON m.character_id = c.id
+        WHERE m.group_id = ? AND m.role = 'assistant'
+        ORDER BY m.timestamp DESC
+        LIMIT 5
+      `).all(groupId)
+
+      console.log('[LLM] 数据库中最近的 assistant 消息检查:', assistantMessagesCheck.map(m => ({
+        id: m.id,
+        character_id: m.character_id,
+        character_name: m.character_name
+      })))
+
       const history = db.prepare(`
         SELECT
           m.*,
@@ -171,8 +191,12 @@ export function setupLLMHandlers(dbManager) {
           if (response.success) {
             history.push({
               role: 'assistant',
-              content: response.content
+              content: response.content,
+              character_id: response.characterId,
+              character_name: response.characterName,
+              character_is_user: 0
             })
+            console.log(`[LLM] 添加 ${response.characterName} 的回复到历史上下文，character_id: ${response.characterId}`)
           }
         }
       }
@@ -436,12 +460,16 @@ async function generateCharacterResponse(client, character, history, userContent
   try {
     console.log(`[LLM] 开始为角色 ${character.name} 生成回复`)
 
+    // 优先使用角色的思考模式设置，如果没有则使用群组的设置
+    const characterThinkingEnabled = character.thinking_enabled === 1 || thinkingEnabled
+
     // 构建消息上下文
     const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters)
     console.log(`[LLM] ${character.name} - 消息上下文构建完成`, {
       messageCount: messages.length,
       hasBackground: !!background,
-      hasSystemPrompt: !!systemPrompt
+      hasSystemPrompt: !!systemPrompt,
+      thinkingEnabled: characterThinkingEnabled
     })
 
     // 创建临时消息 ID
@@ -460,7 +488,7 @@ async function generateCharacterResponse(client, character, history, userContent
 
     // 调用 LLM（使用流式输出）
     const result = await client.chat(messages, {
-      thinkingEnabled: thinkingEnabled,
+      thinkingEnabled: characterThinkingEnabled,
       onChunk: (chunk) => {
         // chunk 格式: { type: 'reasoning' | 'content', content: string }
         if (chunk.type === 'reasoning') {
@@ -489,10 +517,23 @@ async function generateCharacterResponse(client, character, history, userContent
 
       // 保存完整回复到数据库（包含思考内容）
       const assistantMsgId = generateUUID()
+      console.log(`[LLM] ${character.name} - 保存消息到数据库`, {
+        messageId: assistantMsgId,
+        characterId: character.id,
+        characterName: character.name
+      })
       db.prepare(`
         INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null)
+
+      // 验证保存是否成功
+      const savedMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(assistantMsgId)
+      console.log(`[LLM] ${character.name} - 验证保存的消息`, {
+        id: savedMsg?.id,
+        character_id: savedMsg?.character_id,
+        role: savedMsg?.role
+      })
 
       // 通知渲染进程：流式结束，发送完整消息
       event.sender.send('message:stream:end', {
@@ -582,6 +623,14 @@ function buildContextMessages(character, history, userContent, background = null
   })
 
   // 5. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
+  console.log('[LLM] 历史消息原始数据（前3条）:', history.slice(0, 3).map(msg => ({
+    role: msg.role,
+    content: msg.content?.substring(0, 50),
+    character_id: msg.character_id,
+    character_name: msg.character_name,
+    character_is_user: msg.character_is_user
+  })))
+
   const roleMessages = history
     .filter(msg => {
       // 过滤掉系统消息
@@ -629,10 +678,22 @@ function buildContextMessages(character, history, userContent, background = null
         content = `${msg.character_name}：${content}`
       }
 
-      return {
+      const result = {
         role: msg.role,
         content: content
       }
+
+      // 调试：输出 assistant 消息的格式化结果
+      if (msg.role === 'assistant') {
+        console.log('[LLM] assistant 消息格式化:', {
+          hasCharacterName: !!msg.character_name,
+          characterName: msg.character_name,
+          originalContent: msg.content?.substring(0, 50),
+          formattedContent: content.substring(0, 80)
+        })
+      }
+
+      return result
     })
 
   messages.push(...roleMessages)

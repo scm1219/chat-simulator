@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS characters (
   system_prompt TEXT NOT NULL,
   enabled INTEGER DEFAULT 1,
   is_user INTEGER DEFAULT 0,
+  thinking_enabled INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
