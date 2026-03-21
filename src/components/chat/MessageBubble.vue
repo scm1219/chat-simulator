@@ -16,6 +16,15 @@
           >
             {{ deleteConfirming ? '✔️' : '🗑️' }}
           </button>
+          <button
+            v-if="!editing"
+            :class="['action-btn', { disabled: sending }]"
+            @click="handleResend"
+            :disabled="sending"
+            title="重发"
+          >
+            🔄
+          </button>
         </div>
       </div>
       <div
@@ -112,6 +121,9 @@ const deleteConfirming = ref(false)
 let deleteConfirmTimer = null
 
 const isUser = computed(() => props.message.role === 'user')
+
+// 获取发送状态
+const sending = computed(() => messagesStore.sending)
 
 const formattedTime = computed(() => {
   const date = new Date(props.message.timestamp)
@@ -265,6 +277,14 @@ async function deleteMessage() {
     toast.error('删除消息失败: ' + error.message)
   }
 }
+
+async function handleResend() {
+  try {
+    await messagesStore.resendMessage(props.message.id)
+  } catch (error) {
+    toast.error('重发消息失败: ' + error.message)
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -343,6 +363,16 @@ async function deleteMessage() {
     &:hover {
       background: #b91c1c;
       color: white;
+    }
+  }
+
+  &.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+
+    &:hover {
+      background: none;
+      opacity: 0.3;
     }
   }
 }

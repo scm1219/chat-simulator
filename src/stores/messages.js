@@ -293,6 +293,28 @@ export const useMessagesStore = defineStore('messages', () => {
     }
   }
 
+  async function resendMessage(messageId) {
+    try {
+      // 删除该消息及之后的所有消息
+      const result = await window.electronAPI.message.deleteFrom(messageId)
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      // 重新加载消息列表
+      const groupsStore = useGroupsStore()
+      await loadMessages(groupsStore.currentGroupId)
+
+      // 重新发送消息
+      await sendMessage(result.data.content)
+
+      return { success: true }
+    } catch (error) {
+      console.error('[Messages] Failed to resend message:', error)
+      throw error
+    }
+  }
+
   return {
     messages,
     loading,
@@ -306,6 +328,7 @@ export const useMessagesStore = defineStore('messages', () => {
     clearMessages,
     clearLocalMessages,
     updateMessage,
-    deleteMessage
+    deleteMessage,
+    resendMessage
   }
 })

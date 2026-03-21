@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     create: (data) => ipcRenderer.invoke('message:create', data),
     update: (id, content) => ipcRenderer.invoke('message:update', id, content),
     delete: (id) => ipcRenderer.invoke('message:delete', id),
+    deleteFrom: (id) => ipcRenderer.invoke('message:deleteFrom', id),
     clearByGroupId: (groupId) => ipcRenderer.invoke('message:clearByGroupId', groupId),
     exportToZip: (groupId, groupName) => ipcRenderer.invoke('message:exportToZip', groupId, groupName),
     onNewMessage: (callback) => {

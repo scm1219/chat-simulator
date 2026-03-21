@@ -107,6 +107,40 @@ export function setupMessageHandlers(dbManager) {
     }
   })
 
+  // 删除指定消息及其之后的所有消息
+  ipcMain.handle('message:deleteFrom', async (event, messageId) => {
+    try {
+      // 首先获取消息以确定它属于哪个群组
+      const groupIds = dbManager.getGroupDBFiles()
+      let db = null
+      let message = null
+      let targetGroupId = null
+
+      for (const groupId of groupIds) {
+        db = dbManager.getGroupDB(groupId)
+        message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+        if (message) {
+          targetGroupId = groupId
+          break
+        }
+      }
+
+      if (!message) {
+        return { success: false, error: '消息不存在' }
+      }
+
+      // 获取消息的时间戳
+      const timestamp = message.timestamp
+
+      // 删除该消息及之后的所有消息
+      db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(targetGroupId, timestamp)
+
+      return { success: true, data: { content: message.content, groupId: targetGroupId } }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // 导出群组聊天记录为 ZIP
   ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
     try {
