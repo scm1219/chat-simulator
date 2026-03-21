@@ -250,30 +250,47 @@ function togglePromptExpand(charId) {
 // 判断角色是否可以上移
 function canMoveUp(index) {
   const char = charactersStore.characters[index]
+  console.log('[canMoveUp] 检查角色:', char.name, 'is_user:', char.is_user, 'position:', char.position)
+
   // 用户角色不能移动
   if (char.is_user === 1) return false
+
   // 找到当前角色在 AI 角色中的位置
   const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
+  console.log('[canMoveUp] AI 角色列表:', aiCharacters.map(c => ({ name: c.name, position: c.position })))
+
   const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
+  console.log('[canMoveUp] 当前角色在 AI 列表中的索引:', aiIndex, '是否可以上移:', aiIndex > 0)
+
   return aiIndex > 0
 }
 
 // 判断角色是否可以下移
 function canMoveDown(index) {
   const char = charactersStore.characters[index]
+  console.log('[canMoveDown] 检查角色:', char.name, 'is_user:', char.is_user, 'position:', char.position)
+
   // 用户角色不能移动
   if (char.is_user === 1) return false
+
   // 找到当前角色在 AI 角色中的位置
   const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
+  console.log('[canMoveDown] AI 角色列表:', aiCharacters.map(c => ({ name: c.name, position: c.position })))
+
   const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
+  console.log('[canMoveDown] 当前角色在 AI 列表中的索引:', aiIndex, '是否可以下移:', aiIndex < aiCharacters.length - 1)
+
   return aiIndex < aiCharacters.length - 1
 }
 
 // 移动角色
 async function moveCharacter(char, direction) {
   try {
-    await charactersStore.reorderCharacter(char.id, direction)
+    console.log('[CharacterPanel] 移动角色:', char.name, direction, '当前 position:', char.position)
+    const result = await charactersStore.reorderCharacter(char.id, direction)
+    console.log('[CharacterPanel] 移动结果:', result)
   } catch (error) {
+    console.error('[CharacterPanel] 移动角色失败:', error)
     toast.error(`移动角色失败: ${error.message}`)
   }
 }

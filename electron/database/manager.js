@@ -106,8 +106,8 @@ export class DatabaseManager {
     // 启用外键约束
     db.pragma('foreign_keys = ON')
 
-    // 初始化表结构
-    this.initSchema(db)
+    // 初始化表结构，传入群组 ID
+    this.initSchema(db, groupId)
 
     // 缓存连接
     this.connections.set(groupId, db)
@@ -118,25 +118,29 @@ export class DatabaseManager {
   /**
    * 初始化数据库表结构
    */
-  initSchema(db) {
+  initSchema(db, groupId) {
     db.exec(SCHEMA_SQL)
 
-    // 执行数据库迁移
-    this.runMigrations(db)
+    // 执行数据库迁移，传入群组 ID
+    this.runMigrations(db, groupId)
   }
 
   /**
    * 执行数据库迁移
+   * @param {Database} db - 数据库连接
+   * @param {string} groupId - 群组 ID
    */
-  runMigrations(db) {
+  runMigrations(db, groupId) {
+    console.log(`[Database] 开始检查群组 ${groupId} 的数据库迁移...`)
+
     // 检查 messages 表是否有 reasoning_content 字段
     const tableInfo = db.pragma('table_info(messages)')
     const hasReasoningContent = tableInfo.some(col => col.name === 'reasoning_content')
 
     if (!hasReasoningContent) {
-      console.log('[Database] 执行迁移：添加 messages.reasoning_content 字段')
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.reasoning_content 字段`)
       db.exec('ALTER TABLE messages ADD COLUMN reasoning_content TEXT')
-      console.log('[Database] 迁移完成：reasoning_content 字段已添加')
+      console.log(`[Database][${groupId}] 迁移完成：reasoning_content 字段已添加`)
     }
 
     // 检查 characters 表是否有 position 字段
@@ -144,26 +148,66 @@ export class DatabaseManager {
     const hasPosition = charTableInfo.some(col => col.name === 'position')
 
     if (!hasPosition) {
-      console.log('[Database] 执行迁移：添加 characters.position 字段')
+      console.log(`[Database][${groupId}] 执行迁移：添加 characters.position 字段`)
       db.exec('ALTER TABLE characters ADD COLUMN position INTEGER DEFAULT 0')
 
-      // 为已有角色设置 position（按创建时间排序）
-      const characters = db.prepare('SELECT id FROM characters ORDER BY created_at').all()
-      characters.forEach((char, index) => {
+      // 为当前群组的已有 AI 角色设置 position（按创建时间排序，排除用户角色）
+      const aiCharacters = db.prepare(
+        'SELECT id FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY created_at'
+      ).all(groupId)
+
+      console.log(`[Database][${groupId}] 为 ${aiCharacters.length} 个 AI 角色设置 position 值`)
+
+      aiCharacters.forEach((char, index) => {
         db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
       })
 
-      console.log('[Database] 迁移完成：position 字段已添加并初始化')
+      console.log(`[Database][${groupId}] 迁移完成：position 字段已添加并初始化`)
+    } else {
+      // position 字段已存在，检查是否需要规范化当前群组的角色
+      console.log(`[Database][${groupId}] 检查 position 字段是否需要规范化...`)
+
+      // 检查当前群组的 AI 角色是否有重复的 position 值或不连续的情况
+      const aiCharacters = db.prepare(
+        'SELECT id, position FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC, created_at ASC'
+      ).all(groupId)
+
+      console.log(`[Database][${groupId}] 当前群组有 ${aiCharacters.length} 个 AI 角色`)
+
+      let needsNormalize = false
+      const seenPositions = new Set()
+
+      for (const char of aiCharacters) {
+        if (seenPositions.has(char.position)) {
+          console.log(`[Database][${groupId}] 检测到重复的 position 值: ${char.position}`)
+          needsNormalize = true
+          break
+        }
+        seenPositions.add(char.position)
+      }
+
+      if (needsNormalize) {
+        console.log(`[Database][${groupId}] 检测到 position 值不连续或有重复，开始规范化...`)
+        // 重新规范化当前群组所有 AI 角色的 position 值
+        aiCharacters.forEach((char, index) => {
+          db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
+        })
+        console.log(`[Database][${groupId}] 规范化完成`)
+      } else {
+        console.log(`[Database][${groupId}] position 字段正常，无需规范化`)
+      }
     }
 
     // 检查 characters 表是否有 thinking_enabled 字段
     const hasThinkingEnabled = charTableInfo.some(col => col.name === 'thinking_enabled')
 
     if (!hasThinkingEnabled) {
-      console.log('[Database] 执行迁移：添加 characters.thinking_enabled 字段')
+      console.log(`[Database][${groupId}] 执行迁移：添加 characters.thinking_enabled 字段`)
       db.exec('ALTER TABLE characters ADD COLUMN thinking_enabled INTEGER DEFAULT 0')
-      console.log('[Database] 迁移完成：thinking_enabled 字段已添加')
+      console.log(`[Database][${groupId}] 迁移完成：thinking_enabled 字段已添加`)
     }
+
+    console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
   }
 
   /**
