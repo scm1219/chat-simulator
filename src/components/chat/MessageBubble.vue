@@ -30,7 +30,9 @@
     </div>
     <div v-else class="message-content-assistant">
       <div class="message-header">
-        <div v-if="character" class="character-name">{{ character.name }}</div>
+        <div v-if="character || message.characterName" class="character-name">
+          {{ character?.name || message.characterName || '角色' }}
+        </div>
         <div class="message-actions">
           <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
             ✏️
