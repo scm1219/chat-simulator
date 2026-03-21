@@ -232,9 +232,12 @@ export function setupGroupHandlers(dbManager) {
         sourceGroup.system_prompt
       )
 
-      // 复制所有角色（不复制消息）
+      // 复制所有角色，并建立旧ID到新ID的映射
+      const characterIdMap = {} // 旧角色ID -> 新角色ID
       for (const character of sourceCharacters) {
         const newCharacterId = generateUUID()
+        characterIdMap[character.id] = newCharacterId
+
         newDb.prepare(`
           INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -248,8 +251,33 @@ export function setupGroupHandlers(dbManager) {
         )
       }
 
+      // 复制所有消息
+      const sourceMessages = sourceDb.prepare('SELECT * FROM messages WHERE group_id = ? ORDER BY timestamp').all(sourceId)
+      for (const message of sourceMessages) {
+        const newMessageId = generateUUID()
+        // 将消息中的旧角色ID映射到新的角色ID
+        const newCharacterId = message.character_id ? characterIdMap[message.character_id] : null
+
+        newDb.prepare(`
+          INSERT INTO messages (id, group_id, character_id, role, content, timestamp)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          newMessageId,
+          newId,
+          newCharacterId,
+          message.role,
+          message.content,
+          message.timestamp
+        )
+      }
+
       const newGroup = newDb.prepare('SELECT * FROM groups WHERE id = ?').get(newId)
-      console.log('[Group] 群组复制成功', { id: newId, name: newGroup.name })
+      console.log('[Group] 群组复制成功', {
+        id: newId,
+        name: newGroup.name,
+        charactersCount: sourceCharacters.length,
+        messagesCount: sourceMessages.length
+      })
       return { success: true, data: newGroup }
     } catch (error) {
       console.error('[Group] 复制群组失败', error)
