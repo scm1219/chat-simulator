@@ -55,19 +55,8 @@ export const useMessagesStore = defineStore('messages', () => {
       const userCharacterId = userCharacter?.id || null
       const userCharacterName = userCharacter?.name || '用户'
 
-      // 立即添加用户消息到界面
-      const userMessage = {
-        id: 'user_' + Date.now(),
-        group_id: groupId,
-        character_id: userCharacterId,
-        characterName: userCharacterName,
-        role: 'user',
-        content: content,
-        timestamp: new Date().toISOString()
-      }
-      messages.value.push(userMessage)
-
       // 调用 LLM 生成回复（流式输出）
+      // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generate(groupId, content)
       console.log('[Messages] LLM 返回结果', result)
 
@@ -104,19 +93,8 @@ export const useMessagesStore = defineStore('messages', () => {
       const userCharacterId = userCharacter?.id || null
       const userCharacterName = userCharacter?.name || '用户'
 
-      // 立即添加用户消息到界面
-      const userMessage = {
-        id: 'user_' + Date.now(),
-        group_id: groupId,
-        character_id: userCharacterId,
-        characterName: userCharacterName,
-        role: 'user',
-        content: instruction,
-        timestamp: new Date().toISOString()
-      }
-      messages.value.push(userMessage)
-
       // 调用 LLM 生成回复（单角色指令）
+      // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generateCharacterCommand(groupId, characterId, instruction)
       console.log('[Messages] LLM 返回结果', result)
 
@@ -157,6 +135,20 @@ export const useMessagesStore = defineStore('messages', () => {
       console.warn('[Messages] electronAPI.message not available')
       return
     }
+
+    // 监听用户消息保存事件（添加用户消息到前端）
+    const userMessageSavedListener = window.electronAPI.message.onUserMessageSaved((data) => {
+      console.log('[Messages] 用户消息已保存', data)
+      // 检查是否已存在相同的消息（避免重复）
+      const exists = messages.value.some(msg =>
+        msg.id === data.id ||
+        (msg.role === 'user' && msg.content === data.content && msg.timestamp === data.timestamp)
+      )
+      if (!exists) {
+        messages.value.push(data)
+        console.log('[Messages] 用户消息已添加到界面')
+      }
+    })
 
     // 监听流式开始
     streamStartListener = window.electronAPI.message.onStreamStart((data) => {
@@ -216,6 +208,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 返回清理函数
     return () => {
+      userMessageSavedListener?.()
       streamStartListener?.()
       streamChunkListener?.()
       streamEndListener?.()

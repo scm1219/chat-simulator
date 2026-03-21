@@ -55,6 +55,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const listener = (event, data) => callback(data)
       ipcRenderer.on('message:stream:error', listener)
       return () => ipcRenderer.removeListener('message:stream:error', listener)
+    },
+    // 用户消息保存事件（更新前端消息的真实 ID）
+    onUserMessageSaved: (callback) => {
+      const listener = (event, data) => callback(data)
+      ipcRenderer.on('message:user:saved', listener)
+      return () => ipcRenderer.removeListener('message:user:saved', listener)
     }
   },
 

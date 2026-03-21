@@ -45,11 +45,29 @@ export function setupLLMHandlers(dbManager) {
 
       // 1. 保存用户消息
       const userMsgId = generateUUID()
+
+      // 获取用户角色信息
+      const userCharacter = db.prepare(`
+        SELECT * FROM characters WHERE group_id = ? AND is_user = 1
+      `).get(groupId)
+
       db.prepare(`
-        INSERT INTO messages (id, group_id, role, content)
-        VALUES (?, ?, ?, ?)
-      `).run(userMsgId, groupId, 'user', userContent)
+        INSERT INTO messages (id, group_id, character_id, role, content)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent)
       console.log('[LLM] 用户消息已保存', { userMsgId })
+
+      // 通知前端：用户消息已保存（包含真实 ID）
+      event.sender.send('message:user:saved', {
+        tempId: 'user_' + Date.now(),  // 前端可能使用的临时 ID
+        id: userMsgId,
+        group_id: groupId,
+        character_id: userCharacter?.id || null,
+        characterName: userCharacter?.name || '用户',
+        role: 'user',
+        content: userContent,
+        timestamp: new Date().toISOString()
+      })
 
       // 2. 获取群组配置
       const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
@@ -181,11 +199,29 @@ export function setupLLMHandlers(dbManager) {
 
       // 1. 保存用户指令消息
       const userMsgId = generateUUID()
+
+      // 获取用户角色信息
+      const userCharacter = db.prepare(`
+        SELECT * FROM characters WHERE group_id = ? AND is_user = 1
+      `).get(groupId)
+
       db.prepare(`
-        INSERT INTO messages (id, group_id, role, content)
-        VALUES (?, ?, ?, ?)
-      `).run(userMsgId, groupId, 'user', instruction)
+        INSERT INTO messages (id, group_id, character_id, role, content)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', instruction)
       console.log('[LLM] 用户指令消息已保存', { userMsgId })
+
+      // 通知前端：用户消息已保存（包含真实 ID）
+      event.sender.send('message:user:saved', {
+        tempId: 'user_' + Date.now(),  // 前端可能使用的临时 ID
+        id: userMsgId,
+        group_id: groupId,
+        character_id: userCharacter?.id || null,
+        characterName: userCharacter?.name || '用户',
+        role: 'user',
+        content: instruction,
+        timestamp: new Date().toISOString()
+      })
 
       // 2. 获取群组配置
       const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
