@@ -106,7 +106,7 @@ defineExpose({
 }
 
 .confirm-dialog {
-  background: var(--msg-bg);
+  background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   min-width: 400px;
@@ -116,19 +116,19 @@ defineExpose({
 
 .confirm-header {
   padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #e7e7e7;
 
   h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #333333;
   }
 }
 
 .confirm-body {
   padding: 24px;
-  color: var(--text-primary);
+  color: #333333;
   font-size: 15px;
   line-height: 1.6;
 }
@@ -138,7 +138,7 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  background: var(--chat-bg);
+  background: #f5f5f5;
 }
 
 .btn {
@@ -150,12 +150,12 @@ defineExpose({
   transition: all 0.2s;
 
   &.btn-cancel {
-    background: var(--msg-bg);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background: #ffffff;
+    color: #333333;
+    border: 1px solid #e7e7e7;
 
     &:hover {
-      background: var(--hover-bg);
+      background: #f0f0f0;
     }
   }
 
@@ -179,7 +179,7 @@ defineExpose({
     }
 
     &.primary {
-      background: var(--wechat-green);
+      background: #07c160;
 
       &:hover {
         background: #2e7d32;

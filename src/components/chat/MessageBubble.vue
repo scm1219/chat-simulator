@@ -9,8 +9,12 @@
           <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
             ✏️
           </button>
-          <button class="action-btn danger" @click="confirmDelete" title="删除">
-            🗑️
+          <button
+            :class="['action-btn', 'danger', { confirming: deleteConfirming }]"
+            @click="handleDeleteClick"
+            :title="deleteConfirming ? '确认删除' : '删除'"
+          >
+            {{ deleteConfirming ? '✔️' : '🗑️' }}
           </button>
         </div>
       </div>
@@ -37,8 +41,12 @@
           <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
             ✏️
           </button>
-          <button class="action-btn danger" @click="confirmDelete" title="删除">
-            🗑️
+          <button
+            :class="['action-btn', 'danger', { confirming: deleteConfirming }]"
+            @click="handleDeleteClick"
+            :title="deleteConfirming ? '确认删除' : '删除'"
+          >
+            {{ deleteConfirming ? '✔️' : '🗑️' }}
           </button>
         </div>
       </div>
@@ -81,10 +89,9 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
-import { useDialog } from '../../composables/useDialog'
 
 const props = defineProps({
   message: {
@@ -99,7 +106,10 @@ const props = defineProps({
 
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
-const { confirm } = useDialog()
+
+// 删除确认状态
+const deleteConfirming = ref(false)
+let deleteConfirmTimer = null
 
 const isUser = computed(() => props.message.role === 'user')
 
@@ -218,17 +228,34 @@ async function saveEdit() {
   editing.value = false
 }
 
-async function confirmDelete() {
-  const confirmed = await confirm({
-    title: '删除消息',
-    message: '确定要删除这条消息吗？',
-    confirmText: '删除',
-    cancelText: '取消'
-  })
-  if (confirmed) {
-    deleteMessage()
+async function handleDeleteClick() {
+  if (deleteConfirming.value) {
+    // 第二次点击，执行删除
+    await deleteMessage()
+    resetDeleteConfirm()
+  } else {
+    // 第一次点击，进入确认模式
+    deleteConfirming.value = true
+
+    // 3秒后自动重置
+    deleteConfirmTimer = setTimeout(() => {
+      resetDeleteConfirm()
+    }, 3000)
   }
 }
+
+function resetDeleteConfirm() {
+  deleteConfirming.value = false
+  if (deleteConfirmTimer) {
+    clearTimeout(deleteConfirmTimer)
+    deleteConfirmTimer = null
+  }
+}
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  resetDeleteConfirm()
+})
 
 async function deleteMessage() {
   try {
@@ -305,6 +332,27 @@ async function deleteMessage() {
   &.danger:hover {
     background: #fee2e2;
     color: #dc2626;
+  }
+
+  &.confirming {
+    opacity: 1;
+    background: #dc2626;
+    color: white;
+    animation: pulse 0.5s ease-in-out infinite alternate;
+
+    &:hover {
+      background: #b91c1c;
+      color: white;
+    }
+  }
+}
+
+@keyframes pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.1);
   }
 }
 
