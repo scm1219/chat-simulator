@@ -11,13 +11,26 @@
 - 💾 **本地存储**：每个聊天群使用独立的 SQLite 数据库存储
 - 📱 **微信风格 UI**：简洁优雅的微信绿色主题界面
 - ⚡ **多种回复模式**：支持顺序和并行两种对话模式
+- 🎨 **群背景设定**：为每个群组设置背景场景，增强对话沉浸感
+- 🧠 **思考模式**：支持 LLM 思考模式（如 o1 系列），展示推理过程
+- 👤 **用户角色**：支持添加用户角色，区分用户和 AI 角色
+- 📚 **全局角色库**：跨群组复用角色人设，支持标签管理
+- 🎯 **系统提示词模板**：预设常用人设模板，快速创建角色
 
 ## 技术栈
 
-- **前端**：Vue 3 + Vite + Pinia + SCSS
-- **桌面**：Electron + electron-vite
-- **数据库**：better-sqlite3
-- **LLM**：OpenAI 兼容协议
+| 类别 | 技术 | 版本 |
+|------|------|------|
+| **前端框架** | Vue | 3.5.30 |
+| **构建工具** | Vite | 8.0.1 |
+| **桌面框架** | Electron | 41.0.3 |
+| **构建工具** | electron-vite | 5.0.0 |
+| **状态管理** | Pinia | 3.0.4 |
+| **数据库** | better-sqlite3 | 12.8.0 |
+| **HTTP 客户端** | axios | 1.13.6 |
+| **样式** | SCSS (Sass) | 1.98.0 |
+| **语言** | JavaScript (ES Modules) | - |
+| **LLM 协议** | OpenAI 兼容 | - |
 
 ## 安装和运行
 
@@ -83,7 +96,61 @@ npm run build:linux
 2. 按 Enter 发送（Shift + Enter 换行）
 3. 所有启用的角色会依次/并行回复
 
+### 5. 使用全局角色库（可选）
+
+全局角色库允许您跨群组复用角色人设：
+
+1. 点击左侧面板"角色库"图标
+2. 点击"添加角色"创建全局角色
+3. 输入角色名称、设定和标签
+4. 在任意群组中点击"从角色库添加"快速导入
+
+**标签系统**：
+- 为角色添加标签便于分类管理（如"古代"、"科幻"、"萌系"）
+- 支持按标签筛选角色
+- 一个角色可以添加多个标签
+
+### 6. 使用系统提示词模板（可选）
+
+系统提示词模板提供预设的常用人设：
+
+1. 创建角色时，点击"选择模板"下拉框
+2. 选择合适的模板（如"古代谋士"、"萌系少女"、"严肃教授"）
+3. 模板会自动填充系统提示词
+4. 根据需要调整和完善人设
+
+### 7. 用户角色说明
+
+每个群组创建时会自动添加一个默认用户角色：
+
+- **用户角色特性**：
+  - 不会参与 LLM 对话生成
+  - 在角色面板中显示特殊的紫色样式
+  - 用于标识真实用户发送的消息
+
+- **自定义用户角色**：
+  - 可以在群组中添加多个用户角色
+  - 用于区分不同的用户身份
+  - 适合多用户共享同一个应用场景
+
 ## 配置说明
+
+### 支持的 LLM 供应商
+
+应用支持以下 LLM 供应商：
+
+| 供应商 | 标识符 | 推荐模型 | 说明 |
+|--------|--------|----------|------|
+| **OpenAI** | `openai` | gpt-4o, gpt-4o-mini, o1-preview, o1-mini | 支持 GPT-4 和 GPT-3.5 系列 |
+| **DeepSeek** | `deepseek` | deepseek-chat, deepseek-reasoner | 国产高性能 LLM，支持推理模式 |
+| **通义千问** | `qwen` | qwen-turbo, qwen-plus, qwen-max | 阿里云大模型 |
+| **Moonshot** | `moonshot` | moonshot-v1-8k, moonshot-v1-32k | Kimi 提供的 LLM |
+| **智谱 AI** | `zhipu` | glm-4, glm-4-flash | 智谱 AI 大模型 |
+| **Ollama** | `ollama` | llama3, qwen2, mistral | 本地部署，需先启动 Ollama 服务 |
+| **自定义** | `custom` | 自定义 | 支持任何 OpenAI 兼容的 API |
+
+**添加新供应商**：
+如需添加其他供应商，可以在 `electron/llm/providers/index.js` 中配置。
 
 ### 回复模式
 
@@ -160,12 +227,14 @@ npm run build:linux
 
 **Windows**：
 ```
-C:\Users\{用户名}\AppData\Roaming\chat\
+C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 
 ├── config/              # 配置文件目录
 │   ├── llm-config.json          # 全局 LLM 配置
 │   ├── llm-profiles.json        # LLM 配置列表
-│   └── proxy-config.json        # 代理配置
+│   ├── proxy-config.json        # 代理配置
+│   ├── system-prompts.json      # 系统提示词模板
+│   └── global-characters.json   # 全局角色库
 │
 └── data/                # 数据文件目录
     └── groups/          # 群组数据库目录
@@ -176,18 +245,28 @@ C:\Users\{用户名}\AppData\Roaming\chat\
 
 **macOS**：
 ```
-~/Library/Application Support/chat/
+~/Library/Application Support/chat-simulator/
 
 ├── config/
+│   ├── llm-config.json
+│   ├── llm-profiles.json
+│   ├── proxy-config.json
+│   ├── system-prompts.json
+│   └── global-characters.json
 └── data/
     └── groups/
 ```
 
 **Linux**：
 ```
-~/.config/chat/
+~/.config/chat-simulator/
 
 ├── config/
+│   ├── llm-config.json
+│   ├── llm-profiles.json
+│   ├── proxy-config.json
+│   ├── system-prompts.json
+│   └── global-characters.json
 └── data/
     └── groups/
 ```
@@ -277,6 +356,48 @@ LLM 配置列表，保存多个预设配置：
 }
 ```
 
+#### system-prompts.json
+系统提示词模板，预设常用的人设模板：
+```json
+[
+  {
+    "id": "uuid-xxx",
+    "name": "古代谋士",
+    "content": "你是一位古代谋士，善于分析局势，运筹帷幄。说话文雅，引经据典。",
+    "category": "古代",
+    "createdAt": "2026-03-20T00:00:00.000Z"
+  },
+  {
+    "id": "uuid-yyy",
+    "name": "萌系少女",
+    "content": "你是一位可爱的萌系少女，语气活泼，喜欢使用表情符号和可爱的语气词。",
+    "category": "萌系",
+    "createdAt": "2026-03-20T00:00:00.000Z"
+  }
+]
+```
+
+#### global-characters.json
+全局角色库，跨群组复用的角色人设：
+```json
+[
+  {
+    "id": "uuid-xxx",
+    "name": "诸葛亮",
+    "systemPrompt": "你是诸葛亮，字孔明，三国时期蜀汉丞相。你智慧过人，善于谋略，说话沉稳有力，常引用兵法。",
+    "tags": ["三国", "古代", "谋士"],
+    "createdAt": "2026-03-20T00:00:00.000Z"
+  },
+  {
+    "id": "uuid-yyy",
+    "name": "爱丽丝",
+    "systemPrompt": "你是爱丽丝，一个好奇的女孩，对世界充满疑问，喜欢探索未知的事物。",
+    "tags": ["童话", "好奇", "少女"],
+    "createdAt": "2026-03-20T00:00:00.000Z"
+  }
+]
+```
+
 ### 数据备份与恢复
 
 #### 备份
@@ -305,17 +426,39 @@ LLM 配置列表，保存多个预设配置：
 chat-simulator/
 ├── electron/              # Electron 主进程
 │   ├── main.js           # 主进程入口
-│   ├── ipc/              # IPC 通信
+│   ├── preload.js        # Preload 脚本
+│   ├── ipc/              # IPC 通信层
+│   │   └── handlers/     # IPC 处理器
 │   ├── database/         # 数据库层
+│   │   ├── manager.js    # 数据库管理器
+│   │   └── schema.sql    # 数据库结构
 │   ├── llm/              # LLM 服务层
+│   │   ├── client.js     # LLM 客户端
+│   │   ├── providers/    # 供应商配置
+│   │   └── proxy.js      # 代理配置
 │   └── config/           # 配置管理
+│       ├── manager.js    # 全局配置管理
+│       ├── llm-profiles.js  # LLM 配置管理
+│       └── system-prompts.js # 系统提示词模板
 ├── src/                  # Vue 渲染进程
+│   ├── main.js           # 渲染进程入口
+│   ├── App.vue           # 根组件
 │   ├── components/       # Vue 组件
+│   │   ├── layout/       # 布局组件
+│   │   ├── chat/         # 聊天组件
+│   │   └── config/       # 配置组件
 │   ├── stores/           # Pinia 状态管理
-│   └── styles/           # 样式文件
+│   ├── styles/           # 样式文件
+│   └── composables/      # 组合式函数
 ├── data/                 # 数据存储
-└── package.json
+├── CLAUDE.md             # AI 上下文文档（根级）
+├── electron/CLAUDE.md    # Electron 模块文档
+└── src/CLAUDE.md         # 渲染进程模块文档
 ```
+
+### 详细文档
+
+查看 [CLAUDE.md](./CLAUDE.md) 了解更详细的项目架构、模块索引和 AI 使用指引。
 
 ## 注意事项
 
@@ -323,6 +466,9 @@ chat-simulator/
 2. **网络要求**：使用在线 LLM 需要稳定的网络连接
 3. **Ollama 使用**：使用 Ollama 前需要先启动 Ollama 服务
 4. **代理配置**：如需使用代理，请在设置中配置代理信息
+5. **用户角色**：用户角色不会参与 LLM 对话生成，仅用于标识真实用户
+6. **全局角色库**：从角色库导入的角色会在群组中创建副本，修改全局角色不会影响已导入的群组角色
+7. **思考模式**：仅支持具备推理能力的模型（如 OpenAI o1 系列），其他模型启用此选项可能无效
 
 ## 故障排查
 
@@ -350,3 +496,31 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+### 开发指南
+
+#### 项目架构
+- **主进程**：负责窗口管理、IPC 通信、数据库操作、LLM API 调用
+- **渲染进程**：负责 UI 渲染、用户交互、状态管理
+- **通信层**：通过 Preload 脚本暴露安全的 API
+
+#### 数据流
+1. 用户操作 → Vue 组件
+2. Pinia Store → `window.electronAPI`
+3. IPC 调用 → 主进程 Handler
+4. 数据库/LLM API 操作
+5. 结果推送 → 渲染进程更新
+
+#### 开发规范
+- **Vue 组件**：使用 Composition API (`<script setup>`)
+- **样式**：使用 SCSS，变量定义在 `src/styles/variables.scss`
+- **IPC 通信**：所有调用返回 `{ success, data?, error? }` 格式
+- **数据库**：通过 `DatabaseManager` 统一管理，自动迁移
+
+#### 添加新功能
+1. 添加新的 LLM 供应商：修改 `electron/llm/providers/index.js`
+2. 添加新的 IPC 接口：在 `electron/ipc/handlers/` 添加处理器
+3. 添加新的 Vue 组件：在 `src/components/` 对应目录创建
+4. 添加数据库字段：修改 `schema.sql` 并添加迁移逻辑
+
+详细开发指南请查看 [CLAUDE.md](./CLAUDE.md)。
