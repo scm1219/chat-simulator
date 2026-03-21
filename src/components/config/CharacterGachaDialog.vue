@@ -171,6 +171,8 @@ function closeDialog() {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 .dialog-overlay {
   position: fixed;
   top: 0;
@@ -397,7 +399,7 @@ function closeDialog() {
   color: $text-primary;
 
   &:hover:not(:disabled) {
-    background: darken($bg-tertiary, 5%);
+    background: color.adjust($bg-tertiary, $lightness: -5%);
   }
 }
 
@@ -406,7 +408,7 @@ function closeDialog() {
   color: white;
 
   &:hover:not(:disabled) {
-    background: darken($wechat-green, 5%);
+    background: color.adjust($wechat-green, $lightness: -5%);
   }
 }
 

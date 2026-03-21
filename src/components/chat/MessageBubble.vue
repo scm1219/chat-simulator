@@ -239,6 +239,8 @@ async function deleteMessage() {
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 .message-bubble {
   margin-bottom: $spacing-lg;
   max-width: 70%;
@@ -400,7 +402,7 @@ async function deleteMessage() {
   transition: background 0.2s ease;
 
   &:hover {
-    background: darken($bg-tertiary, 5%);
+    background: color.adjust($bg-tertiary, $lightness: -5%);
   }
 }
 
