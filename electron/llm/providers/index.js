@@ -60,6 +60,14 @@ export const LLM_PROVIDERS = {
     needBaseUrl: true,
     supportsNativeApi: true // 支持原生 API
   },
+  minimax: {
+    id: 'minimax',
+    name: 'MiniMax',
+    baseURL: 'https://api.minimaxi.com/v1',
+    models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.1', 'MiniMax-M2.1-highspeed', 'MiniMax-M2'],
+    needApiKey: true,
+    needBaseUrl: false
+  },
   custom: {
     id: 'custom',
     name: '自定义',
