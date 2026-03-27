@@ -131,6 +131,11 @@ export class LLMClient {
         stream: isStreaming // 启用流式输出
       }
 
+      // 流式请求时请求 usage 数据
+      if (isStreaming) {
+        requestData.stream_options = { include_usage: true }
+      }
+
       // 处理思考模式参数（智谱 GLM 等模型支持）
       if (options.thinkingEnabled === true) {
         // 明确启用思考模式
@@ -202,7 +207,7 @@ export class LLMClient {
           success: true,
           content: content,
           reasoningContent: reasoningContent,
-          usage: response.data.usage
+          usage: response.data.usage || undefined
         }
       }
     } catch (error) {
@@ -221,6 +226,14 @@ export class LLMClient {
 
       let fullContent = ''
       let fullReasoningContent = ''
+      let usage = null
+
+      const buildResult = () => ({
+        success: true,
+        content: fullContent,
+        reasoningContent: fullReasoningContent || null,
+        usage: usage || undefined
+      })
 
       return new Promise((resolve, reject) => {
         response.data.on('data', (chunk) => {
@@ -231,12 +244,7 @@ export class LLMClient {
               const data = line.slice(6)
 
               if (data === '[DONE]') {
-                // 流式结束
-                resolve({
-                  success: true,
-                  content: fullContent,
-                  reasoningContent: fullReasoningContent || null
-                })
+                resolve(buildResult())
                 return
               }
 
@@ -249,14 +257,17 @@ export class LLMClient {
 
                 if (reasoningContent) {
                   fullReasoningContent += reasoningContent
-                  // 推送思考内容片段
                   onChunk({ type: 'reasoning', content: reasoningContent })
                 }
 
                 if (content) {
                   fullContent += content
-                  // 推送回答内容片段
                   onChunk({ type: 'content', content: content })
+                }
+
+                // 提取 usage（通常在最后一个 chunk 中）
+                if (parsed.usage) {
+                  usage = parsed.usage
                 }
               } catch (e) {
                 console.warn('[LLM] 解析流式数据失败', e.message)
@@ -266,11 +277,7 @@ export class LLMClient {
         })
 
         response.data.on('end', () => {
-          resolve({
-            success: true,
-            content: fullContent,
-            reasoningContent: fullReasoningContent || null
-          })
+          resolve(buildResult())
         })
 
         response.data.on('error', (error) => {

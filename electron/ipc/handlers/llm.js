@@ -565,20 +565,25 @@ async function generateCharacterResponse(client, character, history, userContent
     if (result.success) {
       console.log(`[LLM] ${character.name} - 回复生成成功`, {
         contentLength: result.content?.length,
-        hasReasoningContent: !!result.reasoningContent
+        hasReasoningContent: !!result.reasoningContent,
+        usage: result.usage
       })
 
-      // 保存完整回复到数据库（包含思考内容）
+      // 保存完整回复到数据库（包含思考内容和 token 用量）
       const assistantMsgId = generateUUID()
+      const promptTokens = result.usage?.prompt_tokens ?? null
+      const completionTokens = result.usage?.completion_tokens ?? null
       console.log(`[LLM] ${character.name} - 保存消息到数据库`, {
         messageId: assistantMsgId,
         characterId: character.id,
-        characterName: character.name
+        characterName: character.name,
+        promptTokens,
+        completionTokens
       })
       db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null)
+        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens)
 
       // 验证保存是否成功
       const savedMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(assistantMsgId)
@@ -598,6 +603,8 @@ async function generateCharacterResponse(client, character, history, userContent
         role: 'assistant',
         content: result.content,
         reasoningContent: result.reasoningContent || null,
+        promptTokens: promptTokens,
+        completionTokens: completionTokens,
         timestamp: new Date().toISOString()
       })
 
@@ -606,7 +613,8 @@ async function generateCharacterResponse(client, character, history, userContent
         characterId: character.id,
         characterName: character.name,
         content: result.content,
-        reasoningContent: result.reasoningContent || null
+        reasoningContent: result.reasoningContent || null,
+        usage: result.usage || null
       }
     } else {
       console.error(`[LLM] ${character.name} - 回复生成失败`, result.error)

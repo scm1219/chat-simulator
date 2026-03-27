@@ -93,7 +93,13 @@
         @blur="saveEdit"
       />
     </div>
-    <div class="message-time">{{ formattedTime }}</div>
+    <div class="message-time">
+      <span class="time-text">{{ formattedTime }}</span>
+      <span v-if="tokenInfo" class="token-info">
+        <span class="token-item token-in" title="输入 token">&#8593;{{ tokenInfo.prompt }}</span>
+        <span class="token-item token-out" title="输出 token">&#8595;{{ tokenInfo.completion }}</span>
+      </span>
+    </div>
   </div>
 </template>
 
@@ -182,6 +188,18 @@ const showContent = computed(() => {
 // 是否显示"正在输入..."
 const showStreamingIndicator = computed(() => {
   return !isUser.value && props.message.isStreaming && (!props.message.streamContent || props.message.streamContent.length === 0)
+})
+
+// Token 信息（仅 assistant 消息显示）
+const tokenInfo = computed(() => {
+  if (isUser.value) return null
+  const prompt = props.message.prompt_tokens
+  const completion = props.message.completion_tokens
+  if (prompt == null && completion == null) return null
+  return {
+    prompt: prompt ?? 0,
+    completion: completion ?? 0
+  }
 })
 
 // 编辑状态
@@ -442,6 +460,30 @@ async function handleResend() {
   color: $text-placeholder;
   margin-top: $spacing-xs;
   text-align: right;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.token-info {
+  display: inline-flex;
+  gap: $spacing-xs;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.token-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.token-in {
+  color: $color-primary;
+}
+
+.token-out {
+  color: $color-danger;
 }
 
 .user .message-time {

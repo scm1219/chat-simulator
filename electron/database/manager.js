@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   reasoning_content TEXT,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
   FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE SET NULL
@@ -215,6 +217,15 @@ export class DatabaseManager {
       console.log(`[Database][${groupId}] 执行迁移：添加 groups.random_order 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN random_order INTEGER DEFAULT 0')
       console.log(`[Database][${groupId}] 迁移完成：random_order 字段已添加`)
+    }
+
+    // 检查 messages 表是否有 prompt_tokens 字段
+    const hasPromptTokens = tableInfo.some(col => col.name === 'prompt_tokens')
+    if (!hasPromptTokens) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.prompt_tokens / completion_tokens 字段`)
+      db.exec('ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER')
+      db.exec('ALTER TABLE messages ADD COLUMN completion_tokens INTEGER')
+      console.log(`[Database][${groupId}] 迁移完成：token 字段已添加`)
     }
 
     console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
