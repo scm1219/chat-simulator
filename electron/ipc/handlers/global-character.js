@@ -144,16 +144,24 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
 
       // 创建新角色
       const newCharId = generateUUID()
+
+      // 获取当前最大的 position 值（仅 AI 角色），新角色添加到尾部
+      const maxPositionResult = db.prepare(
+        'SELECT MAX(position) as max_pos FROM characters WHERE group_id = ? AND is_user = 0'
+      ).get(groupId)
+      const nextPosition = (maxPositionResult.max_pos || 0) + 1
+
       db.prepare(`
-        INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         newCharId,
         groupId,
         globalCharacter.name,
         globalCharacter.system_prompt,
         1, // 默认启用
-        0  // 非 AI 角色
+        0, // 非 AI 角色
+        nextPosition
       )
 
       const newCharacter = db.prepare('SELECT * FROM characters WHERE id = ?').get(newCharId)
