@@ -199,7 +199,8 @@ export function setupLLMHandlers(dbManager) {
       // 7. 根据回复模式调用 LLM
       const responseMode = group.response_mode || 'sequential'
       const thinkingEnabled = group.thinking_enabled === 1
-      console.log('[LLM] 回复模式', responseMode, '思考模式', thinkingEnabled)
+      const randomOrder = group.random_order === 1
+      console.log('[LLM] 回复模式', responseMode, '思考模式', thinkingEnabled, '随机发言', randomOrder)
       const responses = []
 
       if (responseMode === 'parallel') {
@@ -211,6 +212,14 @@ export function setupLLMHandlers(dbManager) {
         responses.push(...results)
       } else {
         // 顺序模式：依次调用每个角色
+        // 随机发言模式：打乱角色顺序
+        if (randomOrder) {
+          for (let i = characters.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [characters[i], characters[j]] = [characters[j], characters[i]]
+          }
+          console.log('[LLM] 随机发言顺序:', characters.map(c => c.name))
+        }
         for (const character of characters) {
           const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters)
           responses.push(response)

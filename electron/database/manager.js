@@ -207,6 +207,16 @@ export class DatabaseManager {
       console.log(`[Database][${groupId}] 迁移完成：thinking_enabled 字段已添加`)
     }
 
+    // 检查 groups 表是否有 random_order 字段
+    const groupsTableInfo = db.pragma('table_info(groups)')
+    const hasRandomOrder = groupsTableInfo.some(col => col.name === 'random_order')
+
+    if (!hasRandomOrder) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 groups.random_order 字段`)
+      db.exec('ALTER TABLE groups ADD COLUMN random_order INTEGER DEFAULT 0')
+      console.log(`[Database][${groupId}] 迁移完成：random_order 字段已添加`)
+    }
+
     console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
   }
 

@@ -68,6 +68,29 @@
             </label>
           </div>
         </div>
+        <div class="setting-item inline-setting">
+          <label>随机发言</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="random-order"
+                :checked="currentGroup.random_order === 1"
+                @change="updateRandomOrder({ target: { checked: true }})"
+              />
+              <span>是</span>
+            </label>
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="random-order"
+                :checked="currentGroup.random_order === 0"
+                @change="updateRandomOrder({ target: { checked: false }})"
+              />
+              <span>否</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- 角色列表 -->
@@ -364,6 +387,17 @@ async function updateThinkingMode(event) {
 
     // 重新加载角色列表以确保 UI 正确刷新
     await charactersStore.loadCharacters(currentGroup.value.id)
+  } catch (error) {
+    toast.error('更新设置失败: ' + error.message)
+  }
+}
+
+async function updateRandomOrder(event) {
+  try {
+    await groupsStore.updateGroup(currentGroup.value.id, {
+      randomOrder: event.target.checked
+    })
+    toast.success('随机发言已更新')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
   }

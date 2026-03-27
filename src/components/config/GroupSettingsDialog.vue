@@ -87,6 +87,19 @@
           </small>
         </div>
 
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              v-model="form.randomOrder"
+              type="checkbox"
+            />
+            <span>随机发言</span>
+          </label>
+          <small class="hint">
+            启用后，角色在顺序模式下会以随机顺序依次回复
+          </small>
+        </div>
+
         <div class="info-section">
           <div class="info-item">
             <span class="label">LLM 供应商：</span>
@@ -139,7 +152,8 @@ const form = ref({
   background: '',
   maxHistory: 20,
   responseMode: 'sequential',
-  thinkingEnabled: false
+  thinkingEnabled: false,
+  randomOrder: false
 })
 
 const hasChanges = computed(() => {
@@ -150,7 +164,8 @@ const hasChanges = computed(() => {
     (form.value.background || '') !== (group.value.background || '') ||
     form.value.maxHistory !== group.value.max_history ||
     form.value.responseMode !== group.value.response_mode ||
-    form.value.thinkingEnabled !== (group.value.thinking_enabled === 1)
+    form.value.thinkingEnabled !== (group.value.thinking_enabled === 1) ||
+    form.value.randomOrder !== (group.value.random_order === 1)
   )
 })
 
@@ -162,7 +177,8 @@ onMounted(() => {
       background: group.value.background || '',
       maxHistory: group.value.max_history,
       responseMode: group.value.response_mode,
-      thinkingEnabled: group.value.thinking_enabled === 1
+      thinkingEnabled: group.value.thinking_enabled === 1,
+      randomOrder: group.value.random_order === 1
     }
   }
 })
@@ -182,7 +198,8 @@ async function handleSave() {
       background: form.value.background || null,
       maxHistory: form.value.maxHistory,
       responseMode: form.value.responseMode,
-      thinkingEnabled: form.value.thinkingEnabled
+      thinkingEnabled: form.value.thinkingEnabled,
+      randomOrder: form.value.randomOrder
     })
     emit('saved')
     emit('close')

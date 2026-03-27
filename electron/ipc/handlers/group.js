@@ -25,6 +25,7 @@ export function setupGroupHandlers(dbManager) {
         response_mode: String(data.responseMode || 'sequential'),
         use_global_api_key: (data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : 1),
         thinking_enabled: (data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : 0),
+        random_order: (data.randomOrder !== undefined ? (data.randomOrder ? 1 : 0) : 0),
         background: data.background ? String(data.background) : null,
         system_prompt: data.systemPrompt ? String(data.systemPrompt) : null
       }
@@ -33,8 +34,8 @@ export function setupGroupHandlers(dbManager) {
 
       const db = dbManager.getGroupDB(id)
       db.prepare(`
-        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, background, system_prompt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, random_order, background, system_prompt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         values.id,
         values.name,
@@ -46,6 +47,7 @@ export function setupGroupHandlers(dbManager) {
         values.response_mode,
         values.use_global_api_key,
         values.thinking_enabled,
+        values.random_order,
         values.background,
         values.system_prompt
       )
@@ -151,6 +153,10 @@ export function setupGroupHandlers(dbManager) {
         updates.push('thinking_enabled = ?')
         values.push(data.thinkingEnabled ? 1 : 0)
       }
+      if (data.randomOrder !== undefined) {
+        updates.push('random_order = ?')
+        values.push(data.randomOrder ? 1 : 0)
+      }
       if (data.background !== undefined) {
         updates.push('background = ?')
         values.push(data.background)
@@ -215,8 +221,8 @@ export function setupGroupHandlers(dbManager) {
         : `${sourceGroup.name}(副本)`
 
       newDb.prepare(`
-        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, background, system_prompt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, random_order, background, system_prompt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         newId,
         duplicateName,
@@ -228,6 +234,7 @@ export function setupGroupHandlers(dbManager) {
         sourceGroup.response_mode,
         sourceGroup.use_global_api_key,
         sourceGroup.thinking_enabled,
+        sourceGroup.random_order,
         sourceGroup.background,
         sourceGroup.system_prompt
       )

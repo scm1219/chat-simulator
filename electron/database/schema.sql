@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS groups (
   response_mode TEXT DEFAULT 'sequential',
   use_global_api_key INTEGER DEFAULT 1,
   thinking_enabled INTEGER DEFAULT 0,
+  random_order INTEGER DEFAULT 0,
   background TEXT,
   system_prompt TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

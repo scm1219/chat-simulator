@@ -66,6 +66,19 @@
           </small>
         </div>
 
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              v-model="form.randomOrder"
+              type="checkbox"
+            />
+            <span>随机发言</span>
+          </label>
+          <small class="hint">
+            启用后，角色在顺序模式下会以随机顺序依次回复
+          </small>
+        </div>
+
         <!-- 系统提示词模板选择 -->
         <div class="form-group">
           <label>系统提示词模板（可多选）</label>
@@ -159,6 +172,7 @@ const form = ref({
   selectedProfileId: '',
   maxHistory: 20,
   thinkingEnabled: false,
+  randomOrder: false,
   systemPrompt: '',
   background: ''
 })
@@ -266,6 +280,7 @@ async function handleCreate() {
       useGlobalApiKey: false,
       maxHistory: form.value.maxHistory,
       thinkingEnabled: form.value.thinkingEnabled,
+      randomOrder: form.value.randomOrder,
       systemPrompt: form.value.systemPrompt || null,
       background: form.value.background || null
     }
