@@ -209,12 +209,23 @@ async function handleExportMessages() {
   }
 }
 
-// 滚动到底部
-async function scrollToBottom() {
+// 滚动到底部（使用平滑滚动）
+async function scrollToBottom(smooth = true) {
   await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+  // 使用 requestAnimationFrame 确保 DOM 完全渲染
+  requestAnimationFrame(() => {
+    if (messagesContainer.value) {
+      const container = messagesContainer.value
+      if (smooth) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        })
+      } else {
+        container.scrollTop = container.scrollHeight
+      }
+    }
+  })
 }
 
 // 监听群组变化
@@ -243,6 +254,25 @@ watch(() => currentGroup.value, (newGroup) => {
 watch(() => messagesStore.messages.length, async () => {
   await scrollToBottom()
 }, { flush: 'post' })
+
+// 监听流式消息内容变化，实时滚动（使用深度 watch）
+watch(
+  () => {
+    // 计算所有流式消息的内容总长度
+    return messagesStore.messages
+      .filter(m => m.isStreaming)
+      .reduce((total, m) => {
+        return total + (m.streamContent?.length || 0) + (m.streamReasoningContent?.length || 0)
+      }, 0)
+  },
+  async (newLen, oldLen) => {
+    // 只有长度变化时才滚动
+    if (newLen !== oldLen) {
+      await scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
+    }
+  },
+  { flush: 'post' }
+)
 
 // 监听新消息
 onMounted(async () => {
