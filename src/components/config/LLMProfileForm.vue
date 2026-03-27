@@ -176,6 +176,81 @@
       </small>
     </div>
 
+    <!-- 代理配置 -->
+    <div class="form-group">
+      <label>代理设置</label>
+      <div class="proxy-type-select">
+        <label class="radio-label">
+          <input
+            v-model="proxyType"
+            type="radio"
+            value="none"
+            :disabled="submitting"
+          />
+          <span>不使用代理</span>
+        </label>
+        <label class="radio-label">
+          <input
+            v-model="proxyType"
+            type="radio"
+            value="system"
+            :disabled="submitting"
+          />
+          <span>系统代理</span>
+        </label>
+        <label class="radio-label">
+          <input
+            v-model="proxyType"
+            type="radio"
+            value="custom"
+            :disabled="submitting"
+          />
+          <span>自定义代理</span>
+        </label>
+      </div>
+      <small class="hint">
+        <template v-if="proxyType === 'none'">
+          不使用任何代理，直接连接 API 服务器
+        </template>
+        <template v-else-if="proxyType === 'system'">
+          使用操作系统或环境变量中配置的代理（HTTP_PROXY / HTTPS_PROXY）
+        </template>
+        <template v-else>
+          使用自定义代理地址连接 API 服务器
+        </template>
+      </small>
+    </div>
+
+    <!-- 自定义代理配置 -->
+    <template v-if="proxyType === 'custom'">
+      <div class="form-group">
+        <label>代理地址 <span class="required">*</span></label>
+        <input
+          v-model="customProxyUrl"
+          type="text"
+          class="input"
+          placeholder="http://127.0.0.1:58591"
+          :disabled="submitting"
+        />
+        <small class="hint">
+          支持 HTTP、HTTPS 和 SOCKS5 代理（如 socks5://127.0.0.1:1080）
+        </small>
+      </div>
+      <div class="form-group">
+        <label>代理绕过规则</label>
+        <input
+          v-model="bypassRules"
+          type="text"
+          class="input"
+          placeholder="localhost,127.0.0.1,::1"
+          :disabled="submitting"
+        />
+        <small class="hint">
+          匹配规则的地址将不使用代理，多个规则用逗号分隔（默认：localhost,127.0.0.1,::1）
+        </small>
+      </div>
+    </template>
+
     <div class="form-actions">
       <button
         type="button"
@@ -227,6 +302,34 @@ const form = ref({ ...props.modelValue })
 const submitting = ref(false)
 const showCustomModel = ref(false)
 
+// 代理配置的响应式数据
+const proxyType = ref(props.modelValue?.proxy?.type || 'none')
+const customProxyUrl = ref(props.modelValue?.proxy?.customUrl || '')
+const bypassRules = ref(props.modelValue?.proxy?.bypassRules || 'localhost,127.0.0.1,::1')
+
+// 默认代理配置常量
+const DEFAULT_PROXY = {
+  type: 'none',
+  customUrl: '',
+  bypassRules: 'localhost,127.0.0.1,::1'
+}
+
+// 同步代理配置到 form.proxy
+function syncProxyToForm() {
+  form.value.proxy = {
+    type: proxyType.value,
+    customUrl: customProxyUrl.value,
+    bypassRules: bypassRules.value
+  }
+}
+
+// 监听代理配置变化，同步到 form
+watch([proxyType, customProxyUrl, bypassRules], () => {
+  if (!isUpdatingFromProps) {
+    syncProxyToForm()
+  }
+})
+
 // 用于防止递归更新的标志位
 let isUpdatingFromProps = false
 
@@ -264,6 +367,16 @@ watch(() => props.modelValue, (newVal) => {
   console.log('[LLMProfileForm] watch props.modelValue:', newVal?.useNativeApi)
   isUpdatingFromProps = true
   form.value = { ...newVal }
+  // 同步代理配置的 refs
+  if (newVal?.proxy) {
+    proxyType.value = newVal.proxy.type || 'none'
+    customProxyUrl.value = newVal.proxy.customUrl || ''
+    bypassRules.value = newVal.proxy.bypassRules || 'localhost,127.0.0.1,::1'
+  } else {
+    proxyType.value = 'none'
+    customProxyUrl.value = ''
+    bypassRules.value = 'localhost,127.0.0.1,::1'
+  }
   console.log('[LLMProfileForm] form.value.useNativeApi after update:', form.value.useNativeApi)
   // 下一个 tick 后重置标志位
   setTimeout(() => {
@@ -320,6 +433,16 @@ onMounted(() => {
   if (form.value.useNativeApi === undefined || form.value.useNativeApi === null) {
     form.value.useNativeApi = false
   }
+
+  // 初始化代理配置
+  if (props.modelValue?.proxy) {
+    proxyType.value = props.modelValue.proxy.type || 'none'
+    customProxyUrl.value = props.modelValue.proxy.customUrl || ''
+    bypassRules.value = props.modelValue.proxy.bypassRules || 'localhost,127.0.0.1,::1'
+  }
+  // 同步代理到 form
+  syncProxyToForm()
+
   console.log('[LLMProfileForm] onMounted - form.value.useNativeApi after:', form.value.useNativeApi)
 
   // 下一个 tick 后重置标志位，允许后续用户输入触发 emit
@@ -456,6 +579,13 @@ async function handleSubmit() {
     display: flex;
     gap: $spacing-lg;
     margin-bottom: $spacing-xs;
+  }
+
+  .proxy-type-select {
+    display: flex;
+    gap: $spacing-lg;
+    margin-bottom: $spacing-xs;
+    flex-wrap: wrap;
   }
 
   .radio-label {

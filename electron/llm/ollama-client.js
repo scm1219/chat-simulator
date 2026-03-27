@@ -3,7 +3,7 @@
  * 使用 Ollama 原生 API 格式（/api/chat）而非 OpenAI 兼容格式
  */
 import axios from 'axios'
-import { buildAxiosProxyConfig } from './proxy.js'
+import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
 
 export class OllamaNativeClient {
   constructor(config) {
@@ -12,6 +12,10 @@ export class OllamaNativeClient {
     this.timeout = config.timeout || 120000 // Ollama 本地模型可能较慢，默认 2 分钟
     this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true
 
+    // 解析代理配置：直接使用已解析的代理配置
+    const proxyConfig = config.proxy ?? undefined
+    const bypassRules = config.bypassRules || ''
+
     // 配置 Axios
     this.client = axios.create({
       baseURL: this.baseURL,
@@ -19,8 +23,19 @@ export class OllamaNativeClient {
       headers: {
         'Content-Type': 'application/json'
       },
-      proxy: buildAxiosProxyConfig(config.proxy || {})
+      proxy: proxyConfig
     })
+
+    // 代理绕过规则拦截器
+    if (bypassRules && proxyConfig) {
+      this.client.interceptors.request.use((request) => {
+        const targetURL = `${request.baseURL || ''}${request.url || ''}`
+        if (shouldBypassProxy(targetURL, bypassRules)) {
+          request.proxy = false
+        }
+        return request
+      })
+    }
 
     // 添加请求拦截器用于调试
     this.client.interceptors.request.use(

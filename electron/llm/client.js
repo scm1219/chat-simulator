@@ -4,7 +4,7 @@
  */
 import axios from 'axios'
 import { getProviderConfig } from './providers/index.js'
-import { buildAxiosProxyConfig } from './proxy.js'
+import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
 
 export class LLMClient {
   constructor(config) {
@@ -21,13 +21,28 @@ export class LLMClient {
       this.baseURL = providerConfig.baseURL
     }
 
+    // 解析代理配置：优先使用 resolveProfileProxy 的结果，向后兼容旧的 proxy 格式
+    const proxyConfig = config.proxy ?? undefined
+    const bypassRules = config.bypassRules || ''
+
     // 配置 Axios
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: this.timeout,
       headers: this.buildHeaders(),
-      proxy: buildAxiosProxyConfig(config.proxy || {})
+      proxy: proxyConfig
     })
+
+    // 代理绕过规则拦截器
+    if (bypassRules && proxyConfig) {
+      this.client.interceptors.request.use((request) => {
+        const targetURL = `${request.baseURL || ''}${request.url || ''}`
+        if (shouldBypassProxy(targetURL, bypassRules)) {
+          request.proxy = false
+        }
+        return request
+      })
+    }
 
     // 添加请求拦截器用于调试
     this.client.interceptors.request.use(

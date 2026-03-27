@@ -142,7 +142,12 @@ async function handleAdd() {
     model: '',
     streamEnabled: true,
     thinkingEnabled: false,
-    useNativeApi: false
+    useNativeApi: false,
+    proxy: {
+      type: 'none',
+      customUrl: '',
+      bypassRules: 'localhost,127.0.0.1,::1'
+    }
   }
   await nextTick()
   showFormDialog.value = true
@@ -162,7 +167,13 @@ async function handleEdit(profile) {
     streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
     thinkingEnabled: profile.thinkingEnabled || false,
     // 使用显式布尔转换，处理各种可能的值类型
-    useNativeApi: profile.useNativeApi === true || profile.useNativeApi === 1 || profile.useNativeApi === 'true'
+    useNativeApi: profile.useNativeApi === true || profile.useNativeApi === 1 || profile.useNativeApi === 'true',
+    // 代理配置（保留自定义数据，仅切换 type）
+    proxy: {
+      type: profile.proxy?.type || 'none',
+      customUrl: profile.proxy?.customUrl || '',
+      bypassRules: profile.proxy?.bypassRules || 'localhost,127.0.0.1,::1'
+    }
   }
   console.log('[handleEdit] formData.useNativeApi:', formData.value.useNativeApi)
   await nextTick()
@@ -198,7 +209,8 @@ async function handleTest(profile) {
       baseURL: profile.baseURL,
       model: profile.model,
       streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
-      useNativeApi: profile.useNativeApi === true
+      useNativeApi: profile.useNativeApi === true,
+      proxy: profile.proxy || { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
     })
 
     if (result.success) {

@@ -204,7 +204,8 @@ function handleEdit(profile) {
     apiKey: profile.apiKey,
     baseURL: profile.baseURL,
     model: profile.model,
-    thinkingEnabled: profile.thinking_enabled === 1
+    thinkingEnabled: profile.thinking_enabled === 1,
+    proxy: profile.proxy || { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
   }
   showFormDialog.value = true
 }
@@ -244,10 +245,12 @@ async function toggleThinkingMode(profile) {
 
 // 提交表单
 async function handleFormSubmit(data) {
+  // 深拷贝以剥离 Vue 响应式代理（IPC 结构化克隆要求纯对象）
+  const rawData = JSON.parse(JSON.stringify(data))
   // 转换数据格式
   const submitData = {
-    ...data,
-    thinking_enabled: data.thinkingEnabled ? 1 : 0
+    ...rawData,
+    thinking_enabled: rawData.thinkingEnabled ? 1 : 0
   }
   delete submitData.thinkingEnabled
 

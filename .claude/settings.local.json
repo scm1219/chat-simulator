@@ -21,7 +21,9 @@
       "Bash(tasklist)",
       "mcp__web-search-prime__web_search_prime",
       "Bash(node -c electron/llm/ollama-client.js)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(node -e \":*)",
+      "Bash(npx electron-vite:*)"
     ]
   }
 }

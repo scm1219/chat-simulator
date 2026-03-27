@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
+import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
 
 const LLM_PROFILES_FILE = path.join(app.getPath('userData'), 'config', 'llm-profiles.json')
 
@@ -38,6 +39,11 @@ export function getLLMProfiles() {
         // 迁移：为没有 useNativeApi 字段的配置添加默认值
         if (profile.useNativeApi === undefined) {
           profile.useNativeApi = false // 默认使用 OpenAI 兼容模式
+          migrated = true
+        }
+        // 迁移：为没有 proxy 字段的配置添加默认值
+        if (profile.proxy === undefined) {
+          profile.proxy = { ...DEFAULT_PROFILE_PROXY }
           migrated = true
         }
       })
