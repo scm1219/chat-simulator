@@ -34,6 +34,35 @@
 
     <!-- 角色列表 -->
     <div class="character-list">
+      <!-- 分页栏 -->
+      <div v-if="totalPages > 1" class="pagination-bar">
+        <button
+          class="btn btn-page"
+          :disabled="currentPage <= 1"
+          @click="currentPage = 1"
+          title="首页"
+        >&laquo;</button>
+        <button
+          class="btn btn-page"
+          :disabled="currentPage <= 1"
+          @click="currentPage--"
+          title="上一页"
+        >&lsaquo;</button>
+        <span class="page-info">{{ currentPage }} / {{ totalPages }} (共 {{ filteredAll.length }} 条)</span>
+        <button
+          class="btn btn-page"
+          :disabled="currentPage >= totalPages"
+          @click="currentPage++"
+          title="下一页"
+        >&rsaquo;</button>
+        <button
+          class="btn btn-page"
+          :disabled="currentPage >= totalPages"
+          @click="currentPage = totalPages"
+          title="末页"
+        >&raquo;</button>
+      </div>
+
       <div v-if="globalCharsStore.loading" class="loading-state">
         加载中...
       </div>
@@ -121,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
@@ -142,14 +171,26 @@ const showCreateDialog = ref(false)
 const showGachaDialog = ref(false)
 const editingCharacter = ref(null)
 
+// 分页
+const pageSize = 5
+const currentPage = ref(1)
+
 // 是否有筛选条件
 const hasFilter = computed(() => {
   return searchKeyword.value.trim() || globalCharsStore.selectedTagIds.length > 0
 })
 
-// 显示的角色列表
+// 显示的角色列表（分页后）
+const filteredAll = computed(() => globalCharsStore.filteredCharacters)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredAll.value.length / pageSize)))
 const displayCharacters = computed(() => {
-  return globalCharsStore.filteredCharacters
+  const start = (currentPage.value - 1) * pageSize
+  return filteredAll.value.slice(start, start + pageSize)
+})
+
+// 筛选条件变化时重置页码
+watch([() => searchKeyword.value, () => globalCharsStore.selectedTagIds.length], () => {
+  currentPage.value = 1
 })
 
 // 性别标签
@@ -304,6 +345,46 @@ onMounted(async () => {
 .character-list {
   flex: 1;
   overflow-y: auto;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-xs;
+  padding: $spacing-sm $spacing-lg;
+  border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+}
+
+.page-info {
+  font-size: $font-size-sm;
+  color: $text-secondary;
+  min-width: 60px;
+  text-align: center;
+}
+
+.btn-page {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid $border-color;
+  background: white;
+  border-radius: $border-radius-sm;
+  cursor: pointer;
+  font-size: $font-size-md;
+  line-height: 1;
+  color: $text-primary;
+  transition: background 0.2s;
+
+  &:hover:not(:disabled) {
+    background: $bg-secondary;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 .loading-state {
