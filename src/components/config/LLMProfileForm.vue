@@ -31,13 +31,24 @@
 
     <div class="form-group">
       <label>API Key <span class="required">*</span></label>
-      <input
-        v-model="form.apiKey"
-        type="password"
-        class="input"
-        placeholder="sk-..."
-        :disabled="submitting || !currentProvider?.needApiKey"
-      />
+      <div class="api-key-input">
+        <input
+          v-model="form.apiKey"
+          :type="showApiKey ? 'text' : 'password'"
+          class="input"
+          placeholder="sk-..."
+          :disabled="submitting || !currentProvider?.needApiKey"
+        />
+        <button
+          type="button"
+          class="btn-toggle-visibility"
+          @click="showApiKey = !showApiKey"
+          :disabled="submitting || !currentProvider?.needApiKey"
+          :title="showApiKey ? '隐藏' : '显示'"
+        >
+          {{ showApiKey ? '隐藏' : '显示' }}
+        </button>
+      </div>
       <small v-if="!currentProvider?.needApiKey" class="hint">
         该供应商不需要 API Key
       </small>
@@ -301,6 +312,7 @@ const emit = defineEmits(['update:modelValue', 'submit', 'cancel'])
 const form = ref({ ...props.modelValue })
 const submitting = ref(false)
 const showCustomModel = ref(false)
+const showApiKey = ref(false)
 
 // 代理配置的响应式数据
 const proxyType = ref(props.modelValue?.proxy?.type || 'none')
@@ -480,6 +492,36 @@ async function handleSubmit() {
     margin-top: $spacing-xs;
     font-size: $font-size-xs;
     color: $text-secondary;
+  }
+
+  .api-key-input {
+    display: flex;
+    gap: $spacing-sm;
+
+    .input {
+      flex: 1;
+    }
+
+    .btn-toggle-visibility {
+      padding: 0 $spacing-md;
+      font-size: $font-size-sm;
+      background: $bg-secondary;
+      border: 1px solid $border-color;
+      border-radius: $border-radius-sm;
+      cursor: pointer;
+      white-space: nowrap;
+      color: $text-secondary;
+
+      &:hover:not(:disabled) {
+        background: $bg-tertiary;
+        color: $text-primary;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
   }
 
   .base-url-input {

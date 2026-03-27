@@ -137,13 +137,16 @@ export class LLMClient {
         requestData.thinking = {
           type: 'enabled'
         }
-      } else if (options.thinkingEnabled === false) {
-        // 明确禁用思考模式
-        requestData.thinking = {
-          type: 'disabled'
+      } else {
+        // 禁用思考模式或未设置时，ModelScope 默认关闭思考（Qwen3.5 默认开启）
+        if (this.provider === 'modelscope') {
+          requestData.chat_template_kwargs = { enable_thinking: false }
+        } else {
+          requestData.thinking = {
+            type: 'disabled'
+          }
         }
       }
-      // 如果 options.thinkingEnabled 为 undefined，则不添加 thinking 参数，让模型自动决定
 
       // 打印请求参数（用于调试）
       console.log('[LLM Client] 请求参数:', {

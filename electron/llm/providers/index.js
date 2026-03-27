@@ -6,7 +6,7 @@ export const LLM_PROVIDERS = {
     id: 'openai',
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    models: ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5', 'gpt-5-pro', 'gpt-5-mini', 'gpt-5-nano'],
     needApiKey: true,
     needBaseUrl: false
   },
@@ -59,6 +59,14 @@ export const LLM_PROVIDERS = {
     needApiKey: false,
     needBaseUrl: true,
     supportsNativeApi: true // 支持原生 API
+  },
+  modelscope: {
+    id: 'modelscope',
+    name: 'ModelScope 魔塔',
+    baseURL: 'https://api-inference.modelscope.cn/v1',
+    models: ['Qwen/Qwen3.5-27B', 'Qwen/Qwen3.5-35B-A3B', 'Qwen/Qwen3.5-122B-A10B'],
+    needApiKey: true,
+    needBaseUrl: false
   },
   minimax: {
     id: 'minimax',
