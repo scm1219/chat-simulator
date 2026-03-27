@@ -2,11 +2,17 @@
 
 [根目录](../CLAUDE.md) > **electron**
 
-> 最后更新：2026-03-20 02:01:09
+> 最后更新：2026-03-27
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-03-27
+- **新增**：`llm/ollama-client.js` - Ollama 原生 API 客户端
+- **更新**：LLM Handler 支持双模式（OpenAI 兼容 / 原生 Ollama API）
+- **优化**：供应商配置添加 `supportsNativeApi` 和 `nativeBaseURL` 字段
+- **优化**：LLM 配置存储添加 `useNativeApi` 字段迁移
 
 ### 2026-03-20
 - **更新**：数据库管理器添加内联 Schema，支持自动迁移

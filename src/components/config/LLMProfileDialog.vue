@@ -95,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
@@ -132,28 +132,40 @@ function getProviderName(providerId) {
 }
 
 // 添加配置
-function handleAdd() {
+async function handleAdd() {
   editingProfile.value = null
   formData.value = {
     name: '',
     provider: 'openai',
     apiKey: '',
     baseURL: '',
-    model: ''
+    model: '',
+    streamEnabled: true,
+    thinkingEnabled: false,
+    useNativeApi: false
   }
+  await nextTick()
   showFormDialog.value = true
 }
 
 // 编辑配置
-function handleEdit(profile) {
+async function handleEdit(profile) {
   editingProfile.value = profile
+  // 调试：打印原始数据
+  console.log('[handleEdit] profile.useNativeApi:', profile.useNativeApi, typeof profile.useNativeApi)
   formData.value = {
     name: profile.name,
     provider: profile.provider,
     apiKey: profile.apiKey,
     baseURL: profile.baseURL,
-    model: profile.model
+    model: profile.model,
+    streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
+    thinkingEnabled: profile.thinkingEnabled || false,
+    // 使用显式布尔转换，处理各种可能的值类型
+    useNativeApi: profile.useNativeApi === true || profile.useNativeApi === 1 || profile.useNativeApi === 'true'
   }
+  console.log('[handleEdit] formData.useNativeApi:', formData.value.useNativeApi)
+  await nextTick()
   showFormDialog.value = true
 }
 
@@ -185,7 +197,8 @@ async function handleTest(profile) {
       apiKey: profile.apiKey,
       baseURL: profile.baseURL,
       model: profile.model,
-      streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true
+      streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
+      useNativeApi: profile.useNativeApi === true
     })
 
     if (result.success) {

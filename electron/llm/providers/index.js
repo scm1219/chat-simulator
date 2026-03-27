@@ -54,9 +54,11 @@ export const LLM_PROVIDERS = {
     id: 'ollama',
     name: 'Ollama (本地)',
     baseURL: 'http://localhost:11434/v1',
+    nativeBaseURL: 'http://localhost:11434', // 原生 API 地址
     models: [], // 动态获取
     needApiKey: false,
-    needBaseUrl: true
+    needBaseUrl: true,
+    supportsNativeApi: true // 支持原生 API
   },
   custom: {
     id: 'custom',

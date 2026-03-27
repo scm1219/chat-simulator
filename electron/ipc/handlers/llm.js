@@ -3,11 +3,33 @@
  */
 import { ipcMain } from 'electron'
 import { LLMClient } from '../../llm/client.js'
-import { getAllProviders } from '../../llm/providers/index.js'
+import { OllamaNativeClient } from '../../llm/ollama-client.js'
+import { getAllProviders, getProviderConfig } from '../../llm/providers/index.js'
 import { getProxyConfig } from '../../llm/proxy.js'
 import { getGlobalLLMConfig } from '../../config/manager.js'
 import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { generateUUID } from '../../utils/uuid.js'
+
+/**
+ * 创建 LLM 客户端（根据配置自动选择 OpenAI 兼容或原生客户端）
+ */
+function createLLMClient(config) {
+  const { provider, useNativeApi, baseURL, ...rest } = config
+
+  // 如果是 Ollama 且启用原生 API，使用原生客户端
+  if (provider === 'ollama' && useNativeApi) {
+    const providerConfig = getProviderConfig('ollama')
+    console.log('[LLM] 使用 Ollama 原生 API 客户端')
+    return new OllamaNativeClient({
+      ...rest,
+      baseURL: baseURL || providerConfig.nativeBaseURL || 'http://localhost:11434'
+    })
+  }
+
+  // 其他情况使用 OpenAI 兼容客户端
+  console.log('[LLM] 使用 OpenAI 兼容 API 客户端')
+  return new LLMClient(config)
+}
 
 export function setupLLMHandlers(dbManager) {
   // 获取所有 LLM 供应商
@@ -23,7 +45,7 @@ export function setupLLMHandlers(dbManager) {
   ipcMain.handle('llm:testConnection', async (event, config) => {
     try {
       const proxyConfig = getProxyConfig()
-      const client = new LLMClient({
+      const client = createLLMClient({
         ...config,
         proxy: proxyConfig
       })
@@ -140,16 +162,20 @@ export function setupLLMHandlers(dbManager) {
         ? globalLLMConfig.apiKey
         : (group.llm_api_key || globalLLMConfig.apiKey)
 
-      if (!apiKey) {
+      // 检查当前供应商是否需要 API Key
+      const providerConfig = getProviderConfig(group.llm_provider)
+      const needApiKey = providerConfig?.needApiKey !== false
+
+      if (needApiKey && !apiKey) {
         console.error('[LLM] API Key 未配置')
         return { success: false, error: '请先配置 API Key' }
       }
-      console.log('[LLM] API Key 已配置', { hasKey: !!apiKey })
+      console.log('[LLM] API Key 配置检查', { hasKey: !!apiKey, needApiKey, provider: group.llm_provider })
 
       // 6. 创建 LLM 客户端
       const proxyConfig = getProxyConfig()
 
-      // 获取 LLM 配置文件，读取流式输出设置
+      // 获取 LLM 配置文件，读取流式输出设置和原生 API 设置
       const llmProfiles = getLLMProfiles()
       const currentProfile = llmProfiles.find(p =>
         p.provider === group.llm_provider && p.model === group.llm_model
@@ -157,16 +183,18 @@ export function setupLLMHandlers(dbManager) {
       const streamEnabled = currentProfile?.streamEnabled !== undefined
         ? currentProfile.streamEnabled
         : true
+      const useNativeApi = currentProfile?.useNativeApi === true
 
-      const client = new LLMClient({
+      const client = createLLMClient({
         provider: group.llm_provider,
         apiKey: apiKey,
         baseURL: group.llm_base_url,
         model: group.llm_model,
         proxy: proxyConfig,
-        streamEnabled: streamEnabled
+        streamEnabled: streamEnabled,
+        useNativeApi: useNativeApi
       })
-      console.log('[LLM] LLM 客户端创建成功', { streamEnabled })
+      console.log('[LLM] LLM 客户端创建成功', { streamEnabled, useNativeApi })
 
       // 7. 根据回复模式调用 LLM
       const responseMode = group.response_mode || 'sequential'
@@ -288,7 +316,11 @@ export function setupLLMHandlers(dbManager) {
         ? globalLLMConfig.apiKey
         : (group.llm_api_key || globalLLMConfig.apiKey)
 
-      if (!apiKey) {
+      // 检查当前供应商是否需要 API Key
+      const providerConfig = getProviderConfig(group.llm_provider)
+      const needApiKey = providerConfig?.needApiKey !== false
+
+      if (needApiKey && !apiKey) {
         console.error('[LLM] API Key 未配置')
         return { success: false, error: '请先配置 API Key' }
       }
@@ -296,7 +328,7 @@ export function setupLLMHandlers(dbManager) {
       // 7. 创建 LLM 客户端
       const proxyConfig = getProxyConfig()
 
-      // 获取 LLM 配置文件，读取流式输出设置
+      // 获取 LLM 配置文件，读取流式输出设置和原生 API 设置
       const llmProfiles = getLLMProfiles()
       const currentProfile = llmProfiles.find(p =>
         p.provider === group.llm_provider && p.model === group.llm_model
@@ -304,14 +336,16 @@ export function setupLLMHandlers(dbManager) {
       const streamEnabled = currentProfile?.streamEnabled !== undefined
         ? currentProfile.streamEnabled
         : true
+      const useNativeApi = currentProfile?.useNativeApi === true
 
-      const client = new LLMClient({
+      const client = createLLMClient({
         provider: group.llm_provider,
         apiKey: apiKey,
         baseURL: group.llm_base_url,
         model: group.llm_model,
         proxy: proxyConfig,
-        streamEnabled: streamEnabled
+        streamEnabled: streamEnabled,
+        useNativeApi: useNativeApi
       })
 
       // 8. 生成单角色回复
@@ -357,13 +391,14 @@ export function setupLLMHandlers(dbManager) {
 
       // 3. 创建 LLM 客户端
       const proxyConfig = getProxyConfig()
-      const client = new LLMClient({
+      const client = createLLMClient({
         provider: profile.provider,
         apiKey: profile.apiKey,
         baseURL: profile.baseURL,
         model: profile.model,
         proxy: proxyConfig,
-        streamEnabled: false // 抽卡功能强制禁用流式输出，确保获取完整 JSON
+        streamEnabled: false, // 抽卡功能强制禁用流式输出，确保获取完整 JSON
+        useNativeApi: profile.useNativeApi === true
       })
 
       // 4. 构建生成角色的提示词

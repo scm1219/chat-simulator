@@ -35,6 +35,11 @@ export function getLLMProfiles() {
           profile.streamEnabled = true // 默认启用
           migrated = true
         }
+        // 迁移：为没有 useNativeApi 字段的配置添加默认值
+        if (profile.useNativeApi === undefined) {
+          profile.useNativeApi = false // 默认使用 OpenAI 兼容模式
+          migrated = true
+        }
       })
 
       // 如果有迁移，保存更新后的配置

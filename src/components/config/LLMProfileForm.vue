@@ -115,6 +115,39 @@
       />
     </div>
 
+    <!-- Ollama 原生 API 模式选择 -->
+    <div v-if="form.provider === 'ollama'" class="form-group">
+      <label>API 模式</label>
+      <div class="api-mode-select">
+        <label class="radio-label">
+          <input
+            v-model="form.useNativeApi"
+            type="radio"
+            :value="false"
+            :disabled="submitting"
+          />
+          <span>OpenAI 兼容模式</span>
+        </label>
+        <label class="radio-label">
+          <input
+            v-model="form.useNativeApi"
+            type="radio"
+            :value="true"
+            :disabled="submitting"
+          />
+          <span>原生 Ollama API</span>
+        </label>
+      </div>
+      <small class="hint">
+        <template v-if="!form.useNativeApi">
+          OpenAI 兼容模式：使用 /v1/chat/completions 端点，兼容更多工具
+        </template>
+        <template v-else>
+          原生 API：使用 /api/chat 端点，支持原生 think 参数和流式输出
+        </template>
+      </small>
+    </div>
+
     <div class="form-group">
       <label class="checkbox-label">
         <input
@@ -178,7 +211,8 @@ const props = defineProps({
       baseURL: '',
       model: '',
       streamEnabled: true,    // 默认启用流式输出
-      thinkingEnabled: false
+      thinkingEnabled: false,
+      useNativeApi: false     // 默认使用 OpenAI 兼容模式
     })
   },
   editing: {
@@ -227,8 +261,10 @@ const canSubmit = computed(() => {
 
 // 监听 modelValue 变化（从父组件更新）
 watch(() => props.modelValue, (newVal) => {
+  console.log('[LLMProfileForm] watch props.modelValue:', newVal?.useNativeApi)
   isUpdatingFromProps = true
   form.value = { ...newVal }
+  console.log('[LLMProfileForm] form.value.useNativeApi after update:', form.value.useNativeApi)
   // 下一个 tick 后重置标志位
   setTimeout(() => {
     isUpdatingFromProps = false
@@ -264,6 +300,12 @@ function resetBaseURL() {
 
 // 初始化
 onMounted(() => {
+  console.log('[LLMProfileForm] onMounted - props.modelValue.useNativeApi:', props.modelValue?.useNativeApi)
+  console.log('[LLMProfileForm] onMounted - form.value.useNativeApi before:', form.value.useNativeApi)
+
+  // 阻止 onMounted 中的修改触发 watch(form) 的 emit
+  isUpdatingFromProps = true
+
   if (form.value.provider) {
     // 如果没有 baseURL，填充默认值
     if (!form.value.baseURL) {
@@ -274,6 +316,16 @@ onMounted(() => {
       form.value.model = currentProvider.value.models[0]
     }
   }
+  // 确保 useNativeApi 有正确的布尔值（仅当确实没有值时）
+  if (form.value.useNativeApi === undefined || form.value.useNativeApi === null) {
+    form.value.useNativeApi = false
+  }
+  console.log('[LLMProfileForm] onMounted - form.value.useNativeApi after:', form.value.useNativeApi)
+
+  // 下一个 tick 后重置标志位，允许后续用户输入触发 emit
+  setTimeout(() => {
+    isUpdatingFromProps = false
+  }, 0)
 })
 
 // 提交表单
@@ -391,6 +443,29 @@ async function handleSubmit() {
     user-select: none;
 
     input[type="checkbox"] {
+      cursor: pointer;
+    }
+
+    span {
+      font-size: $font-size-md;
+      color: $text-primary;
+    }
+  }
+
+  .api-mode-select {
+    display: flex;
+    gap: $spacing-lg;
+    margin-bottom: $spacing-xs;
+  }
+
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    cursor: pointer;
+    user-select: none;
+
+    input[type="radio"] {
       cursor: pointer;
     }
 
