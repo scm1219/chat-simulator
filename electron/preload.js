@@ -103,6 +103,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       add: (template) => ipcRenderer.invoke('systemPrompt:add', template),
       update: (id, data) => ipcRenderer.invoke('systemPrompt:update', id, data),
       delete: (id) => ipcRenderer.invoke('systemPrompt:delete', id)
+    },
+    // 抽卡配置
+    gachaConfig: {
+      get: () => ipcRenderer.invoke('gachaConfig:get'),
+      save: (config) => ipcRenderer.invoke('gachaConfig:save', config),
+      reset: () => ipcRenderer.invoke('gachaConfig:reset')
     }
   },
 

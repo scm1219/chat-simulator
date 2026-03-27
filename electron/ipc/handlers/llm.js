@@ -6,7 +6,7 @@ import { LLMClient } from '../../llm/client.js'
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getAllProviders, getProviderConfig } from '../../llm/providers/index.js'
 import { getProxyConfig } from '../../llm/proxy.js'
-import { getGlobalLLMConfig } from '../../config/manager.js'
+import { getGlobalLLMConfig, getGachaConfig } from '../../config/manager.js'
 import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { generateUUID } from '../../utils/uuid.js'
 
@@ -410,28 +410,12 @@ export function setupLLMHandlers(dbManager) {
         useNativeApi: profile.useNativeApi === true
       })
 
-      // 4. 构建生成角色的提示词
-      const systemPrompt = `你是一个专业的角色设定专家。根据用户的提示（如果有的话），创造一个有趣、立体的角色。
-
-请严格按照以下 JSON 格式返回角色信息，不要添加任何其他文字：
-
-{
-  "name": "角色名称",
-  "gender": "male 或 female 或 other",
-  "age": 数字年龄,
-  "systemPrompt": "详细的人物设定，包括性格特点、背景故事、说话风格等（200-500字）"
-}
-
-要求：
-1. 角色名称简洁有趣，2-8个字符
-2. 性别必须是 male、female 或 other 之一
-3. 年龄必须是数字
-4. 人物设定要详细且有特色，包括：性格、背景、说话风格、行为习惯等
-5. 避免创造过于常见或陈词滥调的角色
-6. 如果用户提供了提示，请参考用户的提示生成角色
-7. 只返回 JSON，不要有其他文字`
-
-      const userPrompt = hint ? `请根据以下提示生成一个角色：${hint}` : '请随机生成一个有趣的角色'
+      // 4. 构建生成角色的提示词（使用可配置提示词）
+      const gachaConfig = getGachaConfig()
+      const systemPrompt = gachaConfig.systemPrompt
+      const userPrompt = hint
+        ? gachaConfig.userPromptTemplate.replace('{hint}', hint)
+        : gachaConfig.defaultUserPrompt
 
       const messages = [
         { role: 'system', content: systemPrompt },

@@ -2,7 +2,7 @@
  * 配置 IPC 处理器
  */
 import { ipcMain } from 'electron'
-import { getGlobalLLMConfig, saveGlobalLLMConfig } from '../../config/manager.js'
+import { getGlobalLLMConfig, saveGlobalLLMConfig, getGachaConfig, saveGachaConfig, getDefaultGachaConfig } from '../../config/manager.js'
 import { getProxyConfig, saveProxyConfig } from '../../llm/proxy.js'
 import {
   getLLMProfiles,
@@ -165,6 +165,42 @@ export function setupConfigHandlers() {
     try {
       const result = deleteSystemPromptTemplate(id)
       return { success: result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // ============ 抽卡配置 ============
+
+  // 获取抽卡配置
+  ipcMain.handle('gachaConfig:get', async () => {
+    try {
+      const config = getGachaConfig()
+      return { success: true, data: config }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 保存抽卡配置
+  ipcMain.handle('gachaConfig:save', async (event, config) => {
+    try {
+      const result = saveGachaConfig(config)
+      return { success: result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 重置抽卡配置为默认值
+  ipcMain.handle('gachaConfig:reset', async () => {
+    try {
+      const defaultConfig = getDefaultGachaConfig()
+      const result = saveGachaConfig(defaultConfig)
+      if (result) {
+        return { success: true, data: defaultConfig }
+      }
+      return { success: false, error: '重置失败' }
     } catch (error) {
       return { success: false, error: error.message }
     }
