@@ -321,7 +321,6 @@ async function moveCharacter(char, direction) {
 async function toggleCharacter(char) {
   try {
     await charactersStore.toggleCharacter(char.id, char.enabled === 0)
-    toast.success('角色状态已切换')
   } catch (error) {
     toast.error('切换角色状态失败: ' + error.message)
   }
@@ -338,7 +337,6 @@ async function deleteCharacter(id) {
 
   try {
     await charactersStore.deleteCharacter(id)
-    toast.success('角色已删除')
   } catch (error) {
     toast.error('删除角色失败: ' + error.message)
   }
@@ -349,7 +347,6 @@ async function updateMaxHistory(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       maxHistory: parseInt(event.target.value)
     })
-    toast.success('设置已更新')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
   }
@@ -360,7 +357,6 @@ async function updateResponseMode(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       responseMode: event.target.value
     })
-    toast.success('回复模式已更新')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
   }
@@ -397,7 +393,6 @@ async function updateRandomOrder(event) {
     await groupsStore.updateGroup(currentGroup.value.id, {
       randomOrder: event.target.checked
     })
-    toast.success('随机发言已更新')
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
   }

@@ -132,7 +132,6 @@ async function handleModelChange() {
       llmBaseUrl: profile.baseURL || null,
       useGlobalApiKey: !profile.apiKey // 如果配置有 API Key，则使用独立配置
     })
-    toast.success('模型已切换')
   } catch (error) {
     toast.error('切换模型失败: ' + error.message)
     // 恢复原来的选择
@@ -161,7 +160,6 @@ async function handleSendMessage(content) {
 async function handleClearMessages() {
   try {
     await messagesStore.clearMessages()
-    toast.success('消息已清空')
   } catch (error) {
     toast.error('清空消息失败: ' + error.message)
   }

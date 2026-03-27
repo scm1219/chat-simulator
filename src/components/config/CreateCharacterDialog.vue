@@ -72,7 +72,6 @@ async function handleCreate() {
       systemPrompt: form.value.systemPrompt
     })
     emit('created')
-    toast.success('角色创建成功')
   } catch (error) {
     toast.error('创建角色失败: ' + error.message)
   }

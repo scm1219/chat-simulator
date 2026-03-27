@@ -223,7 +223,6 @@ async function handleDelete(character) {
 
   try {
     await globalCharsStore.deleteCharacter(character.id)
-    toast.success('角色已删除')
   } catch (error) {
     toast.error('删除失败：' + error.message)
   }

@@ -82,7 +82,6 @@ async function handleSave() {
       systemPrompt: form.value.systemPrompt
     })
     emit('saved')
-    toast.success('角色已更新')
   } catch (error) {
     toast.error('更新角色失败: ' + error.message)
   }

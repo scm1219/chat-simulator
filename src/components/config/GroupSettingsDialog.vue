@@ -203,7 +203,6 @@ async function handleSave() {
     })
     emit('saved')
     emit('close')
-    toast.success('设置已保存')
   } catch (error) {
     toast.error('保存群设置失败: ' + error.message)
   }

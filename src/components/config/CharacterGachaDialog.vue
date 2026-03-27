@@ -296,7 +296,6 @@ async function handleSavePrompt() {
       savedPrompt.systemPrompt = promptForm.systemPrompt
       savedPrompt.userPromptTemplate = promptForm.userPromptTemplate
       savedPrompt.defaultUserPrompt = promptForm.defaultUserPrompt
-      toast.success('提示词已保存')
     } else {
       toast.error('保存失败')
     }
@@ -317,7 +316,6 @@ async function handleResetPrompt() {
       savedPrompt.systemPrompt = result.data.systemPrompt
       savedPrompt.userPromptTemplate = result.data.userPromptTemplate
       savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
-      toast.success('已恢复默认提示词')
     }
   } catch (error) {
     toast.error('重置失败：' + error.message)

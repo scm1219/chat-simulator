@@ -112,7 +112,6 @@ async function handleDuplicate(group) {
     const newGroup = await groupsStore.duplicateGroup(group.id)
     // 自动选中新复制的群组
     groupsStore.selectGroup(newGroup.id)
-    toast.success('群组已复制')
   } catch (error) {
     console.error('复制群组失败:', error)
     toast.error('复制群组失败：' + error.message)
@@ -131,7 +130,6 @@ async function handleDelete(group) {
 
   try {
     await groupsStore.deleteGroup(group.id)
-    toast.success('群组已删除')
   } catch (error) {
     console.error('删除群组失败:', error)
     toast.error('删除群组失败：' + error.message)

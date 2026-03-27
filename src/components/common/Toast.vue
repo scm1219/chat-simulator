@@ -51,7 +51,7 @@ const getIcon = (type) => {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
-  background: var(--msg-bg);
+  background: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
   min-width: 280px;

@@ -191,9 +191,7 @@ async function handleDelete(profile) {
   if (!confirmed) return
 
   const result = await store.deleteProfile(profile.id)
-  if (result.success) {
-    toast.success('删除成功')
-  } else {
+  if (!result.success) {
     toast.error('删除失败: ' + result.error)
   }
 }
@@ -236,7 +234,6 @@ async function handleFormSubmit(data) {
   }
 
   if (result.success) {
-    toast.success(editingProfile.value ? '保存成功' : '添加成功')
     closeFormDialog()
   } else {
     toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)

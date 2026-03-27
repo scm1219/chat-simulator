@@ -229,7 +229,6 @@ async function saveEdit() {
   if (editContent.value.trim() !== props.message.content && editContent.value.trim().length > 0) {
     try {
       await messagesStore.updateMessage(props.message.id, editContent.value.trim())
-      toast.success('消息已更新')
     } catch (error) {
       toast.error('编辑消息失败: ' + error.message)
       // 恢复原内容
@@ -272,7 +271,6 @@ onUnmounted(() => {
 async function deleteMessage() {
   try {
     await messagesStore.deleteMessage(props.message.id)
-    toast.success('消息已删除')
   } catch (error) {
     toast.error('删除消息失败: ' + error.message)
   }

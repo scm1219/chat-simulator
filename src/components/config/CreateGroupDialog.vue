@@ -294,7 +294,6 @@ async function handleCreate() {
 
     const group = await groupsStore.createGroup(groupData)
     emit('created', group)
-    toast.success('群组创建成功')
   } catch (error) {
     console.error('[CreateGroup] 创建失败', error)
     toast.error('创建群组失败: ' + error.message)

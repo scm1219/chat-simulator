@@ -141,7 +141,6 @@ onMounted(async () => {
 async function handleCreateTag(data) {
   try {
     await globalCharsStore.createTag(data)
-    toast.success('标签创建成功')
   } catch (error) {
     toast.error('创建标签失败：' + error.message)
   }
@@ -168,7 +167,6 @@ async function handleSave() {
     }
 
     emit('saved')
-    toast.success('保存成功')
   } catch (error) {
     toast.error('保存失败：' + error.message)
   } finally {
