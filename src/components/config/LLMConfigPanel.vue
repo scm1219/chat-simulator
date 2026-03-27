@@ -190,7 +190,10 @@ function handleAddModelToProvider(providerId) {
     apiKey: '',
     baseURL: providerConfig.baseURL || '',
     model: providerConfig.models?.[0] || '',
-    thinkingEnabled: false
+    streamEnabled: true,
+    thinkingEnabled: false,
+    useNativeApi: false,
+    proxy: { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
   }
   showFormDialog.value = true
 }
@@ -204,7 +207,9 @@ function handleEdit(profile) {
     apiKey: profile.apiKey,
     baseURL: profile.baseURL,
     model: profile.model,
+    streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
     thinkingEnabled: profile.thinking_enabled === 1,
+    useNativeApi: profile.useNativeApi === true,
     proxy: profile.proxy || { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
   }
   showFormDialog.value = true
