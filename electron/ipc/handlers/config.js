@@ -19,7 +19,7 @@ import {
   deleteSystemPromptTemplate
 } from '../../config/system-prompts.js'
 
-export function setupConfigHandlers() {
+export function setupConfigHandlers(dbManager) {
   // 获取全局 LLM 配置
   ipcMain.handle('config:getLLMConfig', async () => {
     try {
@@ -85,7 +85,17 @@ export function setupConfigHandlers() {
   // 更新 LLM 配置
   ipcMain.handle('llmProfile:update', async (event, id, data) => {
     try {
+      // 获取旧配置，用于匹配需要同步的群组
+      const oldProfile = getLLMProfiles().find(p => p.id === id) || null
       const result = updateLLMProfile(id, data)
+
+      // 同步更新所有使用旧配置的群组
+      if (result.success && oldProfile && dbManager) {
+        const syncedGroups = syncGroupsProfile(dbManager, oldProfile, data)
+        console.log(`[Config] Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
+        result.syncedGroups = syncedGroups
+      }
+
       return result
     } catch (error) {
       return { success: false, error: error.message }
@@ -205,4 +215,56 @@ export function setupConfigHandlers() {
       return { success: false, error: error.message }
     }
   })
+}
+
+/**
+ * 同步更新所有匹配旧 Profile 配置的群组
+ * @param {object} dbManager - 数据库管理器
+ * @param {object} oldProfile - 更新前的 Profile 数据
+ * @param {object} newProfileData - 更新后的 Profile 数据
+ * @returns {number} 同步更新的群组数量
+ */
+function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
+  let syncedCount = 0
+  const groupIds = dbManager.getGroupDBFiles()
+
+  for (const groupId of groupIds) {
+    try {
+      const db = dbManager.getGroupDB(groupId)
+      const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
+      if (!group) continue
+
+      // 匹配条件：provider + model + apiKey + baseURL 完全一致
+      const matches =
+        group.llm_provider === oldProfile.provider &&
+        group.llm_model === oldProfile.model &&
+        (group.llm_api_key || null) === (oldProfile.apiKey || null) &&
+        (group.llm_base_url || null) === (oldProfile.baseURL || null)
+
+      if (matches) {
+        db.prepare(`
+          UPDATE groups SET
+            llm_provider = ?,
+            llm_model = ?,
+            llm_api_key = ?,
+            llm_base_url = ?,
+            use_global_api_key = ?
+          WHERE id = ?
+        `).run(
+          newProfileData.provider || oldProfile.provider,
+          newProfileData.model || oldProfile.model,
+          newProfileData.apiKey ? String(newProfileData.apiKey) : null,
+          newProfileData.baseURL ? String(newProfileData.baseURL) : null,
+          newProfileData.apiKey ? 0 : 1,
+          groupId
+        )
+        syncedCount++
+        console.log(`[Config] 群组 "${group.name}" 已同步更新`)
+      }
+    } catch (error) {
+      console.error(`[Config] 同步群组 ${groupId} 失败:`, error.message)
+    }
+  }
+
+  return syncedCount
 }

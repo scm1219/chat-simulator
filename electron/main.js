@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
   setupCharacterHandlers(dbManager)
   setupMessageHandlers(dbManager)
   setupLLMHandlers(dbManager)
-  setupConfigHandlers()
+  setupConfigHandlers(dbManager)
   setupGlobalCharacterHandlers(dbManager, globalCharManager)
 
   // 所有处理程序注册完成后再创建窗口

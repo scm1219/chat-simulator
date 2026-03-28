@@ -3,6 +3,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useGroupsStore } from './groups.js'
 
 export const useLLMProfilesStore = defineStore('llmProfiles', () => {
   // 状态
@@ -60,7 +61,13 @@ export const useLLMProfilesStore = defineStore('llmProfiles', () => {
       const result = await window.electronAPI.config.llmProfile.update(id, data)
       if (result.success) {
         await loadProfiles() // 重新加载列表
-        return { success: true, data: result.data }
+        // 刷新群组列表，使 UI 反映同步后的配置
+        const groupsStore = useGroupsStore()
+        await groupsStore.loadGroups()
+        if (result.syncedGroups > 0) {
+          console.log(`[LLM Profiles] 已同步 ${result.syncedGroups} 个群组`)
+        }
+        return { success: true, data: result.data, syncedGroups: result.syncedGroups || 0 }
       } else {
         return { success: false, error: result.error }
       }

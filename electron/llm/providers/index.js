@@ -30,7 +30,7 @@ export const LLM_PROVIDERS = {
     id: 'moonshot',
     name: 'Moonshot AI (Kimi)',
     baseURL: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k'],
     needApiKey: true,
     needBaseUrl: false
   },
