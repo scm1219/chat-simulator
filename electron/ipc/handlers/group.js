@@ -165,6 +165,10 @@ export function setupGroupHandlers(dbManager) {
         updates.push('system_prompt = ?')
         values.push(data.systemPrompt)
       }
+      if (data.autoMemoryExtract !== undefined) {
+        updates.push('auto_memory_extract = ?')
+        values.push(data.autoMemoryExtract ? 1 : 0)
+      }
 
       if (updates.length === 0) {
         return { success: false, error: '没有要更新的字段' }

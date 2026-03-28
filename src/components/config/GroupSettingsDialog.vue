@@ -100,6 +100,19 @@
           </small>
         </div>
 
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              v-model="form.autoMemoryExtract"
+              type="checkbox"
+            />
+            <span>自动提取角色记忆</span>
+          </label>
+          <small class="hint">
+            启用后，LLM 会在每次对话后自动从对话中提取角色的关键信息（喜好、经历、关系等），形成跨群共享的记忆
+          </small>
+        </div>
+
         <div class="info-section">
           <div class="info-item">
             <span class="label">LLM 供应商：</span>
@@ -153,7 +166,8 @@ const form = ref({
   maxHistory: 20,
   responseMode: 'sequential',
   thinkingEnabled: false,
-  randomOrder: false
+  randomOrder: false,
+  autoMemoryExtract: false
 })
 
 const hasChanges = computed(() => {
@@ -166,6 +180,7 @@ const hasChanges = computed(() => {
     form.value.responseMode !== group.value.response_mode ||
     form.value.thinkingEnabled !== (group.value.thinking_enabled === 1) ||
     form.value.randomOrder !== (group.value.random_order === 1)
+    || form.value.autoMemoryExtract !== (group.value.auto_memory_extract === 1)
   )
 })
 
@@ -178,7 +193,8 @@ onMounted(() => {
       maxHistory: group.value.max_history,
       responseMode: group.value.response_mode,
       thinkingEnabled: group.value.thinking_enabled === 1,
-      randomOrder: group.value.random_order === 1
+      randomOrder: group.value.random_order === 1,
+      autoMemoryExtract: group.value.auto_memory_extract === 1
     }
   }
 })
@@ -199,7 +215,8 @@ async function handleSave() {
       maxHistory: form.value.maxHistory,
       responseMode: form.value.responseMode,
       thinkingEnabled: form.value.thinkingEnabled,
-      randomOrder: form.value.randomOrder
+      randomOrder: form.value.randomOrder,
+      autoMemoryExtract: form.value.autoMemoryExtract
     })
     emit('saved')
     emit('close')

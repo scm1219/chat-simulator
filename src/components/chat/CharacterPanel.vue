@@ -181,6 +181,42 @@
             <div class="character-prompt-readonly">{{ char.system_prompt || '暂无设定' }}</div>
           </div>
 
+          <!-- 全局记忆（仅 AI 角色） -->
+          <div v-if="char.is_user !== 1" class="character-memory-section">
+            <button class="btn btn-link btn-sm memory-toggle-btn" @click="toggleMemoryExpand(char)">
+              📝 记忆 ({{ memoryStore.getMemories(char.name).length }})
+            </button>
+
+            <div v-if="expandedMemories[char.id]" class="memory-panel">
+              <div class="memory-list">
+                <div
+                  v-for="mem in memoryStore.getMemories(char.name)"
+                  :key="mem.id"
+                  class="memory-item"
+                >
+                  <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
+                  <span class="memory-content">{{ mem.content }}</span>
+                  <button class="btn-delete-memory" @click="deleteMemory(mem.id, char)" title="删除">×</button>
+                </div>
+                <div v-if="memoryStore.getMemories(char.name).length === 0" class="memory-empty">
+                  暂无记忆
+                </div>
+              </div>
+              <div class="memory-add">
+                <input
+                  v-model="newMemoryContent[char.id]"
+                  type="text"
+                  class="memory-input"
+                  placeholder="添加新记忆..."
+                  @keyup.enter="addMemory(char)"
+                />
+                <button class="btn btn-primary btn-sm" @click="addMemory(char)" :disabled="!newMemoryContent[char.id]?.trim()">
+                  添加
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- 指令输入和发送（仅 AI 角色） -->
           <div v-if="char.is_user !== 1" class="character-command">
             <input
@@ -243,6 +279,7 @@ import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
+import { useMemoryStore } from '../../stores/memory.js'
 import { useDialog } from '../../composables/useDialog'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
 import EditCharacterDialog from '../config/EditCharacterDialog.vue'
@@ -252,11 +289,14 @@ const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
+const memoryStore = useMemoryStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
+const expandedMemories = ref({})  // 记忆面板展开状态
+const newMemoryContent = ref({})  // 新记忆输入
 const editingCharacter = ref(null)
 
 const currentGroup = computed(() => groupsStore.currentGroup)
@@ -268,6 +308,38 @@ const aiCharacterCount = computed(() => {
 
 function togglePromptExpand(charId) {
   expandedPrompts.value[charId] = !expandedPrompts.value[charId]
+}
+
+// 切换记忆面板展开
+async function toggleMemoryExpand(char) {
+  if (!expandedMemories.value[char.id]) {
+    await memoryStore.loadMemories(char.name)
+  }
+  expandedMemories.value[char.id] = !expandedMemories.value[char.id]
+}
+
+// 添加记忆
+async function addMemory(char) {
+  const content = newMemoryContent.value[char.id]?.trim()
+  if (!content) return
+  try {
+    await memoryStore.addMemory({
+      characterName: char.name,
+      content
+    })
+    newMemoryContent.value[char.id] = ''
+  } catch (error) {
+    toast.error('添加记忆失败: ' + error.message)
+  }
+}
+
+// 删除记忆
+async function deleteMemory(memoryId, char) {
+  try {
+    await memoryStore.deleteMemory(memoryId, char.name)
+  } catch (error) {
+    toast.error('删除记忆失败: ' + error.message)
+  }
 }
 
 // 判断角色是否可以上移
@@ -890,5 +962,110 @@ async function sendCommand(char) {
 
 .user-badge {
   flex-shrink: 0;
+}
+
+.character-memory-section {
+  margin-bottom: $spacing-sm;
+}
+
+.memory-toggle-btn {
+  font-size: $font-size-sm;
+  color: $text-secondary;
+  padding: 2px 0;
+}
+
+.memory-panel {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: $border-radius-sm;
+  margin-top: $spacing-xs;
+  overflow: hidden;
+}
+
+.memory-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: $spacing-xs;
+}
+
+.memory-item {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-xs;
+  padding: $spacing-xs $spacing-sm;
+  font-size: $font-size-sm;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.memory-source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+
+  &.manual {
+    background: rgba($color-primary, 0.1);
+    color: $color-primary;
+  }
+
+  &.auto {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
+  }
+}
+
+.memory-content {
+  flex: 1;
+  word-break: break-word;
+}
+
+.btn-delete-memory {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.5;
+  padding: 0 2px;
+
+  &:hover {
+    opacity: 1;
+    color: #e53935;
+  }
+}
+
+.memory-empty {
+  padding: $spacing-md;
+  text-align: center;
+  color: $text-secondary;
+  font-size: $font-size-sm;
+}
+
+.memory-add {
+  display: flex;
+  gap: $spacing-xs;
+  padding: $spacing-xs;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.memory-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-sm;
+  font-size: $font-size-sm;
+  background: $bg-primary;
+
+  &:focus {
+    outline: none;
+    border-color: $color-primary;
+  }
 }
 </style>

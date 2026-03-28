@@ -44,7 +44,7 @@ function createLLMClient(config) {
   return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
 }
 
-export function setupLLMHandlers(dbManager) {
+export function setupLLMHandlers(dbManager, memoryManager = null) {
   // 获取所有 LLM 供应商
   ipcMain.handle('llm:getProviders', async () => {
     try {
@@ -225,7 +225,7 @@ export function setupLLMHandlers(dbManager) {
       if (responseMode === 'parallel') {
         // 并行模式：同时调用所有角色
         const promises = characters.map(character =>
-          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters)
+          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
         )
         const results = await Promise.all(promises)
         responses.push(...results)
@@ -240,7 +240,7 @@ export function setupLLMHandlers(dbManager) {
           console.log('[LLM] 随机发言顺序:', characters.map(c => c.name))
         }
         for (const character of characters) {
-          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters)
+          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
           responses.push(response)
 
           // 将上一个角色的回复添加到历史上下文
@@ -394,7 +394,9 @@ export function setupLLMHandlers(dbManager) {
         thinkingEnabled,
         group.background,
         group.system_prompt,
-        allCharacters
+        allCharacters,
+        memoryManager,
+        group.auto_memory_extract === 1
       )
 
       console.log('[LLM] 单角色指令回复生成完成')
@@ -509,15 +511,25 @@ export function setupLLMHandlers(dbManager) {
 /**
  * 为单个角色生成回复（支持流式输出）
  */
-async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = []) {
+async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = [], memoryManager = null, autoMemoryExtract = false) {
   try {
     console.log(`[LLM] 开始为角色 ${character.name} 生成回复`)
 
     // 优先使用角色的思考模式设置，如果没有则使用群组的设置
     const characterThinkingEnabled = character.thinking_enabled === 1 || thinkingEnabled
 
+    // 查询角色全局记忆
+    let memories = []
+    if (memoryManager) {
+      try {
+        memories = memoryManager.getMemoriesByCharacterName(character.name)
+      } catch (err) {
+        console.error(`[LLM] 查询角色 ${character.name} 的全局记忆失败:`, err)
+      }
+    }
+
     // 构建消息上下文
-    const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters)
+    const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters, memories)
     console.log(`[LLM] ${character.name} - 消息上下文构建完成`, {
       messageCount: messages.length,
       hasBackground: !!background,
@@ -608,6 +620,12 @@ async function generateCharacterResponse(client, character, history, userContent
         timestamp: new Date().toISOString()
       })
 
+      // 自动提取记忆（异步，不阻塞主流程）
+      if (memoryManager && autoMemoryExtract) {
+        extractMemoriesAsync(client, character, userContent, result.content, groupId, memoryManager)
+          .catch(err => console.error(`[LLM] 自动提取角色 ${character.name} 记忆失败:`, err))
+      }
+
       return {
         success: true,
         characterId: character.id,
@@ -644,9 +662,73 @@ async function generateCharacterResponse(client, character, history, userContent
 }
 
 /**
+ * 异步从对话中提取角色记忆
+ */
+async function extractMemoriesAsync(client, character, userContent, assistantContent, groupId, memoryManager) {
+  try {
+    // 获取已有的自动记忆（用于去重）
+    const existingMemories = memoryManager.getAutoMemoryContents(character.name)
+    // 构建提取提示词
+    const existingMemoryText = existingMemories.length > 0
+      ? `\n\n已有的记忆（不需要重复提取）：` + existingMemories.map(m => `- ${m}`).join('\n')
+      : ''
+
+    const extractMessages = [
+      {
+        role: 'system',
+        content: `你是一个记忆提取助手。从以下对话中提取角色"${character.name}"的关键信息，包括：
+- 喜好/厌恶
+- 重要经历/事件
+- 人际关系
+- 性格特征
+只提取明确表达的事实，不要推测。如果没有新信息，返回空数组。
+返回 JSON 格式：{"memories": ["记忆1", "记忆2"]}${existingMemoryText}`
+      },
+      {
+        role: 'user',
+        content: `用户: ${userContent}\n\n${character.name}: ${assistantContent}`
+      }
+    ]
+
+    const extractResult = await client.chat(extractMessages, {
+      thinkingEnabled: false,
+      maxTokens: 500
+    })
+
+    if (!extractResult.success || !extractResult.content) return
+
+    // 解析 JSON
+    let jsonStr = extractResult.content.trim()
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+    }
+
+    const parsed = JSON.parse(jsonStr)
+    const memories = parsed.memories || []
+
+    if (!Array.isArray(memories) || memories.length === 0) return
+
+    // 写入记忆
+    for (const memory of memories) {
+      if (typeof memory === 'string' && memory.trim()) {
+        memoryManager.addMemory({
+          characterName: character.name,
+          content: memory.trim(),
+          source: 'auto',
+          groupId: groupId
+        })
+      }
+    }
+    console.log(`[LLM] 自动提取角色 ${character.name} 的记忆 ${memories.length} 条`)
+  } catch (err) {
+    console.error(`[LLM] 自动提取记忆异常:`, err.message)
+  }
+}
+
+/**
  * 构建对话上下文消息
  */
-function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = []) {
+function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = [], memories = []) {
   const messages = []
 
   // 1. 添加系统提示词（最高优先级，如果存在）
@@ -677,13 +759,22 @@ function buildContextMessages(character, history, userContent, background = null
     })
   }
 
-  // 4. 添加角色系统提示词（人设）
+  // 4.5 注入角色全局记忆（如果有）
+  if (memories.length > 0) {
+    const memoryLines = memories.map(m => `- ${m.content}`).join('\n')
+    messages.push({
+      role: 'system',
+      content: `【角色记忆】\n以下是"${character.name}"在过去对话中积累的记忆：\n${memoryLines}`
+    })
+  }
+
+  // 5. 添加角色系统提示词（人设）
   messages.push({
     role: 'system',
     content: character.system_prompt
   })
 
-  // 5. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
+  // 6. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
   console.log('[LLM] 历史消息原始数据（前3条）:', history.slice(0, 3).map(msg => ({
     role: msg.role,
     content: msg.content?.substring(0, 50),
@@ -759,13 +850,13 @@ function buildContextMessages(character, history, userContent, background = null
 
   messages.push(...roleMessages)
 
-  // 6. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
+  // 7. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
   messages.push({
     role: 'system',
     content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。注意用户会提及其它角色，你只要扮演"${character.name}"这个角色回答就好了。`
   })
 
-  // 7. 添加当前用户消息
+  // 8. 添加当前用户消息
   const lastMessage = roleMessages[roleMessages.length - 1]
   if (!lastMessage || lastMessage.role !== 'user') {
     // 只有最后一条不是用户消息时，才添加

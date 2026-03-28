@@ -97,6 +97,12 @@
                 {{ tag.name }}
               </span>
             </div>
+            <!-- 全局记忆 -->
+            <div class="char-memory-toggle">
+              <button class="btn btn-link btn-sm memory-btn" @click="toggleCharMemory(character)">
+                📝 记忆 ({{ memoryStore.getMemories(character.name).length }})
+              </button>
+            </div>
           </div>
 
           <div class="char-actions">
@@ -122,6 +128,21 @@
             >
               🗑️
             </button>
+          </div>
+          <!-- 记忆面板（展开时显示） -->
+          <div v-if="expandedMemories[character.id]" class="char-memory-panel">
+            <div v-if="memoryStore.getMemories(character.name).length > 0" class="memory-list">
+              <div
+                v-for="mem in memoryStore.getMemories(character.name)"
+                :key="mem.id"
+                class="memory-item"
+              >
+                <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
+                <span class="memory-content">{{ mem.content }}</span>
+                <button class="btn-delete-memory" @click="deleteCharMemory(mem.id, character)" title="删除">×</button>
+              </div>
+            </div>
+            <div v-else class="memory-empty">暂无记忆</div>
           </div>
         </div>
       </template>
@@ -154,6 +175,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
+import { useMemoryStore } from '../../stores/memory.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
@@ -163,6 +185,7 @@ import TagFilter from '../common/TagFilter.vue'
 const globalCharsStore = useGlobalCharactersStore()
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
+const memoryStore = useMemoryStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
 
@@ -170,6 +193,7 @@ const searchKeyword = ref('')
 const showCreateDialog = ref(false)
 const showGachaDialog = ref(false)
 const editingCharacter = ref(null)
+const expandedMemories = ref({})
 
 // 分页
 const pageSize = 5
@@ -212,6 +236,23 @@ function truncateText(text, maxLength) {
 // 检查角色是否已在当前群组中（通过名称匹配）
 function isCharacterInGroup(characterName) {
   return charactersStore.characters.some(c => c.name === characterName)
+}
+
+// 切换角色记忆面板
+async function toggleCharMemory(character) {
+  if (!expandedMemories.value[character.id]) {
+    await memoryStore.loadMemories(character.name)
+  }
+  expandedMemories.value[character.id] = !expandedMemories.value[character.id]
+}
+
+// 删除记忆
+async function deleteCharMemory(memoryId, character) {
+  try {
+    await memoryStore.deleteMemory(memoryId, character.name)
+  } catch (error) {
+    toast.error('删除记忆失败: ' + error.message)
+  }
 }
 
 // 搜索
@@ -522,5 +563,87 @@ onMounted(async () => {
     font-size: $font-size-sm;
     margin-top: $spacing-sm;
   }
+}
+
+.char-memory-toggle {
+  margin-top: 4px;
+}
+
+.memory-btn {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  padding: 0;
+}
+
+.char-memory-panel {
+  padding: $spacing-sm $spacing-lg $spacing-sm 60px;
+  border-bottom: 1px solid $border-color;
+  background: $bg-secondary;
+}
+
+.memory-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.memory-item {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-xs;
+  padding: 4px 8px;
+  font-size: $font-size-sm;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.memory-source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: $font-weight-medium;
+
+  &.manual {
+    background: rgba($color-primary, 0.1);
+    color: $color-primary;
+  }
+
+  &.auto {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
+  }
+}
+
+.memory-content {
+  flex: 1;
+  word-break: break-word;
+}
+
+.btn-delete-memory {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.5;
+  padding: 0 2px;
+
+  &:hover {
+    opacity: 1;
+    color: #e53935;
+  }
+}
+
+.memory-empty {
+  padding: $spacing-sm;
+  text-align: center;
+  color: $text-secondary;
+  font-size: $font-size-sm;
 }
 </style>

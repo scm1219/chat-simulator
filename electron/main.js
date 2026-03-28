@@ -61,17 +61,22 @@ function createWindow() {
 // 全局角色库管理器
 let globalCharManager = null
 
+// 角色记忆管理器
+let memoryManager = null
+
 // 应用就绪时创建窗口
 app.whenReady().then(async () => {
   // 动态导入模块
   const { DatabaseManager } = await import('./database/manager.js')
   const { GlobalCharacterManager } = await import('./database/global-character-manager.js')
+  const { MemoryManager } = await import('./database/memory-manager.js')
   const { setupGroupHandlers } = await import('./ipc/handlers/group.js')
   const { setupCharacterHandlers } = await import('./ipc/handlers/character.js')
   const { setupMessageHandlers } = await import('./ipc/handlers/message.js')
   const { setupLLMHandlers } = await import('./ipc/handlers/llm.js')
   const { setupConfigHandlers } = await import('./ipc/handlers/config.js')
   const { setupGlobalCharacterHandlers } = await import('./ipc/handlers/global-character.js')
+  const { setupMemoryHandlers } = await import('./ipc/handlers/memory.js')
 
   // 初始化数据库管理器
   dbManager = new DatabaseManager()
@@ -79,13 +84,17 @@ app.whenReady().then(async () => {
   // 初始化全局角色库管理器
   globalCharManager = new GlobalCharacterManager()
 
+  // 初始化角色记忆管理器
+  memoryManager = new MemoryManager()
+
   // 设置 IPC 处理器（必须在创建窗口之前完成）
   setupGroupHandlers(dbManager)
   setupCharacterHandlers(dbManager)
   setupMessageHandlers(dbManager)
-  setupLLMHandlers(dbManager)
+  setupLLMHandlers(dbManager, memoryManager)
   setupConfigHandlers(dbManager)
   setupGlobalCharacterHandlers(dbManager, globalCharManager)
+  setupMemoryHandlers(memoryManager)
 
   // 所有处理程序注册完成后再创建窗口
   createWindow()
@@ -113,6 +122,10 @@ app.on('before-quit', () => {
   // 关闭全局角色库数据库连接
   if (globalCharManager) {
     globalCharManager.close()
+  }
+  // 关闭角色记忆数据库连接
+  if (memoryManager) {
+    memoryManager.close()
   }
 })
 

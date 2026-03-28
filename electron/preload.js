@@ -135,6 +135,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAllWithTags: () => ipcRenderer.invoke('globalCharacter:getAllWithTags'),
     searchWithTags: (keyword, tagIds) =>
       ipcRenderer.invoke('globalCharacter:searchWithTags', keyword, tagIds)
+  },
+
+  // ============ 角色全局记忆操作 ============
+  memory: {
+    getByName: (characterName) => ipcRenderer.invoke('memory:getByName', characterName),
+    add: (data) => ipcRenderer.invoke('memory:add', data),
+    update: (id, content) => ipcRenderer.invoke('memory:update', id, content),
+    delete: (id) => ipcRenderer.invoke('memory:delete', id),
+    getCount: (characterName) => ipcRenderer.invoke('memory:getCount', characterName)
   }
 })
 
