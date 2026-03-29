@@ -66,6 +66,34 @@
             @create-tag="handleCreateTag"
           />
         </div>
+
+        <!-- 记忆管理（仅编辑模式） -->
+        <div v-if="isEditing" class="form-group">
+          <label class="form-label">记忆 ({{ memories.length }})</label>
+          <div class="memory-panel">
+            <div v-if="memories.length > 0" class="memory-list">
+              <div
+                v-for="mem in memories"
+                :key="mem.id"
+                class="memory-item"
+              >
+                <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
+                <span class="memory-content">{{ mem.content }}</span>
+                <button class="btn-delete-memory" @click="deleteMemory(mem.id)" title="删除">×</button>
+              </div>
+            </div>
+            <div v-else class="memory-empty">暂无记忆</div>
+            <div class="memory-add">
+              <input
+                v-model="newMemoryContent"
+                class="input memory-input"
+                placeholder="添加新记忆..."
+                @keyup.enter="addMemory"
+              />
+              <button class="btn btn-sm btn-memory-add" @click="addMemory" :disabled="!newMemoryContent.trim()">添加</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="dialog-footer">
@@ -87,6 +115,7 @@
 <script setup>
 import { ref, computed, onMounted, toRaw } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
+import { useMemoryStore } from '../../stores/memory.js'
 import { useToastStore } from '../../stores/toast'
 import TagSelector from '../common/TagSelector.vue'
 
@@ -100,6 +129,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved'])
 
 const globalCharsStore = useGlobalCharactersStore()
+const memoryStore = useMemoryStore()
 const toast = useToastStore()
 
 const isEditing = computed(() => !!props.character)
@@ -113,6 +143,35 @@ const form = ref({
 })
 
 const saving = ref(false)
+const newMemoryContent = ref('')
+
+const memories = computed(() => {
+  if (!isEditing.value || !props.character) return []
+  return memoryStore.getMemories(props.character.name)
+})
+
+async function addMemory() {
+  if (!newMemoryContent.value.trim() || !props.character) return
+  try {
+    await memoryStore.addMemory({
+      characterName: props.character.name,
+      content: newMemoryContent.value.trim(),
+      source: 'manual'
+    })
+    newMemoryContent.value = ''
+  } catch (error) {
+    toast.error('添加记忆失败：' + error.message)
+  }
+}
+
+async function deleteMemory(memoryId) {
+  if (!props.character) return
+  try {
+    await memoryStore.deleteMemory(memoryId, props.character.name)
+  } catch (error) {
+    toast.error('删除记忆失败：' + error.message)
+  }
+}
 
 const isFormValid = computed(() => {
   return (
@@ -134,6 +193,8 @@ onMounted(async () => {
       systemPrompt: props.character.system_prompt || '',
       tagIds: props.character.tags ? props.character.tags.map(t => t.id) : []
     }
+    // 加载角色记忆
+    await memoryStore.loadMemories(props.character.name)
   }
 })
 
@@ -303,5 +364,98 @@ async function handleSave() {
   display: flex;
   justify-content: flex-end;
   gap: $spacing-md;
+}
+
+// 记忆管理
+.memory-panel {
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  overflow: hidden;
+}
+
+.memory-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.memory-item {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-xs;
+  padding: 6px 10px;
+  font-size: $font-size-sm;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.memory-source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: $font-weight-medium;
+
+  &.manual {
+    background: rgba($color-primary, 0.1);
+    color: $color-primary;
+  }
+
+  &.auto {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
+  }
+}
+
+.memory-content {
+  flex: 1;
+  word-break: break-word;
+}
+
+.btn-delete-memory {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.5;
+  padding: 0 2px;
+
+  &:hover {
+    opacity: 1;
+    color: #e53935;
+  }
+}
+
+.memory-empty {
+  padding: $spacing-md;
+  text-align: center;
+  color: $text-placeholder;
+  font-size: $font-size-sm;
+}
+
+.memory-add {
+  display: flex;
+  gap: $spacing-sm;
+  padding: $spacing-sm;
+  border-top: 1px solid $border-color;
+  background: $bg-secondary;
+}
+
+.memory-input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: $font-size-sm;
+}
+
+.btn-memory-add {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: $font-size-sm;
 }
 </style>
