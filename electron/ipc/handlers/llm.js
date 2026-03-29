@@ -450,11 +450,12 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         { role: 'user', content: userPrompt }
       ]
 
-      // 5. 调用 LLM（禁用思考模式，确保返回纯 JSON）
+      // 5. 调用 LLM（禁用思考模式，启用 JSON 结构化输出）
       const result = await client.chat(messages, {
         temperature: 0.9, // 提高创造性
         maxTokens: 1000,
-        thinkingEnabled: false // 明确禁用思考模式
+        thinkingEnabled: false, // 明确禁用思考模式
+        responseFormat: { type: 'json_object' } // 结构化输出，强制返回合法 JSON
       })
 
       console.log('[LLM] LLM 响应', {
@@ -540,11 +541,12 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         { role: 'user', content: userPrompt }
       ]
 
-      // 5. 调用 LLM
+      // 5. 调用 LLM（启用 JSON 结构化输出）
       const result = await client.chat(messages, {
         temperature: 0.9,
         maxTokens: 3000,
-        thinkingEnabled: false
+        thinkingEnabled: false,
+        responseFormat: { type: 'json_object' } // 结构化输出，强制返回合法 JSON
       })
 
       if (!result.success) {
@@ -776,7 +778,8 @@ async function extractMemoriesAsync(client, character, userContent, assistantCon
 
     const extractResult = await client.chat(extractMessages, {
       thinkingEnabled: false,
-      maxTokens: 500
+      maxTokens: 500,
+      responseFormat: { type: 'json_object' } // 结构化输出，强制返回合法 JSON
     })
 
     if (!extractResult.success || !extractResult.content) return

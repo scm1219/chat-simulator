@@ -131,6 +131,11 @@ export class LLMClient {
         stream: isStreaming // 启用流式输出
       }
 
+      // 结构化输出：强制返回合法 JSON（GLM-5、OpenAI 等供应商支持）
+      if (options.responseFormat) {
+        requestData.response_format = options.responseFormat
+      }
+
       // 流式请求时请求 usage 数据
       if (isStreaming) {
         requestData.stream_options = { include_usage: true }
