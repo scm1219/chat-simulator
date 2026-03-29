@@ -23,7 +23,7 @@ import CharacterPanel from '../chat/CharacterPanel.vue'
 const groupsStore = useGroupsStore()
 
 // 右侧面板显隐状态
-const rightPanelVisible = ref(true)
+const rightPanelVisible = ref(false)
 
 function toggleRightPanel() {
   rightPanelVisible.value = !rightPanelVisible.value

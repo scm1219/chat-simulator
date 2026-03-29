@@ -192,27 +192,8 @@ async function handleExportMessages() {
     )
 
     if (result.success) {
-      // 将 base64 数据转换为 Blob
-      const binaryString = atob(result.data.buffer)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      const blob = new Blob([bytes], { type: 'application/zip' })
-
-      // 创建下载链接并触发下载
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = result.data.filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
       toast.success(`导出成功！文件大小：${(result.data.size / 1024).toFixed(2)} KB`)
-    } else {
+    } else if (!result.canceled) {
       toast.error('导出失败: ' + result.error)
     }
   } catch (error) {

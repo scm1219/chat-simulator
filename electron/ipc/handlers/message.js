@@ -148,11 +148,28 @@ export function setupMessageHandlers(dbManager) {
 
   // 导出群组聊天记录为 ZIP
   ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
+    const fs = require('fs')
+    const path = require('path')
+    const { app, dialog, BrowserWindow } = require('electron')
+    let jsonFilePath = null
+    let zipFilePath = null
+
     try {
-      const archiver = require('archiver')
-      const fs = require('fs')
-      const path = require('path')
-      const { app } = require('electron')
+      // 弹出保存对话框
+      const zipFileName = `${groupName}.zip`
+      const result = await dialog.showSaveDialog(BrowserWindow.getFocusedWindow(), {
+        title: '导出聊天记录',
+        defaultPath: zipFileName,
+        filters: [
+          { name: 'ZIP 压缩文件', extensions: ['zip'] }
+        ]
+      })
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true }
+      }
+
+      const savePath = result.filePath
 
       // 获取群组消息
       const db = dbManager.getGroupDB(groupId)
@@ -215,62 +232,52 @@ export function setupMessageHandlers(dbManager) {
 
       // 创建 JSON 文件路径
       const jsonFileName = `${groupName}_聊天记录.json`
-      const jsonFilePath = path.join(tempDir, jsonFileName)
+      jsonFilePath = path.join(tempDir, jsonFileName)
 
       // 写入 JSON 文件
       fs.writeFileSync(jsonFilePath, JSON.stringify(exportData, null, 2), 'utf-8')
 
-      // 创建 ZIP 文件路径
-      const zipFileName = `${groupName}.zip`
-      const zipFilePath = path.join(tempDir, zipFileName)
+      // 创建 ZIP 文件（先写到临时路径，完成后移动到目标路径）
+      const archiver = require('archiver')
+      const tempZipPath = path.join(tempDir, `temp_${Date.now()}.zip`)
+      zipFilePath = tempZipPath
 
-      // 创建 ZIP 文件
-      const output = fs.createWriteStream(zipFilePath)
+      const output = fs.createWriteStream(tempZipPath)
       const archive = archiver('zip', {
-        zlib: { level: 9 } // 最高压缩级别
+        zlib: { level: 9 }
       })
 
-      return new Promise((resolve, reject) => {
-        output.on('close', () => {
-          // 读取 ZIP 文件为 base64
-          const zipBuffer = fs.readFileSync(zipFilePath)
+      await new Promise((resolve, reject) => {
+        output.on('close', () => resolve())
+        archive.on('error', (err) => reject(err))
 
-          // 清理临时文件
-          try {
-            fs.unlinkSync(jsonFilePath)
-            fs.unlinkSync(zipFilePath)
-          } catch (cleanupError) {
-            console.error('清理临时文件失败:', cleanupError)
-          }
-
-          resolve({
-            success: true,
-            data: {
-              filename: zipFileName,
-              buffer: zipBuffer.toString('base64'),
-              size: archive.pointer()
-            }
-          })
-        })
-
-        archive.on('error', (err) => {
-          // 清理临时文件
-          try {
-            if (fs.existsSync(jsonFilePath)) fs.unlinkSync(jsonFilePath)
-            if (fs.existsSync(zipFilePath)) fs.unlinkSync(zipFilePath)
-          } catch (cleanupError) {
-            console.error('清理临时文件失败:', cleanupError)
-          }
-          reject(err)
-        })
-
-        // 将 JSON 文件添加到 ZIP
+        // 关键：将 archive 管道连接到输出流
+        archive.pipe(output)
         archive.file(jsonFilePath, { name: jsonFileName })
-
-        // 完成压缩
         archive.finalize()
       })
+
+      // 移动到用户选择的路径
+      fs.renameSync(tempZipPath, savePath)
+      zipFilePath = null // 已移走，无需清理
+
+      const fileSize = fs.statSync(savePath).size
+
+      return {
+        success: true,
+        data: {
+          filename: path.basename(savePath),
+          size: fileSize
+        }
+      }
     } catch (error) {
+      // 清理临时文件
+      try {
+        if (jsonFilePath && fs.existsSync(jsonFilePath)) fs.unlinkSync(jsonFilePath)
+        if (zipFilePath && fs.existsSync(zipFilePath)) fs.unlinkSync(zipFilePath)
+      } catch (cleanupError) {
+        console.error('清理临时文件失败:', cleanupError)
+      }
       return { success: false, error: error.message }
     }
   })
