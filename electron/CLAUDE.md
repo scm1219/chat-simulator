@@ -2,11 +2,24 @@
 
 [根目录](../CLAUDE.md) > **electron**
 
-> 最后更新：2026-03-27
+> 最后更新：2026-03-29
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-03-29
+- **新增**：全局角色库管理器 `GlobalCharacterManager`（角色 CRUD、标签管理、搜索筛选、导入到群组）
+- **新增**：角色记忆管理器 `MemoryManager`（记忆 CRUD、按角色名查询、自动记忆提取）
+- **新增**：全局搜索 IPC 处理器 `search.js`（跨群组搜索消息和角色）
+- **新增**：全局角色 IPC 处理器 `global-character.js`（角色管理 + 标签管理 + 导入群组）
+- **新增**：记忆 IPC 处理器 `memory.js`（记忆 CRUD）
+- **新增**：系统提示词模板管理 `system-prompts.js`（8 个内置模板、自定义模板 CRUD）
+- **新增**：IPC 通道常量定义 `channels.js`
+- **优化**：数据库 Schema 新增多字段（position、thinking_enabled、random_order、system_prompt、reasoning_content、prompt_tokens、auto_memory_extract）
+- **优化**：LLM Handler 支持流式输出、角色记忆注入、自动记忆提取、单角色指令、角色抽卡
+- **优化**：新增供应商：智谱AI、ModelScope 魔塔、MiniMax
+- **优化**：Preload API 大幅扩展
 
 ### 2026-03-27
 - **新增**：`llm/ollama-client.js` - Ollama 原生 API 客户端
@@ -32,10 +45,13 @@
 Electron 主进程是应用的核心后端，负责：
 1. **窗口管理**：创建和管理应用窗口
 2. **IPC 通信**：处理渲染进程的请求并返回结果
-3. **数据库管理**：管理所有聊天群的 SQLite 数据库连接
+3. **数据库管理**：管理三套独立数据库系统
 4. **LLM 集成**：调用各种 LLM 供应商的 API 进行对话生成
-5. **配置管理**：管理全局 LLM 和代理配置
-6. **数据迁移**：自动执行数据库结构升级
+5. **配置管理**：管理全局 LLM、Profile、代理、系统提示词模板、抽卡配置
+6. **全局角色库**：跨群组的角色模板管理和标签系统
+7. **角色记忆**：跨群组的角色记忆管理（手动/自动）
+8. **全局搜索**：跨群组搜索消息和角色
+9. **数据迁移**：自动执行数据库结构升级
 
 ---
 
@@ -47,41 +63,34 @@ Electron 主进程是应用的核心后端，负责：
 ### 启动流程
 1. 应用就绪时（`app.whenReady()`）创建主窗口
 2. 动态导入各模块（数据库、IPC Handlers）
-3. 初始化 `DatabaseManager`
-4. 执行数据库迁移（添加用户角色）
-5. 注册所有 IPC Handlers
-6. 监听窗口关闭事件，清理资源
+3. 初始化 `DatabaseManager`（群组数据库）
+4. 初始化 `GlobalCharacterManager`（全局角色库数据库）
+5. 初始化 `MemoryManager`（角色记忆数据库，懒加载）
+6. 注册所有 IPC Handlers（8 个模块）
+7. 创建窗口
+8. 监听窗口关闭事件，清理所有数据库连接
 
 ### 关键代码
 ```javascript
-// 创建窗口
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/index.cjs'),
-      nodeIntegration: false,
-      contextIsolation: true
-    }
-  })
+// 初始化三个数据库管理器
+dbManager = new DatabaseManager()
+globalCharManager = new GlobalCharacterManager()
+memoryManager = new MemoryManager()
 
-  // 开发模式加载 Vite 服务器，生产模式加载构建文件
-  const isDev = process.env.NODE_ENV === 'development'
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-  }
-}
+// 注册 8 个 IPC Handler 模块
+setupGroupHandlers(dbManager)
+setupCharacterHandlers(dbManager)
+setupMessageHandlers(dbManager)
+setupLLMHandlers(dbManager, memoryManager)
+setupConfigHandlers(dbManager)
+setupGlobalCharacterHandlers(dbManager, globalCharManager)
+setupMemoryHandlers(memoryManager)
+setupSearchHandlers(dbManager)
 
-// 应用退出前清理
-app.on('before-quit', () => {
-  if (dbManager) {
-    dbManager.closeAll() // 关闭所有数据库连接
-  }
-})
+// 应用退出前清理三个数据库
+dbManager.closeAll()
+globalCharManager.close()
+memoryManager.close()
 ```
 
 ---
@@ -95,11 +104,12 @@ app.on('before-quit', () => {
 #### 1. 群组操作（`window.electronAPI.group`）
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
-| `create(data)` | `{ name, llmProvider, llmModel, maxHistory, responseMode, thinkingEnabled, background }` | `{ success, data: Group }` | 创建新群组 |
+| `create(data)` | `{ name, llmProvider, llmModel, ... }` | `{ success, data: Group }` | 创建新群组 |
 | `getAll()` | 无 | `{ success, data: Group[] }` | 获取所有群组 |
 | `getById(id)` | 群组 ID | `{ success, data: Group }` | 获取单个群组 |
 | `update(id, data)` | 群组 ID, 更新数据 | `{ success, data: Group }` | 更新群组 |
 | `delete(id)` | 群组 ID | `{ success }` | 删除群组 |
+| `duplicate(id)` | 群组 ID | `{ success }` | 复制群组 |
 
 **Handler 实现**：`electron/ipc/handlers/group.js`
 
@@ -111,6 +121,7 @@ app.on('before-quit', () => {
 | `update(id, data)` | 角色 ID, 更新数据 | `{ success, data: Character }` | 更新角色 |
 | `delete(id)` | 角色 ID | `{ success }` | 删除角色 |
 | `toggle(id, enabled)` | 角色 ID, 是否启用 | `{ success, data: Character }` | 启用/禁用角色 |
+| `reorder(id, direction)` | 角色 ID, 方向 | `{ success }` | 角色排序 |
 
 **Handler 实现**：`electron/ipc/handlers/character.js`
 
@@ -119,10 +130,21 @@ app.on('before-quit', () => {
 |------|------|--------|------|
 | `getByGroupId(groupId)` | 群组 ID | `{ success, data: Message[] }` | 获取群组消息列表 |
 | `create(data)` | `{ groupId, characterId, role, content }` | `{ success, data: Message }` | 创建消息 |
+| `update(id, content)` | 消息 ID, 内容 | `{ success }` | 更新消息内容 |
+| `delete(id)` | 消息 ID | `{ success }` | 删除消息 |
+| `deleteFrom(id)` | 消息 ID | `{ success }` | 从此消息开始删除 |
+| `clearByGroupId(groupId)` | 群组 ID | `{ success }` | 清空群组消息 |
+| `exportToZip(groupId, groupName)` | 群组 ID, 名称 | `{ success, path }` | 导出聊天记录 ZIP |
 | `onNewMessage(callback)` | 回调函数 | 清理函数 | 监听新消息事件 |
+| `onStreamStart/Chunk/End/Error` | 回调函数 | 清理函数 | 流式消息事件 |
 
 **事件**：
-- `message:new`：当有新消息时触发
+- `message:new`：新消息（旧接口）
+- `message:stream:start`：流式开始
+- `message:stream:chunk`：流式片段（含 reasoning/content 类型）
+- `message:stream:end`：流式结束
+- `message:stream:error`：流式错误
+- `message:user:saved`：用户消息保存确认
 
 **Handler 实现**：`electron/ipc/handlers/message.js`
 
@@ -132,11 +154,10 @@ app.on('before-quit', () => {
 | `getProviders()` | 无 | `{ success, data: Provider[] }` | 获取所有 LLM 供应商 |
 | `getModels(provider)` | 供应商 ID | `{ success, data: string[] }` | 获取供应商的模型列表 |
 | `testConnection(config)` | LLM 配置 | `{ success, message, model }` | 测试 LLM 连接 |
-| `generate(groupId, content)` | 群组 ID, 用户消息 | `{ success, data: Response[] }` | 生成 AI 回复 |
-| `onProgress(callback)` | 回调函数 | 清理函数 | 监听生成进度（预留） |
-
-**事件**：
-- `llm:progress`：LLM 生成进度（预留接口）
+| `generate(groupId, content)` | 群组 ID, 用户消息 | 流式事件 | 生成 AI 回复（流式） |
+| `generateCharacterCommand(...)` | 群组/角色/指令 | 流式事件 | 单角色指令回复 |
+| `generateCharacter(hint)` | 提示词 | `{ success, data }` | AI 角色抽卡 |
+| `onProgress(callback)` | 回调函数 | 清理函数 | 监听生成进度 |
 
 **Handler 实现**：`electron/ipc/handlers/llm.js`
 
@@ -156,7 +177,50 @@ app.on('before-quit', () => {
 | `update(id, data)` | 配置 ID, 更新数据 | `{ success, data: LLMProfile }` | 更新 LLM 配置 |
 | `delete(id)` | 配置 ID | `{ success }` | 删除 LLM 配置 |
 
-**Handler 实现**：`electron/ipc/handlers/config.js`
+#### 7. 系统提示词模板（`window.electronAPI.config.systemPrompt`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `getAll()` | 无 | `{ success, data }` | 获取所有模板 |
+| `save(templates)` | 模板数组 | `{ success }` | 保存模板 |
+| `reset()` | 无 | `{ success }` | 重置为默认模板 |
+| `add/update/delete` | 模板数据 | `{ success }` | 模板 CRUD |
+
+#### 8. 抽卡配置（`window.electronAPI.config.gachaConfig`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `get()` | 无 | `{ success, data }` | 获取抽卡配置 |
+| `save(config)` | 配置 | `{ success }` | 保存抽卡配置 |
+| `reset()` | 无 | `{ success }` | 重置为默认配置 |
+
+#### 9. 全局角色库（`window.electronAPI.globalCharacter`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `getAll/getById/create/update/delete` | 标准 CRUD | `{ success, data }` | 角色 CRUD |
+| `search(keyword)` | 关键词 | `{ success, data }` | 搜索角色 |
+| `importToGroup(characterId, groupId)` | 角色/群组 ID | `{ success, data }` | 导入角色到群组 |
+| `getAllTags/createTag/updateTag/deleteTag` | 标签 CRUD | `{ success, data }` | 标签管理 |
+| `getCharacterTags/setCharacterTags` | 角色 ID | `{ success, data }` | 角色标签关联 |
+| `getByTags/getAllWithTags/searchWithTags` | 筛选参数 | `{ success, data }` | 带标签查询 |
+
+**Handler 实现**：`electron/ipc/handlers/global-character.js`
+
+#### 10. 角色记忆（`window.electronAPI.memory`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `getByName(characterName)` | 角色名称 | `{ success, data }` | 获取角色记忆列表 |
+| `add(data)` | `{ characterName, content, source, groupId }` | `{ success, data }` | 添加记忆 |
+| `update(id, content)` | 记忆 ID, 内容 | `{ success, data }` | 更新记忆 |
+| `delete(id)` | 记忆 ID | `{ success }` | 删除记忆 |
+| `getCount(characterName)` | 角色名称 | `{ success, data: number }` | 记忆条数 |
+
+**Handler 实现**：`electron/ipc/handlers/memory.js`
+
+#### 11. 全局搜索（`window.electronAPI.search`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `global(keyword)` | 搜索关键词 | `{ success, data }` | 跨群组搜索消息和角色 |
+
+**Handler 实现**：`electron/ipc/handlers/search.js`
 
 ---
 
@@ -166,6 +230,7 @@ app.on('before-quit', () => {
 - **electron**：窗口管理、IPC 通信
 - **better-sqlite3**：同步 SQLite 数据库操作
 - **axios**：HTTP 客户端（用于 LLM API 调用）
+- **archiver**：聊天记录导出 ZIP
 - **uuid**：生成唯一 ID
 
 ### 配置文件
@@ -180,122 +245,13 @@ app.on('before-quit', () => {
    - 包含触发器自动更新 `updated_at`
 
 3. **LLM 供应商配置**：`electron/llm/providers/index.js`
-   - 预定义了 OpenAI、DeepSeek、通义千问、Moonshot、Ollama 等供应商
-   - 每个供应商包含：baseURL、models、needApiKey、needBaseUrl
+   - 预定义了 OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、百川、Ollama、ModelScope、MiniMax、自定义供应商
 
 ### 数据存储位置
-- **开发模式**：`%APPDATA%/chat-simulator/data/groups/`（Windows）
-- **生产模式**：应用用户数据目录下的 `data/groups/`
+- **群组数据库**：`%APPDATA%/chat-simulator/data/groups/`（Windows）
+- **全局角色库**：`%APPDATA%/chat-simulator/data/global/character-library.sqlite`
+- **角色记忆**：`%APPDATA%/chat-simulator/data/global/character-memories.sqlite`
 - **配置文件**：`%APPDATA%/chat-simulator/config/`
-
----
-
-## 数据模型
-
-### 数据库表结构
-
-#### groups（群组表）
-```sql
-CREATE TABLE groups (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  llm_provider TEXT NOT NULL,
-  llm_model TEXT NOT NULL,
-  llm_api_key TEXT,
-  llm_base_url TEXT,
-  max_history INTEGER DEFAULT 10,
-  response_mode TEXT DEFAULT 'sequential',
-  use_global_api_key INTEGER DEFAULT 1,
-  thinking_enabled INTEGER DEFAULT 0,
-  background TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-```
-
-#### characters（角色表）
-```sql
-CREATE TABLE characters (
-  id TEXT PRIMARY KEY,
-  group_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  system_prompt TEXT NOT NULL,
-  enabled INTEGER DEFAULT 1,
-  is_user INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
-)
-```
-
-#### messages（消息表）
-```sql
-CREATE TABLE messages (
-  id TEXT PRIMARY KEY,
-  group_id TEXT NOT NULL,
-  character_id TEXT,
-  role TEXT NOT NULL,
-  content TEXT NOT NULL,
-  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-  FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE SET NULL
-)
-```
-
-### 数据库管理器
-**路径**：`electron/database/manager.js`
-
-**核心功能**：
-- 为每个群组创建独立的 SQLite 数据库文件
-- 缓存数据库连接，避免重复创建
-- 自动初始化表结构（使用内联 Schema）
-- 自动执行数据库迁移
-- 提供关闭连接和删除数据库的方法
-
-**关键方法**：
-```javascript
-class DatabaseManager {
-  getGroupDB(groupId)      // 获取群组的数据库连接
-  closeGroupDB(groupId)    // 关闭群组数据库连接
-  closeAll()               // 关闭所有数据库连接
-  deleteGroupDB(groupId)   // 删除群组数据库文件
-  getGroupDBFiles()        // 获取所有群组 ID
-  initSchema(db)           // 初始化表结构并执行迁移
-}
-```
-
-**自动迁移逻辑**：
-1. 检查表结构，添加 `thinking_enabled` 字段（群组表）
-2. 检查表结构，添加 `background` 字段（群组表）
-3. 检查表结构，添加 `is_user` 字段（角色表）
-
-### 数据库迁移脚本
-**路径**：`electron/database/migrations/add_user_character.js`
-
-**功能**：为所有已存在的群组添加默认用户角色
-
-**执行时机**：主进程启动时自动执行一次
-
-**迁移逻辑**：
-```javascript
-export function migrateAddUserCharacter(dbManager) {
-  const groupIds = dbManager.getGroupDBFiles()
-
-  for (const groupId of groupIds) {
-    const db = dbManager.getGroupDB(groupId)
-    const existingUserChar = db.prepare(
-      'SELECT * FROM characters WHERE group_id = ? AND is_user = 1'
-    ).get(groupId)
-
-    if (!existingUserChar) {
-      // 添加默认用户角色
-      db.prepare(`
-        INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(userCharacterId, groupId, '用户', '你是用户，正在参与群聊对话。', 1, 1)
-    }
-  }
-}
-```
 
 ---
 
@@ -306,99 +262,56 @@ export function migrateAddUserCharacter(dbManager) {
 
 **核心功能**：
 - 封装 OpenAI 兼容的 API 调用
-- 支持自定义 baseURL（用于其他供应商）
-- 支持代理配置
-- 支持思考模式（thinking_enabled）
-- 提供错误处理和连接测试
+- 支持流式输出（SSE）
+- 支持推理过程（reasoning_content）
+- 支持自定义 baseURL、代理配置
+- 提供 token 用量统计
+- 错误处理和连接测试
 
-**关键方法**：
-```javascript
-class LLMClient {
-  chat(messages, options)        // 发送聊天请求
-  testConnection()               // 测试连接
-  getModels()                    // 获取可用模型（Ollama）
-  handleError(error)             // 统一错误处理
-}
-```
+### Ollama 原生客户端
+**路径**：`electron/llm/ollama-client.js`
 
-**思考模式支持**：
-```javascript
-const result = await client.chat(messages, {
-  thinkingEnabled: true  // 启用思考模式（适用于 o1 等模型）
-})
-```
+- 支持 Ollama 原生 API
+- 支持原生 think 参数
+- 与 OpenAI 客户端接口统一
 
 ### LLM 供应商配置
 **路径**：`electron/llm/providers/index.js`
 
-**支持的供应商**：
-- **OpenAI**：https://api.openai.com/v1
-- **DeepSeek**：https://api.deepseek.com/v1
-- **通义千问**：https://dashscope.aliyuncs.com/compatible-mode/v1
-- **Moonshot AI**：https://api.moonshot.cn/v1
-- **百川智能**：https://api.baichuan-ai.com/v1
-- **Ollama**：http://localhost:11434/v1（本地）
+**支持的供应商**（11 个）：
+- **OpenAI**：gpt-5.4 系列
+- **DeepSeek**：deepseek-chat/coder
+- **通义千问**：qwen-plus/turbo/max
+- **Moonshot AI (Kimi)**：moonshot-v1 系列
+- **智谱AI**：glm-5/4.7/4.6v 系列
+- **百川智能**：Baichuan2 系列
+- **Ollama (本地)**：动态获取模型列表
+- **ModelScope 魔塔**：Qwen3.5 系列
+- **MiniMax**：MiniMax-M2 系列
 - **自定义**：用户自行配置
 
 ### 多角色对话逻辑
 **路径**：`electron/ipc/handlers/llm.js`
 
-**顺序模式（sequential）**：
-1. 获取所有启用的 AI 角色（排除 `is_user = 1` 的角色）
-2. 按顺序为每个角色调用 LLM
-3. 将每个角色的回复添加到历史记录
-4. 下一个角色可以看到之前的回复
-
-**并行模式（parallel）**：
-1. 获取所有启用的 AI 角色（排除 `is_user = 1` 的角色）
-2. 同时调用所有角色的 LLM
-3. 所有角色同时返回回复
-
 **上下文构建**（增强版）：
-```javascript
-function buildContextMessages(character, history, userContent, background = null) {
-  const messages = []
+1. 群组系统提示词（最高优先级）
+2. 群背景设定
+3. 群成员介绍（所有启用角色的名称和一句话简介）
+4. 角色全局记忆（跨群组共享）
+5. 角色系统提示词（人设）
+6. 历史消息（含角色名前缀，过滤定向指令和角色指令）
+7. 强制性指令（只扮演当前角色）
+8. 当前用户消息
 
-  // 1. 添加群背景（如果存在）
-  if (background && background.trim()) {
-    messages.push({
-      role: 'system',
-      content: `【群背景设定】\n${background.trim()}`
-    })
-  }
+**流式输出**：
+- `message:stream:start`：开始生成
+- `message:stream:chunk`：推送片段（reasoning/content 类型）
+- `message:stream:end`：生成完成，含完整消息和 token 统计
+- `message:stream:error`：生成失败
 
-  // 2. 添加角色系统提示词（人设）
-  messages.push({
-    role: 'system',
-    content: character.system_prompt
-  })
-
-  // 3. 添加历史消息（排除当前角色的 assistant 消息，避免重复）
-  const roleMessages = history
-    .filter(msg => msg.role !== 'system')
-    .map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-
-  messages.push(...roleMessages)
-
-  // 4. 添加当前用户消息
-  messages.push({
-    role: 'user',
-    content: userContent
-  })
-
-  return messages
-}
-```
-
-**群背景设定示例**：
-```
-【群背景设定】
-这是一个三国时期的讨论群，各位角色根据自己的历史背景和性格特点参与对话。
-场景：赤壁之战前夕，刘备军营中，诸葛亮、刘备、关羽等人正在商议对策。
-```
+**自动记忆提取**：
+- 开启 `auto_memory_extract` 后，每次对话异步提取角色关键信息
+- 自动去重，避免重复提取已有记忆
 
 ---
 
@@ -410,99 +323,73 @@ function buildContextMessages(character, history, userContent, background = null
 
 ### 推荐测试方案
 1. **单元测试**：使用 Vitest 测试以下模块
-   - `database/manager.js`：数据库操作
+   - `database/manager.js`：群组数据库操作
+   - `database/global-character-manager.js`：全局角色库
+   - `database/memory-manager.js`：角色记忆
    - `llm/client.js`：LLM 客户端
    - `config/manager.js`：配置管理
-   - `migrations/add_user_character.js`：迁移逻辑
+   - `config/llm-profiles.js`：Profile 管理
+   - `config/system-prompts.js`：模板管理
 
-2. **集成测试**：测试 IPC Handlers
+2. **集成测试**：测试 IPC Handlers（8 个模块）
    - 模拟渲染进程调用 IPC
    - 验证数据库操作和 LLM 调用
    - 测试迁移脚本是否正确执行
 
 3. **E2E 测试**：使用 Spectron 或 Playwright
-   - 测试完整的用户流程（创建群组、添加角色、发送消息）
+   - 测试完整的用户流程
 
 ---
 
 ## 常见问题 (FAQ)
 
 ### 1. 如何添加新的 LLM 供应商？
-**步骤**：
 1. 在 `electron/llm/providers/index.js` 的 `LLM_PROVIDERS` 中添加配置
 2. 如果需要自定义 API 格式，修改 `electron/llm/client.js`
 3. 更新渲染进程的供应商选择界面
 
-**示例**：
-```javascript
-export const LLM_PROVIDERS = {
-  // ... 其他供应商
-  newprovider: {
-    id: 'newprovider',
-    name: 'New Provider',
-    baseURL: 'https://api.newprovider.com/v1',
-    models: ['model-1', 'model-2'],
-    needApiKey: true,
-    needBaseUrl: false
-  }
-}
-```
-
 ### 2. 数据库连接会泄漏吗？
-**不会**：
 - `DatabaseManager` 使用 Map 缓存连接
 - 应用退出时调用 `closeAll()` 关闭所有连接
 - 删除群组时会先关闭连接再删除文件
+- `GlobalCharacterManager` 和 `MemoryManager` 也会在退出时关闭
 
 ### 3. 如何调试 LLM 调用失败？
-**方法**：
 1. 使用 `testConnection` 接口测试配置
 2. 查看主进程控制台的错误日志
 3. 检查代理配置是否正确
 4. 验证 API Key 是否有效
 
 ### 4. IPC 调用超时怎么办？
-**解决方案**：
-- 增加 `LLMClient` 的 `timeout` 参数（默认 60 秒）
+- 增加 `LLMClient` 的 `timeout` 参数
 - 检查网络连接和代理配置
 - 考虑使用并行模式减少总等待时间
 
 ### 5. 如何添加新的数据库字段？
-**步骤**：
-1. 修改 `electron/database/schema.sql` 添加新字段
-2. 在 `DatabaseManager.initSchema()` 添加迁移逻辑
+1. 修改 `electron/database/manager.js` 中的 `SCHEMA_SQL`
+2. 在 `runMigrations()` 中添加迁移逻辑
 3. 更新相关 IPC Handlers 和 Vue 组件
 4. 测试新建群组和已有群组的兼容性
 
-**示例**：
-```javascript
-// DatabaseManager.initSchema()
-const tableInfo = db.pragma('table_info(groups)')
-const hasNewField = tableInfo.some(col => col.name === 'new_field')
+### 6. 全局角色库如何工作？
+- 独立的 SQLite 数据库存储角色和标签
+- 角色通过名称在群组间关联（不是 ID）
+- 导入到群组时创建副本（独立 system_prompt）
+- 标签系统支持 10 个默认标签 + 自定义标签
+- 支持按标签和关键词组合筛选
 
-if (!hasNewField) {
-  console.log('[Database] 执行迁移：添加 new_field 字段')
-  db.exec('ALTER TABLE groups ADD COLUMN new_field TEXT DEFAULT null')
-  console.log('[Database] 迁移完成')
-}
-```
+### 7. 角色记忆如何工作？
+- 独立的 SQLite 数据库，按角色名称关联
+- 支持手动添加和自动提取两种来源
+- 自动提取在每次对话后异步执行，不阻塞主流程
+- AI 对话时将记忆注入上下文中的"角色记忆"区块
+- 支持去重，避免重复提取
 
-### 6. 用户角色和 AI 角色有什么区别？
-- **用户角色**（`is_user = 1`）：
-  - 不会参与 LLM 对话生成
-  - 在角色面板中显示特殊的紫色样式
-  - 用于标识真实用户
-  - 每个群组创建时自动添加
-
-- **AI 角色**（`is_user = 0` 或 `null`）：
-  - 会参与 LLM 对话生成
-  - 根据人设生成回复
-  - 可以启用/禁用
-
-### 7. 群背景设定如何影响对话？
-- 群背景设定会在每次调用 LLM 时作为第一条 system 消息传入
-- 帮助所有 AI 角色理解对话场景和角色关系
-- 适用于需要特定场景设定的对话（如历史人物讨论、虚构世界角色扮演等）
+### 8. 流式输出如何工作？
+- LLM 客户端使用 SSE 解析流式响应
+- 每个 chunk 通过 IPC 事件推送到渲染进程
+- 渲染进程监听事件实时更新 UI
+- 最终保存完整消息到数据库（含 token 统计）
 
 ---
 
@@ -514,29 +401,38 @@ if (!hasNewField) {
 - `electron.vite.config.js`：构建配置
 
 ### 数据库
-- `electron/database/manager.js`：数据库管理器
+- `electron/database/manager.js`：群组数据库管理器
 - `electron/database/schema.sql`：数据库结构
+- `electron/database/global-character-manager.js`：全局角色库管理器
+- `electron/database/memory-manager.js`：角色记忆管理器
 - `electron/database/migrations/add_user_character.js`：用户角色迁移脚本
 
 ### LLM 服务
-- `electron/llm/client.js`：LLM 客户端
-- `electron/llm/providers/index.js`：供应商配置
+- `electron/llm/client.js`：OpenAI 兼容 LLM 客户端
+- `electron/llm/ollama-client.js`：Ollama 原生客户端
+- `electron/llm/providers/index.js`：供应商配置（11 个）
 - `electron/llm/proxy.js`：代理配置
 
 ### IPC Handlers
+- `electron/ipc/channels.js`：IPC 通道常量
 - `electron/ipc/handlers/group.js`：群组操作
 - `electron/ipc/handlers/character.js`：角色操作
 - `electron/ipc/handlers/message.js`：消息操作
 - `electron/ipc/handlers/llm.js`：LLM 操作
 - `electron/ipc/handlers/config.js`：配置操作
+- `electron/ipc/handlers/global-character.js`：全局角色库操作
+- `electron/ipc/handlers/memory.js`：角色记忆操作
+- `electron/ipc/handlers/search.js`：全局搜索
 
 ### 配置管理
 - `electron/config/manager.js`：全局配置管理
+- `electron/config/llm-profiles.js`：LLM Profile 管理
+- `electron/config/system-prompts.js`：系统提示词模板
 
 ### 工具
 - `electron/utils/uuid.js`：UUID 生成工具
 
 ---
 
-**文档版本**：1.1.0
+**文档版本**：2.0.0
 **维护者**：AI 架构师（自适应版）

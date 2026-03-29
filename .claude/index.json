@@ -1,8 +1,8 @@
 {
-  "lastUpdated": "2026-03-20T02:01:09.000Z",
-  "projectName": "chat",
+  "lastUpdated": "2026-03-29T20:53:16.000Z",
+  "projectName": "chat-simulator",
   "projectType": "electron-vue3-desktop-app",
-  "summary": "基于 Electron + Vite + Vue3 的 LLM 角色扮演聊天模拟器，支持多角色对话、多 LLM 供应商、本地 SQLite 存储、群背景设定、思考模式、用户角色",
+  "summary": "基于 Electron + Vue3 的 LLM 角色扮演聊天模拟器，支持多角色对话、多 LLM 供应商、全局角色库（标签系统）、角色记忆系统、AI 角色抽卡、流式输出、全局搜索、SQLite 本地存储",
   "root": {
     "path": "/",
     "documentation": "CLAUDE.md",
@@ -13,7 +13,6 @@
     "configFiles": [
       "package.json",
       "electron.vite.config.js",
-      "vite.config.js",
       ".gitignore"
     ]
   },
@@ -24,7 +23,7 @@
       "documentation": "electron/CLAUDE.md",
       "type": "electron-main-process",
       "entryPoint": "electron/main.js",
-      "description": "Electron 主进程，负责窗口管理、IPC 通信、数据库管理、LLM 调用、数据迁移"
+      "description": "Electron 主进程，负责窗口管理、IPC 通信、数据库管理（群组/全局角色/记忆三个 SQLite）、LLM 调用（流式/非流式）、全局角色库、角色记忆、全局搜索、系统提示词模板、抽卡配置"
     },
     {
       "name": "renderer-ui",
@@ -32,59 +31,91 @@
       "documentation": "src/CLAUDE.md",
       "type": "vue-renderer-process",
       "entryPoint": "src/main.js",
-      "description": "Vue 渲染进程，包含所有 UI 组件、状态管理、样式、LLM 配置管理"
+      "description": "Vue 渲染进程，包含 UI 组件（34 个文件）、7 个 Pinia Store、1 个 composable、全局角色库管理、角色记忆管理、Toast 提示、确认对话框、标签系统"
     }
   ],
   "coverage": {
-    "totalFiles": 33,
-    "scannedFiles": 33,
+    "totalFiles": 57,
+    "scannedFiles": 57,
     "coveragePercent": 100,
     "ignoredFiles": 0,
     "details": {
       "electron": {
-        "total": 15,
-        "scanned": 15,
+        "total": 23,
+        "scanned": 23,
         "keyFiles": [
           "electron/main.js",
           "electron/preload.js",
           "electron/database/manager.js",
           "electron/database/schema.sql",
+          "electron/database/global-character-manager.js",
+          "electron/database/memory-manager.js",
           "electron/database/migrations/add_user_character.js",
           "electron/llm/client.js",
+          "electron/llm/ollama-client.js",
           "electron/llm/providers/index.js",
           "electron/llm/proxy.js",
           "electron/config/manager.js",
+          "electron/config/llm-profiles.js",
+          "electron/config/system-prompts.js",
+          "electron/ipc/channels.js",
           "electron/ipc/handlers/group.js",
           "electron/ipc/handlers/character.js",
           "electron/ipc/handlers/message.js",
           "electron/ipc/handlers/llm.js",
           "electron/ipc/handlers/config.js",
-          "electron/utils/uuid.js"
+          "electron/ipc/handlers/global-character.js",
+          "electron/ipc/handlers/memory.js",
+          "electron/ipc/handlers/search.js"
         ]
       },
       "src": {
-        "total": 18,
-        "scanned": 18,
+        "total": 32,
+        "scanned": 32,
         "keyFiles": [
           "src/main.js",
           "src/App.vue",
+          "src/composables/useDialog.js",
           "src/stores/groups.js",
           "src/stores/characters.js",
           "src/stores/messages.js",
           "src/stores/config.js",
           "src/stores/llm-profiles.js",
+          "src/stores/global-characters.js",
+          "src/stores/memory.js",
+          "src/stores/toast.js",
           "src/components/layout/MainLayout.vue",
+          "src/components/layout/LeftPanel.vue",
           "src/components/layout/GroupList.vue",
+          "src/components/layout/GroupSearch.vue",
+          "src/components/layout/CharacterLibrary.vue",
           "src/components/chat/ChatWindow.vue",
           "src/components/chat/MessageBubble.vue",
           "src/components/chat/MessageInput.vue",
           "src/components/chat/CharacterPanel.vue",
           "src/components/config/CreateGroupDialog.vue",
           "src/components/config/CreateCharacterDialog.vue",
+          "src/components/config/EditCharacterDialog.vue",
           "src/components/config/GroupSettingsDialog.vue",
           "src/components/config/LLMProfileDialog.vue",
+          "src/components/config/LLMProfileForm.vue",
+          "src/components/config/LLMConfigPanel.vue",
+          "src/components/config/GlobalCharacterDialog.vue",
+          "src/components/config/CharacterGachaDialog.vue",
+          "src/components/common/Toast.vue",
+          "src/components/common/ConfirmDialog.vue",
+          "src/components/common/TagFilter.vue",
+          "src/components/common/TagSelector.vue",
           "src/styles/variables.scss",
           "src/styles/global.scss"
+        ]
+      },
+      "docs": {
+        "total": 2,
+        "scanned": 2,
+        "keyFiles": [
+          "docs/superpowers/specs/2026-03-29-character-global-memory-design.md",
+          "docs/superpowers/plans/2026-03-29-character-global-memory.md"
         ]
       }
     }
@@ -93,16 +124,17 @@
   "ignoredPatterns": [
     "node_modules/**",
     ".git/**",
-    ".github/**",
     "dist/**",
     "dist-electron/**",
     "out/**",
+    "release/**",
     "data/groups/*.sqlite",
     "data/groups/*.db",
     "*.log",
     ".vscode/*",
     ".idea/",
-    "*.swp",
+    ".zcf/",
+    ".qoder/",
     ".DS_Store",
     "Thumbs.db",
     ".env",
@@ -111,14 +143,22 @@
     "electron/config/proxy-config.json"
   ],
   "recentChanges": [
-    "添加群背景设定功能（background 字段）",
-    "添加思考模式支持（thinking_enabled 字段）",
-    "添加用户角色支持（is_user 字段）",
-    "新增 LLM 配置管理系统（Profile 管理）",
-    "新增群设置对话框（GroupSettingsDialog.vue）",
-    "新增数据库迁移脚本（migrations/add_user_character.js）",
-    "改进角色面板 UI，用户角色显示特殊样式",
-    "优化创建群组流程，支持从配置列表选择"
+    "新增全局角色库系统（GlobalCharacterManager、标签管理、导入到群组）",
+    "新增角色记忆系统（MemoryManager、手动/自动记忆提取）",
+    "新增 AI 角色抽卡功能（CharacterGachaDialog、可配置提示词）",
+    "新增全局搜索功能（跨群组搜索消息和角色）",
+    "新增系统提示词模板管理（8 个内置模板）",
+    "新增通用 UI 组件（Toast、ConfirmDialog、TagFilter、TagSelector、useDialog）",
+    "新增 LLM 配置面板（按供应商分组管理）",
+    "新增编辑角色对话框（EditCharacterDialog）",
+    "新增左侧面板三 Tab 导航（聊天群/角色库/LLM 配置）",
+    "新增供应商：智谱AI、ModelScope 魔塔、MiniMax",
+    "优化布局为四栏 grid（含可隐藏分割线）",
+    "优化流式输出支持（推理过程展示）",
+    "优化角色排序和随机发言",
+    "优化消息 token 用量统计",
+    "优化上下文构建（群成员介绍、角色记忆注入、定向指令过滤）",
+    "数据库新增字段：random_order、system_prompt、position、thinking_enabled（角色级）、reasoning_content、prompt_tokens、auto_memory_extract"
   ],
   "techStack": {
     "framework": "Electron 41.0.3",
