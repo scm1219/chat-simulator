@@ -1,5 +1,5 @@
 <template>
-  <div :class="['message-bubble', message.role]" ref="messageContainer">
+  <div :class="['message-bubble', message.role, { highlighted: isHighlighted }]" ref="messageContainer">
     <div v-if="isUser" class="message-content-user">
       <div class="message-header">
         <div v-if="character || message.characterName" class="character-name">
@@ -117,6 +117,11 @@ const props = defineProps({
     type: Object,
     default: null
   }
+})
+
+// 是否为搜索高亮的消息
+const isHighlighted = computed(() => {
+  return messagesStore.highlightMessageId === props.message.id
 })
 
 const messagesStore = useMessagesStore()
@@ -492,6 +497,24 @@ async function handleResend() {
 
 .assistant .message-time {
   text-align: left;
+}
+
+// 搜索高亮样式
+.message-bubble.highlighted {
+  animation: highlight-pulse 2s ease-out;
+
+  .bubble-content {
+    box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.6);
+  }
+}
+
+@keyframes highlight-pulse {
+  0% {
+    background: rgba(255, 214, 0, 0.3);
+  }
+  100% {
+    background: transparent;
+  }
 }
 
 // 思考过程样式

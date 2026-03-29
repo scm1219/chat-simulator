@@ -77,6 +77,7 @@ app.whenReady().then(async () => {
   const { setupConfigHandlers } = await import('./ipc/handlers/config.js')
   const { setupGlobalCharacterHandlers } = await import('./ipc/handlers/global-character.js')
   const { setupMemoryHandlers } = await import('./ipc/handlers/memory.js')
+  const { setupSearchHandlers } = await import('./ipc/handlers/search.js')
 
   // 初始化数据库管理器
   dbManager = new DatabaseManager()
@@ -95,6 +96,7 @@ app.whenReady().then(async () => {
   setupConfigHandlers(dbManager)
   setupGlobalCharacterHandlers(dbManager, globalCharManager)
   setupMemoryHandlers(memoryManager)
+  setupSearchHandlers(dbManager)
 
   // 所有处理程序注册完成后再创建窗口
   createWindow()

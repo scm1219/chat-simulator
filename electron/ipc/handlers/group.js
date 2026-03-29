@@ -68,7 +68,7 @@ export function setupGroupHandlers(dbManager) {
     }
   })
 
-  // 获取所有群组
+  // 获取所有群组（按最近消息时间倒序）
   ipcMain.handle('group:getAll', async () => {
     try {
       const groupIds = dbManager.getGroupDBFiles()
@@ -79,12 +79,25 @@ export function setupGroupHandlers(dbManager) {
           const db = dbManager.getGroupDB(id)
           const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
           if (group) {
+            // 查询该群最近一条消息的时间
+            const lastMsg = db.prepare(
+              'SELECT timestamp FROM messages WHERE group_id = ? ORDER BY timestamp DESC LIMIT 1'
+            ).get(id)
+            group.last_message_time = lastMsg ? lastMsg.timestamp : null
             groups.push(group)
           }
         } catch (error) {
           console.error(`Failed to load group ${id}:`, error)
         }
       }
+
+      // 按最近消息时间倒序排列，无消息的排到最后
+      groups.sort((a, b) => {
+        if (!a.last_message_time && !b.last_message_time) return 0
+        if (!a.last_message_time) return 1
+        if (!b.last_message_time) return -1
+        return b.last_message_time.localeCompare(a.last_message_time)
+      })
 
       return { success: true, data: groups }
     } catch (error) {

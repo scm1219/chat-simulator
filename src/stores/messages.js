@@ -9,6 +9,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const loading = ref(false)
   const sending = ref(false)
   const streamingMessages = ref(new Map()) // 存储流式消息的临时 ID 到内容的映射
+  const highlightMessageId = ref(null) // 搜索高亮的消息 ID
   let messageListener = null
   let streamStartListener = null
   let streamChunkListener = null
@@ -317,6 +318,16 @@ export const useMessagesStore = defineStore('messages', () => {
     }
   }
 
+  // 设置搜索高亮消息 ID
+  function setHighlightMessage(messageId) {
+    highlightMessageId.value = messageId
+  }
+
+  // 清除高亮
+  function clearHighlight() {
+    highlightMessageId.value = null
+  }
+
   return {
     messages,
     loading,
@@ -331,6 +342,9 @@ export const useMessagesStore = defineStore('messages', () => {
     clearLocalMessages,
     updateMessage,
     deleteMessage,
-    resendMessage
+    resendMessage,
+    highlightMessageId,
+    setHighlightMessage,
+    clearHighlight
   }
 })

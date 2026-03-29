@@ -144,6 +144,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, content) => ipcRenderer.invoke('memory:update', id, content),
     delete: (id) => ipcRenderer.invoke('memory:delete', id),
     getCount: (characterName) => ipcRenderer.invoke('memory:getCount', characterName)
+  },
+
+  // ============ 全局搜索 ============
+  search: {
+    global: (keyword) => ipcRenderer.invoke('search:global', keyword)
   }
 })
 

@@ -19,6 +19,10 @@ export const useGroupsStore = defineStore('groups', () => {
       const result = await window.electronAPI.group.getAll()
       if (result.success) {
         groups.value = result.data
+        // 启动时自动选中第一个群
+        if (groups.value.length > 0 && !currentGroupId.value) {
+          currentGroupId.value = groups.value[0].id
+        }
       }
     } catch (error) {
       console.error('Failed to load groups:', error)

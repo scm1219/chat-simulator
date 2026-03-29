@@ -46,6 +46,7 @@
           :key="msg.id"
           :message="msg"
           :character="getCharacter(msg.character_id)"
+          :data-message-id="msg.id"
         />
       </div>
 
@@ -252,6 +253,40 @@ watch(() => currentGroup.value, (newGroup) => {
 watch(() => messagesStore.messages.length, async () => {
   await scrollToBottom()
 }, { flush: 'post' })
+
+// 监听高亮消息，滚动到对应位置
+watch(() => messagesStore.highlightMessageId, async (messageId) => {
+  if (!messageId) return
+
+  // 等待消息加载和渲染完成（可能需要等待群组切换后的消息加载）
+  await nextTick()
+  await nextTick()
+
+  // 尝试查找目标消息，如果还没渲染出来则轮询等待
+  let el = null
+  let attempts = 0
+  while (!el && attempts < 20) {
+    await nextTick()
+    if (messagesContainer.value) {
+      el = messagesContainer.value.querySelector(`[data-message-id="${messageId}"]`)
+    }
+    if (!el) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      attempts++
+    }
+  }
+
+  if (el) {
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  // 3秒后清除高亮
+  setTimeout(() => {
+    messagesStore.clearHighlight()
+  }, 3000)
+})
 
 // 监听流式消息内容变化，实时滚动（使用深度 watch）
 watch(

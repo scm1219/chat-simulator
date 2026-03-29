@@ -9,6 +9,11 @@
       </div>
     </div>
 
+    <GroupSearch
+      @select-message="handleSelectMessage"
+      @select-group="handleSelectGroup"
+    />
+
     <div class="group-list-items">
       <div
         v-for="group in groupsStore.groups"
@@ -70,12 +75,15 @@
 <script setup>
 import { ref } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
+import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import CreateGroupDialog from '../config/CreateGroupDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
+import GroupSearch from './GroupSearch.vue'
 
 const groupsStore = useGroupsStore()
+const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
@@ -85,6 +93,20 @@ const settingsGroupId = ref(null)
 
 function selectGroup(group) {
   groupsStore.selectGroup(group.id)
+}
+
+// 搜索结果：切换群组并高亮消息
+async function handleSelectMessage({ groupId, messageId }) {
+  if (groupsStore.currentGroupId !== groupId) {
+    groupsStore.selectGroup(groupId)
+  }
+  // 设置高亮消息 ID，让 ChatWindow 滚动并高亮
+  messagesStore.setHighlightMessage(messageId)
+}
+
+// 搜索结果：仅切换群组
+function handleSelectGroup({ groupId }) {
+  groupsStore.selectGroup(groupId)
 }
 
 function openGroupSettings(group) {
