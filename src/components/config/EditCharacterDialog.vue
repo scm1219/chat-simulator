@@ -1,9 +1,13 @@
 <template>
-  <div class="dialog-overlay">
+  <div class="dialog-overlay" @click.self="$emit('close')">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>编辑角色</h3>
-        <button class="close-btn" @click="$emit('close')">×</button>
+        <div class="header-left">
+          <h3>编辑角色</h3>
+          <span v-if="character.is_user === 1" class="type-badge type-user">用户角色</span>
+          <span v-else class="type-badge type-ai">AI 角色</span>
+        </div>
+        <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
       <div class="dialog-body">
@@ -13,19 +17,25 @@
         </div>
 
         <div class="form-group">
-          <label>角色设定</label>
+          <div class="label-row">
+            <label>角色设定</label>
+            <span class="char-count" :class="{ 'over-limit': isOverLimit }">
+              {{ charCount }} / {{ maxChars }}
+            </span>
+          </div>
           <textarea
+            ref="textareaRef"
             v-model="form.systemPrompt"
-            class="textarea"
-            rows="8"
-            placeholder="描述角色的性格、背景、说话方式等..."
+            class="textarea auto-resize"
+            :placeholder="placeholderText"
+            @input="autoResize"
           />
           <div class="hint">
             <template v-if="character.is_user === 1">
-              提示：这是你在聊天中的身份设定，AI 会根据这个设定来理解你
+              这是你在聊天中的身份设定，AI 会根据这个设定来理解你
             </template>
             <template v-else>
-              提示：设定越详细，角色的回复越符合预期
+              设定越详细，角色的回复越符合预期。支持描述性格、背景、说话方式、口头禅等
             </template>
           </div>
         </div>
@@ -42,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useToastStore } from '../../stores/toast'
 
@@ -57,21 +67,44 @@ const emit = defineEmits(['close', 'saved'])
 
 const charactersStore = useCharactersStore()
 const toast = useToastStore()
+const textareaRef = ref(null)
+
+const maxChars = 2000
 
 const form = ref({
   name: '',
   systemPrompt: ''
 })
 
+const charCount = computed(() => form.value.systemPrompt.length)
+const isOverLimit = computed(() => charCount.value > maxChars)
+
 const canSave = computed(() => {
-  return form.value.name.trim().length > 0 && form.value.systemPrompt.trim().length > 0
+  return form.value.name.trim().length > 0
+    && form.value.systemPrompt.trim().length > 0
+    && !isOverLimit.value
+})
+
+const placeholderText = computed(() => {
+  return props.character.is_user === 1
+    ? '描述你在这个群聊中的身份和性格...'
+    : '描述角色的性格、背景、说话方式、口头禅等...'
 })
 
 onMounted(() => {
-  // 初始化表单数据
-  form.value.name = props.character.name
-  form.value.systemPrompt = props.character.system_prompt
+  form.value.name = props.character.name || ''
+  form.value.systemPrompt = props.character.system_prompt || ''
+  nextTick(() => autoResize())
 })
+
+function autoResize() {
+  const el = textareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  const minHeight = 120
+  const maxHeight = 400
+  el.style.height = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight) + 'px'
+}
 
 async function handleSave() {
   if (!canSave.value) return
@@ -106,9 +139,11 @@ async function handleSave() {
   background: $bg-primary;
   border-radius: $border-radius-lg;
   width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: $shadow-lg;
 }
 
 .dialog-header {
@@ -117,6 +152,13 @@ async function handleSave() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
 
   h3 {
     font-size: $font-size-lg;
@@ -135,35 +177,95 @@ async function handleSave() {
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: $border-radius-sm;
+    transition: background 0.2s;
 
     &:hover {
+      background: $bg-secondary;
       color: $text-primary;
     }
   }
 }
 
+.type-badge {
+  font-size: $font-size-xs;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: $font-weight-medium;
+  line-height: 1.4;
+
+  &.type-user {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+  }
+
+  &.type-ai {
+    background: rgba($color-primary, 0.1);
+    color: $color-primary;
+  }
+}
+
 .dialog-body {
   padding: $spacing-xl;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .form-group {
   margin-bottom: $spacing-lg;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 
   label {
     display: block;
     margin-bottom: $spacing-sm;
     font-size: $font-size-sm;
     color: $text-secondary;
+    font-weight: $font-weight-medium;
+  }
+
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-sm;
+
+    label {
+      margin-bottom: 0;
+    }
+  }
+
+  .char-count {
+    font-size: $font-size-xs;
+    color: $text-placeholder;
+    transition: color 0.2s;
+
+    &.over-limit {
+      color: $color-danger;
+      font-weight: $font-weight-medium;
+    }
   }
 
   .textarea {
     width: 100%;
+    line-height: 1.6;
+    font-size: $font-size-md;
+  }
+
+  .auto-resize {
+    resize: vertical;
+    min-height: 120px;
+    overflow-y: auto;
   }
 
   .hint {
     font-size: $font-size-xs;
     color: $text-placeholder;
-    margin-top: $spacing-xs;
+    margin-top: $spacing-sm;
+    line-height: 1.5;
   }
 }
 
@@ -173,5 +275,6 @@ async function handleSave() {
   display: flex;
   justify-content: flex-end;
   gap: $spacing-md;
+  flex-shrink: 0;
 }
 </style>
