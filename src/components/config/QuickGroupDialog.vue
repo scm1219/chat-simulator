@@ -6,144 +6,222 @@
         <button class="btn-close" @click="closeDialog">×</button>
       </div>
 
+      <!-- Tab 头部 -->
+      <div class="tab-header">
+        <button
+          :class="['tab-btn', { active: activeTab === 'create' }]"
+          @click="activeTab = 'create'"
+        >
+          快速建群
+        </button>
+        <button
+          :class="['tab-btn', { active: activeTab === 'prompt' }]"
+          @click="switchToPromptTab"
+        >
+          提示词设置
+        </button>
+      </div>
+
       <div class="dialog-body">
-        <!-- 步骤 1：输入描述 -->
-        <div v-if="step === 'input'" class="step-input">
-          <div class="form-group">
-            <label class="form-label">群组描述</label>
-            <textarea
-              v-model="description"
-              class="input textarea"
-              placeholder="例如：办公室白领聊天群，3个女性，1个男性&#10;例如：三国时期的谋士讨论会，5个角色&#10;例如：大学宿舍聊天，4个室友，2男2女"
-              rows="5"
-              maxlength="500"
-            ></textarea>
-            <div class="form-hint">{{ description.length }}/500</div>
-          </div>
-
-          <div class="input-tip">
-            <p>描述你想要的群组类型、角色数量和特征，AI 会为你生成完整的群组方案</p>
-          </div>
-        </div>
-
-        <!-- 步骤 2：预览与编辑 -->
-        <div v-else-if="step === 'preview'" class="step-preview">
-          <!-- 群组基本信息 -->
-          <div class="preview-section">
-            <h4 class="section-title">群组信息</h4>
+        <!-- Tab: 快速建群 -->
+        <div v-show="activeTab === 'create'" class="tab-content">
+          <!-- 步骤 1：输入描述 -->
+          <div v-if="step === 'input'" class="step-input">
             <div class="form-group">
-              <label class="form-label">群名称</label>
-              <input v-model="preview.name" class="input" placeholder="群名称" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">群背景设定</label>
+              <label class="form-label">群组描述</label>
               <textarea
-                v-model="preview.background"
+                v-model="description"
                 class="input textarea"
-                rows="4"
-                placeholder="群背景设定..."
+                placeholder="例如：办公室白领聊天群，3个女性，1个男性&#10;例如：三国时期的谋士讨论会，5个角色&#10;例如：大学宿舍聊天，4个室友，2男2女"
+                rows="5"
+                maxlength="500"
               ></textarea>
+              <div class="form-hint">{{ description.length }}/500</div>
+            </div>
+
+            <div class="input-tip">
+              <p>描述你想要的群组类型、角色数量和特征，AI 会为你生成完整的群组方案</p>
             </div>
           </div>
 
-          <!-- 角色列表 -->
-          <div class="preview-section">
-            <div class="section-header">
-              <h4 class="section-title">角色列表（{{ preview.characters.length }}个）</h4>
+          <!-- 步骤 2：预览与编辑 -->
+          <div v-else-if="step === 'preview'" class="step-preview">
+            <!-- 群组基本信息 -->
+            <div class="preview-section">
+              <h4 class="section-title">群组信息</h4>
+              <div class="form-group">
+                <label class="form-label">群名称</label>
+                <input v-model="preview.name" class="input" placeholder="群名称" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">群背景设定</label>
+                <textarea
+                  v-model="preview.background"
+                  class="input textarea"
+                  rows="4"
+                  placeholder="群背景设定..."
+                ></textarea>
+              </div>
             </div>
-            <div class="character-list">
-              <div
-                v-for="(char, index) in preview.characters"
-                :key="index"
-                class="character-card"
-              >
-                <div class="card-header">
-                  <span class="card-index">#{{ index + 1 }}</span>
-                  <button class="btn-icon-small btn-danger" @click="removeCharacter(index)" title="移除角色">
-                    ×
-                  </button>
-                </div>
-                <div class="card-body">
-                  <div class="card-row">
-                    <div class="card-field card-field-name">
-                      <label class="field-label">姓名</label>
-                      <input v-model="char.name" class="input input-sm" placeholder="角色名称" />
-                    </div>
-                    <div class="card-field">
-                      <label class="field-label">性别</label>
-                      <select v-model="char.gender" class="input input-sm">
-                        <option value="male">男</option>
-                        <option value="female">女</option>
-                        <option value="other">其他</option>
-                      </select>
-                    </div>
-                    <div class="card-field">
-                      <label class="field-label">年龄</label>
-                      <input v-model.number="char.age" type="number" class="input input-sm" min="1" max="200" />
-                    </div>
+
+            <!-- 角色列表 -->
+            <div class="preview-section">
+              <div class="section-header">
+                <h4 class="section-title">角色列表（{{ preview.characters.length }}个）</h4>
+              </div>
+              <div class="character-list">
+                <div
+                  v-for="(char, index) in preview.characters"
+                  :key="index"
+                  class="character-card"
+                >
+                  <div class="card-header">
+                    <span class="card-index">#{{ index + 1 }}</span>
+                    <button class="btn-icon-small btn-danger" @click="removeCharacter(index)" title="移除角色">
+                      ×
+                    </button>
                   </div>
-                  <div class="card-field card-field-full">
-                    <label class="field-label">人物设定</label>
-                    <textarea
-                      v-model="char.systemPrompt"
-                      class="input textarea textarea-sm"
-                      rows="3"
-                      placeholder="角色设定..."
-                    ></textarea>
+                  <div class="card-body">
+                    <div class="card-row">
+                      <div class="card-field card-field-name">
+                        <label class="field-label">姓名</label>
+                        <input v-model="char.name" class="input input-sm" placeholder="角色名称" />
+                      </div>
+                      <div class="card-field">
+                        <label class="field-label">性别</label>
+                        <select v-model="char.gender" class="input input-sm">
+                          <option value="male">男</option>
+                          <option value="female">女</option>
+                          <option value="other">其他</option>
+                        </select>
+                      </div>
+                      <div class="card-field">
+                        <label class="field-label">年龄</label>
+                        <input v-model.number="char.age" type="number" class="input input-sm" min="1" max="200" />
+                      </div>
+                    </div>
+                    <div class="card-field card-field-full">
+                      <label class="field-label">人物设定</label>
+                      <textarea
+                        v-model="char.systemPrompt"
+                        class="input textarea textarea-sm"
+                        rows="3"
+                        placeholder="角色设定..."
+                      ></textarea>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- LLM 配置选择 -->
-          <div class="preview-section">
-            <h4 class="section-title">LLM 配置</h4>
+            <!-- LLM 配置选择 -->
+            <div class="preview-section">
+              <h4 class="section-title">LLM 配置</h4>
+              <div class="form-group">
+                <select v-model="selectedProfileId" class="input" :disabled="loadingProfiles">
+                  <option value="">-- 请选择配置 --</option>
+                  <option
+                    v-for="profile in llmProfiles"
+                    :key="profile.id"
+                    :value="profile.id"
+                  >
+                    {{ profile.name }} ({{ getProviderName(profile.provider) }} - {{ profile.model }})
+                  </option>
+                </select>
+              </div>
+
+              <!-- 保存到角色库选项 -->
+              <label class="checkbox-label">
+                <input v-model="saveToLibrary" type="checkbox" />
+                <span>同时保存角色到全局角色库</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: 提示词设置 -->
+        <div v-show="activeTab === 'prompt'" class="tab-content">
+          <div v-if="promptLoading" class="prompt-loading">加载中...</div>
+          <div v-else class="prompt-settings">
             <div class="form-group">
-              <select v-model="selectedProfileId" class="input" :disabled="loadingProfiles">
-                <option value="">-- 请选择配置 --</option>
-                <option
-                  v-for="profile in llmProfiles"
-                  :key="profile.id"
-                  :value="profile.id"
-                >
-                  {{ profile.name }} ({{ getProviderName(profile.provider) }} - {{ profile.model }})
-                </option>
-              </select>
+              <label class="form-label">
+                系统提示词
+                <span class="label-hint">（发给 LLM 的群组生成指令）</span>
+              </label>
+              <textarea
+                v-model="promptForm.systemPrompt"
+                class="input textarea textarea-code"
+                rows="14"
+                placeholder="系统提示词..."
+              ></textarea>
+              <div class="form-hint">{{ promptForm.systemPrompt.length }} 字符</div>
             </div>
 
-            <!-- 保存到角色库选项 -->
-            <label class="checkbox-label">
-              <input v-model="saveToLibrary" type="checkbox" />
-              <span>同时保存角色到全局角色库</span>
-            </label>
+            <div class="form-group">
+              <label class="form-label">
+                用户提示模板
+                <span class="label-hint">（{description} 将替换为用户输入）</span>
+              </label>
+              <input
+                v-model="promptForm.userPromptTemplate"
+                class="input"
+                placeholder="例如：请根据以下描述生成一个聊天群组：{description}"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">默认提示（无用户输入时使用）</label>
+              <input
+                v-model="promptForm.defaultUserPrompt"
+                class="input"
+                placeholder="例如：请随机生成一个有趣的多人聊天群组，包含4-6个角色"
+              />
+            </div>
+
+            <div class="prompt-actions">
+              <button class="btn btn-text" @click="handleResetPrompt">
+                恢复默认
+              </button>
+              <button
+                class="btn btn-primary"
+                :disabled="!promptDirty"
+                @click="handleSavePrompt"
+              >
+                {{ promptSaving ? '保存中...' : '保存' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="dialog-footer">
-        <button class="btn btn-secondary" @click="handleCancel">
-          {{ step === 'input' ? '关闭' : '取消' }}
-        </button>
-        <button
-          v-if="step === 'input'"
-          class="btn btn-ai"
-          :disabled="generating || !description.trim()"
-          @click="handleGenerate"
-        >
-          {{ generating ? '生成中...' : 'AI 生成' }}
-        </button>
-        <template v-if="step === 'preview'">
-          <button class="btn btn-secondary" @click="step = 'input'">
-            重新生成
+        <template v-if="activeTab === 'create'">
+          <button class="btn btn-secondary" @click="handleCancel">
+            {{ step === 'input' ? '关闭' : '取消' }}
           </button>
           <button
-            class="btn btn-primary"
-            :disabled="!canCreate"
-            @click="handleConfirm"
+            v-if="step === 'input'"
+            class="btn btn-ai"
+            :disabled="generating || !description.trim()"
+            @click="handleGenerate"
           >
-            {{ creating ? '创建中...' : '确认创建' }}
+            {{ generating ? '生成中...' : 'AI 生成' }}
           </button>
+          <template v-if="step === 'preview'">
+            <button class="btn btn-secondary" @click="step = 'input'">
+              重新生成
+            </button>
+            <button
+              class="btn btn-primary"
+              :disabled="!canCreate"
+              @click="handleConfirm"
+            >
+              {{ creating ? '创建中...' : '确认创建' }}
+            </button>
+          </template>
+        </template>
+        <template v-else>
+          <button class="btn btn-secondary" @click="closeDialog">关闭</button>
         </template>
       </div>
     </div>
@@ -167,7 +245,10 @@ const profilesStore = useLLMProfilesStore()
 const globalCharsStore = useGlobalCharactersStore()
 const toast = useToastStore()
 
-// ============ 状态 ============
+// ============ Tab 状态 ============
+const activeTab = ref('create')
+
+// ============ 快速建群状态 ============
 const step = ref('input') // 'input' | 'preview'
 const description = ref('')
 const generating = ref(false)
@@ -190,6 +271,28 @@ const canCreate = computed(() => {
     preview.characters.length > 0 &&
     preview.characters.every(c => c.name.trim() && c.systemPrompt.trim()) &&
     selectedProfileId.value !== ''
+  )
+})
+
+// ============ 提示词设置状态 ============
+const promptLoading = ref(false)
+const promptSaving = ref(false)
+const promptForm = reactive({
+  systemPrompt: '',
+  userPromptTemplate: '',
+  defaultUserPrompt: ''
+})
+const savedPrompt = reactive({
+  systemPrompt: '',
+  userPromptTemplate: '',
+  defaultUserPrompt: ''
+})
+
+const promptDirty = computed(() => {
+  return (
+    promptForm.systemPrompt !== savedPrompt.systemPrompt ||
+    promptForm.userPromptTemplate !== savedPrompt.userPromptTemplate ||
+    promptForm.defaultUserPrompt !== savedPrompt.defaultUserPrompt
   )
 })
 
@@ -331,9 +434,79 @@ async function handleConfirm() {
   }
 }
 
-// 加载 LLM 配置
+// ============ 提示词设置方法 ============
+
+async function loadPromptConfig() {
+  promptLoading.value = true
+  try {
+    const result = await window.electronAPI.config.quickGroupConfig.get()
+    if (result.success) {
+      promptForm.systemPrompt = result.data.systemPrompt
+      promptForm.userPromptTemplate = result.data.userPromptTemplate
+      promptForm.defaultUserPrompt = result.data.defaultUserPrompt
+      savedPrompt.systemPrompt = result.data.systemPrompt
+      savedPrompt.userPromptTemplate = result.data.userPromptTemplate
+      savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
+    }
+  } catch (error) {
+    console.error('[QuickGroup] 加载提示词配置失败', error)
+  } finally {
+    promptLoading.value = false
+  }
+}
+
+async function handleSavePrompt() {
+  promptSaving.value = true
+  try {
+    const result = await window.electronAPI.config.quickGroupConfig.save({
+      systemPrompt: promptForm.systemPrompt,
+      userPromptTemplate: promptForm.userPromptTemplate,
+      defaultUserPrompt: promptForm.defaultUserPrompt
+    })
+    if (result.success) {
+      savedPrompt.systemPrompt = promptForm.systemPrompt
+      savedPrompt.userPromptTemplate = promptForm.userPromptTemplate
+      savedPrompt.defaultUserPrompt = promptForm.defaultUserPrompt
+      toast.success('提示词配置已保存')
+    } else {
+      toast.error('保存失败')
+    }
+  } catch (error) {
+    toast.error('保存失败：' + error.message)
+  } finally {
+    promptSaving.value = false
+  }
+}
+
+async function handleResetPrompt() {
+  try {
+    const result = await window.electronAPI.config.quickGroupConfig.reset()
+    if (result.success) {
+      promptForm.systemPrompt = result.data.systemPrompt
+      promptForm.userPromptTemplate = result.data.userPromptTemplate
+      promptForm.defaultUserPrompt = result.data.defaultUserPrompt
+      savedPrompt.systemPrompt = result.data.systemPrompt
+      savedPrompt.userPromptTemplate = result.data.userPromptTemplate
+      savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
+      toast.success('已恢复默认配置')
+    }
+  } catch (error) {
+    toast.error('重置失败：' + error.message)
+  }
+}
+
+function switchToPromptTab() {
+  activeTab.value = 'prompt'
+  if (!promptForm.systemPrompt) {
+    loadPromptConfig()
+  }
+}
+
+// ============ 初始化 ============
+
 onMounted(async () => {
   await profilesStore.loadProfiles()
+  loadPromptConfig()
 })
 </script>
 
@@ -395,6 +568,56 @@ onMounted(async () => {
     background: $bg-secondary;
   }
 }
+
+// ============ Tab 头部 ============
+
+.tab-header {
+  display: flex;
+  border-bottom: 1px solid $border-color;
+  padding: 0 $spacing-lg;
+}
+
+.tab-btn {
+  padding: $spacing-md $spacing-lg;
+  border: none;
+  background: transparent;
+  font-size: $font-size-md;
+  color: $text-secondary;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+
+  &:hover {
+    color: $text-primary;
+  }
+
+  &.active {
+    color: $wechat-green;
+    font-weight: $font-weight-medium;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: $spacing-md;
+      right: $spacing-md;
+      height: 2px;
+      background: $wechat-green;
+      border-radius: 1px;
+    }
+  }
+}
+
+.tab-content {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// ============ 对话框主体 ============
 
 .dialog-body {
   padding: $spacing-lg $spacing-xl;
@@ -529,6 +752,27 @@ onMounted(async () => {
   }
 }
 
+// ============ 提示词设置 ============
+
+.prompt-loading {
+  text-align: center;
+  padding: $spacing-xxl;
+  color: $text-secondary;
+}
+
+.prompt-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 1px solid $border-color-light;
+}
+
 // ============ 通用表单样式 ============
 
 .form-group {
@@ -541,6 +785,12 @@ onMounted(async () => {
   font-weight: $font-weight-medium;
   margin-bottom: $spacing-sm;
   color: $text-primary;
+
+  .label-hint {
+    font-weight: $font-weight-normal;
+    color: $text-placeholder;
+    font-size: $font-size-xs;
+  }
 }
 
 .input {
@@ -583,6 +833,14 @@ onMounted(async () => {
 
 .textarea-sm {
   min-height: 60px;
+}
+
+.textarea-code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: $font-size-sm;
+  line-height: 1.5;
+  min-height: 240px;
+  height: auto;
 }
 
 .form-hint {
@@ -652,6 +910,16 @@ onMounted(async () => {
 
   &:hover:not(:disabled) {
     background: color.adjust($wechat-green, $lightness: -5%);
+  }
+}
+
+.btn-text {
+  background: transparent;
+  color: $text-secondary;
+
+  &:hover:not(:disabled) {
+    color: $text-primary;
+    background: $bg-secondary;
   }
 }
 
