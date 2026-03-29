@@ -8,6 +8,7 @@ import { getAllProviders, getProviderConfig } from '../../llm/providers/index.js
 import { resolveProfileProxy } from '../../llm/proxy.js'
 import { getGlobalLLMConfig, getGachaConfig, getQuickGroupConfig } from '../../config/manager.js'
 import { getLLMProfiles } from '../../config/llm-profiles.js'
+import { extractJSON } from '../../utils/json-extractor.js'
 import { generateUUID } from '../../utils/uuid.js'
 
 /**
@@ -474,24 +475,15 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
       }
 
       // 6. 解析 JSON 响应
-      let characterData
-      try {
-        // 提取 JSON（可能有 markdown 代码块）
-        let jsonStr = result.content.trim()
+      console.log('[LLM] 原始响应内容（前 200 字符）:', result.content.substring(0, 200))
 
-        console.log('[LLM] 原始响应内容（前 200 字符）:', jsonStr.substring(0, 200))
-
-        // 移除可能的 markdown 代码块标记
-        if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-        }
-
-        characterData = JSON.parse(jsonStr)
-      } catch (parseError) {
-        console.error('[LLM] 解析 JSON 失败', parseError.message)
+      const jsonResult = extractJSON(result.content)
+      if (!jsonResult.success) {
+        console.error('[LLM] 解析 JSON 失败', jsonResult.error)
         console.error('[LLM] 原始响应', result.content)
         return { success: false, error: 'LLM 返回的格式不正确，请重试' }
       }
+      const characterData = jsonResult.data
 
       // 7. 验证数据
       if (!characterData.name || !characterData.systemPrompt) {
@@ -565,21 +557,15 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
       }
 
       // 6. 解析 JSON 响应
-      let groupData
-      try {
-        let jsonStr = result.content.trim()
-        console.log('[LLM] 群组信息原始响应（前 200 字符）:', jsonStr.substring(0, 200))
+      console.log('[LLM] 群组信息原始响应（前 200 字符）:', result.content.substring(0, 200))
 
-        if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-        }
-
-        groupData = JSON.parse(jsonStr)
-      } catch (parseError) {
-        console.error('[LLM] 解析群组 JSON 失败', parseError.message)
+      const groupJsonResult = extractJSON(result.content)
+      if (!groupJsonResult.success) {
+        console.error('[LLM] 解析群组 JSON 失败', groupJsonResult.error)
         console.error('[LLM] 原始响应', result.content)
         return { success: false, error: 'LLM 返回的格式不正确，请重试' }
       }
+      const groupData = groupJsonResult.data
 
       // 7. 验证数据
       if (!groupData.name || !Array.isArray(groupData.characters) || groupData.characters.length === 0) {
@@ -796,12 +782,10 @@ async function extractMemoriesAsync(client, character, userContent, assistantCon
     if (!extractResult.success || !extractResult.content) return
 
     // 解析 JSON
-    let jsonStr = extractResult.content.trim()
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-    }
+    const memJsonResult = extractJSON(extractResult.content)
+    if (!memJsonResult.success) return
 
-    const parsed = JSON.parse(jsonStr)
+    const parsed = memJsonResult.data
     const memories = parsed.memories || []
 
     if (!Array.isArray(memories) || memories.length === 0) return

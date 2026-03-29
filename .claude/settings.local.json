@@ -23,7 +23,8 @@
       "Bash(node -c electron/llm/ollama-client.js)",
       "WebSearch",
       "Bash(node -e \":*)",
-      "Bash(npx electron-vite:*)"
+      "Bash(npx electron-vite:*)",
+      "Bash(node -c electron/ipc/handlers/llm.js)"
     ]
   }
 }

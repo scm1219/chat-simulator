@@ -173,7 +173,7 @@ const form = ref({
   maxHistory: 20,
   thinkingEnabled: false,
   randomOrder: false,
-  systemPrompt: '',
+  systemPrompt: '你是一个"多角色对话模拟器"。任务是根据提供的场景和人物设定，生成符合人物性格的对话内容。如果设定是日常对话场景，那么每个角色的回复在符合人设的情况下保持简洁',
   background: ''
 })
 
