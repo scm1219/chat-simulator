@@ -31,6 +31,16 @@
             </select>
             <span v-if="switchingModel" class="switching-indicator">切换中...</span>
           </div>
+          <button
+            class="toggle-panel-btn"
+            @click="toggleRightPanel"
+            :title="rightPanelVisible ? '隐藏侧栏' : '显示侧栏'"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.2"/>
+              <line x1="11" y1="2" x2="11" y2="14" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -67,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
@@ -81,6 +91,10 @@ const messagesStore = useMessagesStore()
 const charactersStore = useCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
 const toast = useToastStore()
+
+// 右侧面板控制
+const rightPanelVisible = inject('rightPanelVisible')
+const toggleRightPanel = inject('toggleRightPanel')
 
 const messagesContainer = ref(null)
 const currentGroup = computed(() => groupsStore.currentGroup)
@@ -361,6 +375,27 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: $spacing-md;
+  }
+
+  .toggle-panel-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    color: $text-secondary;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      color: $wechat-green;
+      border-color: $wechat-green;
+      background: rgba($wechat-green, 0.05);
+    }
   }
 
   .export-button {

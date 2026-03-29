@@ -2,93 +2,98 @@
   <div class="character-panel">
     <div v-if="currentGroup" class="panel-content">
       <!-- 群设置 -->
-      <div class="panel-section">
-        <div class="section-header">
+      <div class="panel-section group-settings-section">
+        <div class="section-header" @click="groupSettingsCollapsed = !groupSettingsCollapsed">
           <h3>群设置</h3>
-          <button class="btn btn-link btn-sm" @click="showGroupSettings = true">
-            ⚙️ 编辑
-          </button>
-        </div>
-        <div class="setting-item inline-setting">
-          <label>最大历史轮数</label>
-          <input
-            type="number"
-            :value="currentGroup.max_history"
-            @change="updateMaxHistory"
-            class="input setting-input number-input"
-            min="1"
-            max="50"
-          />
-        </div>
-        <div class="setting-item inline-setting">
-          <label>回复模式</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="response-mode"
-                :value="currentGroup.response_mode"
-                :checked="currentGroup.response_mode === 'sequential'"
-                @change="updateResponseMode({ target: { value: 'sequential' }})"
-              />
-              <span>顺序</span>
-            </label>
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="response-mode"
-                :value="currentGroup.response_mode"
-                :checked="currentGroup.response_mode === 'parallel'"
-                @change="updateResponseMode({ target: { value: 'parallel' }})"
-              />
-              <span>并行</span>
-            </label>
+          <div class="section-header-actions">
+            <button class="btn btn-link btn-sm" @click.stop="showGroupSettings = true">
+              ⚙️ 编辑
+            </button>
+            <span class="collapse-icon" :class="{ collapsed: groupSettingsCollapsed }">▼</span>
           </div>
         </div>
-        <div class="setting-item inline-setting">
-          <label>思考模式</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="thinking-mode"
-                :checked="currentGroup.thinking_enabled === 1"
-                @change="updateThinkingMode({ target: { checked: true }})"
-              />
-              <span>是</span>
-            </label>
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="thinking-mode"
-                :checked="currentGroup.thinking_enabled === 0"
-                @change="updateThinkingMode({ target: { checked: false }})"
-              />
-              <span>否</span>
-            </label>
+        <div class="group-settings-body" v-show="!groupSettingsCollapsed">
+          <div class="setting-item inline-setting">
+            <label>最大历史轮数</label>
+            <input
+              type="number"
+              :value="currentGroup.max_history"
+              @change="updateMaxHistory"
+              class="input setting-input number-input"
+              min="1"
+              max="50"
+            />
           </div>
-        </div>
-        <div class="setting-item inline-setting">
-          <label>随机发言</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="random-order"
-                :checked="currentGroup.random_order === 1"
-                @change="updateRandomOrder({ target: { checked: true }})"
-              />
-              <span>是</span>
-            </label>
-            <label class="radio-option">
-              <input
-                type="radio"
-                name="random-order"
-                :checked="currentGroup.random_order === 0"
-                @change="updateRandomOrder({ target: { checked: false }})"
-              />
-              <span>否</span>
-            </label>
+          <div class="setting-item inline-setting">
+            <label>回复模式</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="response-mode"
+                  :value="currentGroup.response_mode"
+                  :checked="currentGroup.response_mode === 'sequential'"
+                  @change="updateResponseMode({ target: { value: 'sequential' }})"
+                />
+                <span>顺序</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="response-mode"
+                  :value="currentGroup.response_mode"
+                  :checked="currentGroup.response_mode === 'parallel'"
+                  @change="updateResponseMode({ target: { value: 'parallel' }})"
+                />
+                <span>并行</span>
+              </label>
+            </div>
+          </div>
+          <div class="setting-item inline-setting">
+            <label>思考模式</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="thinking-mode"
+                  :checked="currentGroup.thinking_enabled === 1"
+                  @change="updateThinkingMode({ target: { checked: true }})"
+                />
+                <span>是</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="thinking-mode"
+                  :checked="currentGroup.thinking_enabled === 0"
+                  @change="updateThinkingMode({ target: { checked: false }})"
+                />
+                <span>否</span>
+              </label>
+            </div>
+          </div>
+          <div class="setting-item inline-setting">
+            <label>随机发言</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="random-order"
+                  :checked="currentGroup.random_order === 1"
+                  @change="updateRandomOrder({ target: { checked: true }})"
+                />
+                <span>是</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="random-order"
+                  :checked="currentGroup.random_order === 0"
+                  @change="updateRandomOrder({ target: { checked: false }})"
+                />
+                <span>否</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -117,6 +122,12 @@
               >❌</button>
             </div>
             <span class="character-name">{{ char.name }}</span>
+              <button
+                v-if="char.is_user !== 1"
+                class="btn-memory-icon"
+                @click="openMemoryDialog(char)"
+                title="角色记忆"
+              >📝</button>
             <div class="character-actions-right">
               <!-- AI 角色的控制按钮 -->
               <template v-if="char.is_user !== 1">
@@ -181,42 +192,6 @@
             <div class="character-prompt-readonly">{{ char.system_prompt || '暂无设定' }}</div>
           </div>
 
-          <!-- 全局记忆（仅 AI 角色） -->
-          <div v-if="char.is_user !== 1" class="character-memory-section">
-            <button class="btn btn-link btn-sm memory-toggle-btn" @click="toggleMemoryExpand(char)">
-              📝 记忆 ({{ memoryStore.getMemories(char.name).length }})
-            </button>
-
-            <div v-if="expandedMemories[char.id]" class="memory-panel">
-              <div class="memory-list">
-                <div
-                  v-for="mem in memoryStore.getMemories(char.name)"
-                  :key="mem.id"
-                  class="memory-item"
-                >
-                  <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
-                  <span class="memory-content">{{ mem.content }}</span>
-                  <button class="btn-delete-memory" @click="deleteMemory(mem.id, char)" title="删除">×</button>
-                </div>
-                <div v-if="memoryStore.getMemories(char.name).length === 0" class="memory-empty">
-                  暂无记忆
-                </div>
-              </div>
-              <div class="memory-add">
-                <input
-                  v-model="newMemoryContent[char.id]"
-                  type="text"
-                  class="memory-input"
-                  placeholder="添加新记忆..."
-                  @keyup.enter="addMemory(char)"
-                />
-                <button class="btn btn-primary btn-sm" @click="addMemory(char)" :disabled="!newMemoryContent[char.id]?.trim()">
-                  添加
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- 指令输入和发送（仅 AI 角色） -->
           <div v-if="char.is_user !== 1" class="character-command">
             <input
@@ -270,6 +245,44 @@
       @close="showGroupSettings = false"
       @saved="handleGroupSettingsSaved"
     />
+
+    <!-- 角色记忆对话框 -->
+    <div v-if="memoryDialogVisible" class="dialog-overlay" @click.self="memoryDialogVisible = false">
+      <div class="dialog memory-dialog">
+        <div class="dialog-header">
+          <h3>{{ memoryDialogChar?.name }} 的记忆</h3>
+          <button class="close-btn" @click="memoryDialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="memory-dialog-list">
+            <div
+              v-for="mem in memoryStore.getMemories(memoryDialogChar?.name)"
+              :key="mem.id"
+              class="memory-item"
+            >
+              <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
+              <span class="memory-content">{{ mem.content }}</span>
+              <button class="btn-delete-memory" @click="deleteMemory(mem.id, memoryDialogChar)" title="删除">×</button>
+            </div>
+            <div v-if="memoryStore.getMemories(memoryDialogChar?.name).length === 0" class="memory-empty">
+              暂无记忆
+            </div>
+          </div>
+          <div class="memory-add">
+            <input
+              v-model="memoryDialogInput"
+              type="text"
+              class="memory-input"
+              placeholder="添加新记忆..."
+              @keyup.enter="addMemoryFromDialog"
+            />
+            <button class="btn btn-primary btn-sm" @click="addMemoryFromDialog" :disabled="!memoryDialogInput?.trim()">
+              添加
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -295,8 +308,10 @@ const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
-const expandedMemories = ref({})  // 记忆面板展开状态
-const newMemoryContent = ref({})  // 新记忆输入
+const groupSettingsCollapsed = ref(true)  // 群设置收起状态（默认收起）
+const memoryDialogVisible = ref(false)  // 记忆对话框可见性
+const memoryDialogChar = ref(null)  // 记忆对话框当前角色
+const memoryDialogInput = ref('')  // 记忆对话框输入
 const editingCharacter = ref(null)
 
 const currentGroup = computed(() => groupsStore.currentGroup)
@@ -310,24 +325,24 @@ function togglePromptExpand(charId) {
   expandedPrompts.value[charId] = !expandedPrompts.value[charId]
 }
 
-// 切换记忆面板展开
-async function toggleMemoryExpand(char) {
-  if (!expandedMemories.value[char.id]) {
-    await memoryStore.loadMemories(char.name)
-  }
-  expandedMemories.value[char.id] = !expandedMemories.value[char.id]
+// 打开记忆对话框
+async function openMemoryDialog(char) {
+  memoryDialogChar.value = char
+  memoryDialogInput.value = ''
+  await memoryStore.loadMemories(char.name)
+  memoryDialogVisible.value = true
 }
 
-// 添加记忆
-async function addMemory(char) {
-  const content = newMemoryContent.value[char.id]?.trim()
-  if (!content) return
+// 从对话框添加记忆
+async function addMemoryFromDialog() {
+  const content = memoryDialogInput.value?.trim()
+  if (!content || !memoryDialogChar.value) return
   try {
     await memoryStore.addMemory({
-      characterName: char.name,
+      characterName: memoryDialogChar.value.name,
       content
     })
-    newMemoryContent.value[char.id] = ''
+    memoryDialogInput.value = ''
   } catch (error) {
     toast.error('添加记忆失败: ' + error.message)
   }
@@ -345,36 +360,18 @@ async function deleteMemory(memoryId, char) {
 // 判断角色是否可以上移
 function canMoveUp(index) {
   const char = charactersStore.characters[index]
-  console.log('[canMoveUp] 检查角色:', char.name, 'is_user:', char.is_user, 'position:', char.position)
-
-  // 用户角色不能移动
   if (char.is_user === 1) return false
-
-  // 找到当前角色在 AI 角色中的位置
   const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-  console.log('[canMoveUp] AI 角色列表:', aiCharacters.map(c => ({ name: c.name, position: c.position })))
-
   const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
-  console.log('[canMoveUp] 当前角色在 AI 列表中的索引:', aiIndex, '是否可以上移:', aiIndex > 0)
-
   return aiIndex > 0
 }
 
 // 判断角色是否可以下移
 function canMoveDown(index) {
   const char = charactersStore.characters[index]
-  console.log('[canMoveDown] 检查角色:', char.name, 'is_user:', char.is_user, 'position:', char.position)
-
-  // 用户角色不能移动
   if (char.is_user === 1) return false
-
-  // 找到当前角色在 AI 角色中的位置
   const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-  console.log('[canMoveDown] AI 角色列表:', aiCharacters.map(c => ({ name: c.name, position: c.position })))
-
   const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
-  console.log('[canMoveDown] 当前角色在 AI 列表中的索引:', aiIndex, '是否可以下移:', aiIndex < aiCharacters.length - 1)
-
   return aiIndex < aiCharacters.length - 1
 }
 
@@ -552,6 +549,41 @@ async function sendCommand(char) {
 
     h3 {
       margin-bottom: 0;
+    }
+  }
+
+  &.group-settings-section {
+    .section-header {
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 0;
+
+      &:hover {
+        h3 {
+          color: $color-primary;
+        }
+      }
+    }
+
+    .section-header-actions {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+    }
+
+    .collapse-icon {
+      font-size: $font-size-xs;
+      color: $text-secondary;
+      transition: transform 0.2s ease;
+      display: inline-block;
+
+      &.collapsed {
+        transform: rotate(-90deg);
+      }
+    }
+
+    .group-settings-body {
+      margin-top: $spacing-md;
     }
   }
 }
@@ -964,108 +996,175 @@ async function sendCommand(char) {
   flex-shrink: 0;
 }
 
-.character-memory-section {
-  margin-bottom: $spacing-sm;
-}
-
-.memory-toggle-btn {
-  font-size: $font-size-sm;
-  color: $text-secondary;
-  padding: 2px 0;
-}
-
-.memory-panel {
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: $border-radius-sm;
-  margin-top: $spacing-xs;
-  overflow: hidden;
-}
-
-.memory-list {
-  max-height: 200px;
-  overflow-y: auto;
-  padding: $spacing-xs;
-}
-
-.memory-item {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-xs;
-  padding: $spacing-xs $spacing-sm;
-  font-size: $font-size-sm;
-  line-height: 1.4;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.memory-source {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: $font-size-xs;
-  font-weight: $font-weight-medium;
-
-  &.manual {
-    background: rgba($color-primary, 0.1);
-    color: $color-primary;
-  }
-
-  &.auto {
-    background: rgba(255, 152, 0, 0.1);
-    color: #ff9800;
-  }
-}
-
-.memory-content {
-  flex: 1;
-  word-break: break-word;
-}
-
-.btn-delete-memory {
-  flex-shrink: 0;
+.btn-memory-icon {
   background: none;
   border: none;
-  color: $text-secondary;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 13px;
+  padding: 0 2px;
   line-height: 1;
   opacity: 0.5;
-  padding: 0 2px;
+  transition: opacity 0.2s;
 
   &:hover {
     opacity: 1;
-    color: #e53935;
   }
 }
 
-.memory-empty {
-  padding: $spacing-md;
-  text-align: center;
-  color: $text-secondary;
-  font-size: $font-size-sm;
-}
-
-.memory-add {
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  gap: $spacing-xs;
-  padding: $spacing-xs;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 
-.memory-input {
-  flex: 1;
-  padding: 4px 8px;
-  border: 1px solid $border-color;
-  border-radius: $border-radius-sm;
-  font-size: $font-size-sm;
+.dialog {
   background: $bg-primary;
+  border-radius: $border-radius-lg;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
 
-  &:focus {
-    outline: none;
-    border-color: $color-primary;
+.dialog-header {
+  padding: $spacing-lg $spacing-xl;
+  border-bottom: 1px solid $border-color;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  h3 {
+    font-size: $font-size-lg;
+    font-weight: $font-weight-medium;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: $text-secondary;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+}
+
+.dialog-body {
+  padding: $spacing-xl;
+}
+
+.memory-dialog {
+  max-width: 480px;
+  width: 90%;
+
+  .dialog-body {
+    display: flex;
+    flex-direction: column;
+    max-height: 60vh;
+  }
+
+  .memory-dialog-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: $spacing-xs 0;
+  }
+
+  .memory-item {
+    display: flex;
+    align-items: flex-start;
+    gap: $spacing-xs;
+    padding: $spacing-xs $spacing-sm;
+    font-size: $font-size-sm;
+    line-height: 1.4;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .memory-source {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-medium;
+
+    &.manual {
+      background: rgba($color-primary, 0.1);
+      color: $color-primary;
+    }
+
+    &.auto {
+      background: rgba(255, 152, 0, 0.1);
+      color: #ff9800;
+    }
+  }
+
+  .memory-content {
+    flex: 1;
+    word-break: break-word;
+  }
+
+  .btn-delete-memory {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    opacity: 0.5;
+    padding: 0 2px;
+
+    &:hover {
+      opacity: 1;
+      color: #e53935;
+    }
+  }
+
+  .memory-empty {
+    padding: $spacing-md;
+    text-align: center;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+  }
+
+  .memory-add {
+    display: flex;
+    gap: $spacing-xs;
+    padding: $spacing-sm 0 0;
+    border-top: 1px solid $border-color;
+    margin-top: $spacing-sm;
+  }
+
+  .memory-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-sm;
+    font-size: $font-size-sm;
+    background: $bg-primary;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+    }
   }
 }
 </style>
