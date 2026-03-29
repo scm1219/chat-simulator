@@ -6,6 +6,9 @@
         <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
           + 新建
         </button>
+        <button class="btn btn-ai btn-sm" @click="showQuickGroupDialog = true">
+          AI 建群
+        </button>
       </div>
     </div>
 
@@ -62,6 +65,13 @@
       @created="handleGroupCreated"
     />
 
+    <!-- AI 快速建群对话框 -->
+    <QuickGroupDialog
+      v-if="showQuickGroupDialog"
+      @close="showQuickGroupDialog = false"
+      @created="handleQuickGroupCreated"
+    />
+
     <!-- 群设置对话框 -->
     <GroupSettingsDialog
       v-if="showSettingsDialog && settingsGroupId"
@@ -79,6 +89,7 @@ import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import CreateGroupDialog from '../config/CreateGroupDialog.vue'
+import QuickGroupDialog from '../config/QuickGroupDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 import GroupSearch from './GroupSearch.vue'
 
@@ -87,6 +98,7 @@ const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
+const showQuickGroupDialog = ref(false)
 const hoveredGroupId = ref(null)
 const showSettingsDialog = ref(false)
 const settingsGroupId = ref(null)
@@ -126,6 +138,11 @@ function handleGroupSettingsSaved() {
 
 function handleGroupCreated(group) {
   showCreateDialog.value = false
+  groupsStore.selectGroup(group.id)
+}
+
+function handleQuickGroupCreated(group) {
+  showQuickGroupDialog.value = false
   groupsStore.selectGroup(group.id)
 }
 
@@ -183,6 +200,16 @@ async function handleDelete(group) {
   display: flex;
   gap: $spacing-sm;
   align-items: center;
+}
+
+.btn-ai {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+
+  &:hover {
+    opacity: 0.9;
+  }
 }
 
 .btn-icon {

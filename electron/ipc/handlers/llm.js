@@ -6,7 +6,7 @@ import { LLMClient } from '../../llm/client.js'
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getAllProviders, getProviderConfig } from '../../llm/providers/index.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
-import { getGlobalLLMConfig, getGachaConfig } from '../../config/manager.js'
+import { getGlobalLLMConfig, getGachaConfig, getQuickGroupConfig } from '../../config/manager.js'
 import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { generateUUID } from '../../utils/uuid.js'
 
@@ -503,6 +503,104 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
       return { success: true, data: characterData }
     } catch (error) {
       console.error('[LLM] 生成角色信息失败', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 快速建群：根据描述生成群组信息
+  ipcMain.handle('llm:generateGroup', async (event, description = '') => {
+    console.log('[LLM] 开始生成群组信息', { description })
+
+    try {
+      // 1. 获取 LLM 配置文件列表
+      const llmProfiles = getLLMProfiles()
+
+      if (llmProfiles.length === 0) {
+        return { success: false, error: '请先在 LLM 配置管理中添加配置' }
+      }
+
+      // 2. 使用第一个配置文件
+      const profile = llmProfiles[0]
+      console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
+
+      // 3. 创建 LLM 客户端
+      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
+      const client = createLLMClient({
+        provider: profile.provider,
+        apiKey: profile.apiKey,
+        baseURL: profile.baseURL,
+        model: profile.model,
+        proxy: resolvedProxy,
+        bypassRules,
+        streamEnabled: false,
+        useNativeApi: profile.useNativeApi === true
+      })
+
+      // 4. 构建提示词
+      const quickGroupConfig = getQuickGroupConfig()
+      const systemPrompt = quickGroupConfig.systemPrompt
+      const userPrompt = description
+        ? quickGroupConfig.userPromptTemplate.replace('{description}', description)
+        : quickGroupConfig.defaultUserPrompt
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+
+      // 5. 调用 LLM
+      const result = await client.chat(messages, {
+        temperature: 0.9,
+        maxTokens: 3000,
+        thinkingEnabled: false
+      })
+
+      if (!result.success) {
+        console.error('[LLM] 生成群组信息失败', result.error)
+        return { success: false, error: result.error }
+      }
+
+      if (!result.content || result.content.trim().length === 0) {
+        return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
+      }
+
+      // 6. 解析 JSON 响应
+      let groupData
+      try {
+        let jsonStr = result.content.trim()
+        console.log('[LLM] 群组信息原始响应（前 200 字符）:', jsonStr.substring(0, 200))
+
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+        }
+
+        groupData = JSON.parse(jsonStr)
+      } catch (parseError) {
+        console.error('[LLM] 解析群组 JSON 失败', parseError.message)
+        console.error('[LLM] 原始响应', result.content)
+        return { success: false, error: 'LLM 返回的格式不正确，请重试' }
+      }
+
+      // 7. 验证数据
+      if (!groupData.name || !Array.isArray(groupData.characters) || groupData.characters.length === 0) {
+        return { success: false, error: '群组信息不完整（缺少群名称或角色），请重试' }
+      }
+
+      for (const char of groupData.characters) {
+        if (!char.name || !char.systemPrompt) {
+          return { success: false, error: `角色"${char.name || '未命名'}"信息不完整，请重试` }
+        }
+      }
+
+      console.log('[LLM] 群组信息生成成功', {
+        name: groupData.name,
+        characterCount: groupData.characters.length,
+        hasBackground: !!groupData.background
+      })
+
+      return { success: true, data: groupData }
+    } catch (error) {
+      console.error('[LLM] 生成群组信息失败', error)
       return { success: false, error: error.message }
     }
   })

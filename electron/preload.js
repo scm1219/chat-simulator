@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     generateCharacterCommand: (groupId, characterId, instruction) =>
       ipcRenderer.invoke('llm:generateCharacterCommand', groupId, characterId, instruction),
     generateCharacter: (hint) => ipcRenderer.invoke('llm:generateCharacter', hint),
+    generateGroup: (description) => ipcRenderer.invoke('llm:generateGroup', description),
     onProgress: (callback) => {
       const listener = (event, data) => callback(data)
       ipcRenderer.on('llm:progress', listener)
@@ -109,6 +110,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       get: () => ipcRenderer.invoke('gachaConfig:get'),
       save: (config) => ipcRenderer.invoke('gachaConfig:save', config),
       reset: () => ipcRenderer.invoke('gachaConfig:reset')
+    },
+    // 快速建群配置
+    quickGroupConfig: {
+      get: () => ipcRenderer.invoke('quickGroupConfig:get'),
+      save: (config) => ipcRenderer.invoke('quickGroupConfig:save', config),
+      reset: () => ipcRenderer.invoke('quickGroupConfig:reset')
     }
   },
 

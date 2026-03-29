@@ -2,7 +2,7 @@
  * 配置 IPC 处理器
  */
 import { ipcMain } from 'electron'
-import { getGlobalLLMConfig, saveGlobalLLMConfig, getGachaConfig, saveGachaConfig, getDefaultGachaConfig } from '../../config/manager.js'
+import { getGlobalLLMConfig, saveGlobalLLMConfig, getGachaConfig, saveGachaConfig, getDefaultGachaConfig, getQuickGroupConfig, saveQuickGroupConfig, getDefaultQuickGroupConfig } from '../../config/manager.js'
 import { getProxyConfig, saveProxyConfig } from '../../llm/proxy.js'
 import {
   getLLMProfiles,
@@ -207,6 +207,42 @@ export function setupConfigHandlers(dbManager) {
     try {
       const defaultConfig = getDefaultGachaConfig()
       const result = saveGachaConfig(defaultConfig)
+      if (result) {
+        return { success: true, data: defaultConfig }
+      }
+      return { success: false, error: '重置失败' }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // ============ 快速建群配置 ============
+
+  // 获取快速建群配置
+  ipcMain.handle('quickGroupConfig:get', async () => {
+    try {
+      const config = getQuickGroupConfig()
+      return { success: true, data: config }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 保存快速建群配置
+  ipcMain.handle('quickGroupConfig:save', async (event, config) => {
+    try {
+      const result = saveQuickGroupConfig(config)
+      return { success: result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 重置快速建群配置为默认值
+  ipcMain.handle('quickGroupConfig:reset', async () => {
+    try {
+      const defaultConfig = getDefaultQuickGroupConfig()
+      const result = saveQuickGroupConfig(defaultConfig)
       if (result) {
         return { success: true, data: defaultConfig }
       }
