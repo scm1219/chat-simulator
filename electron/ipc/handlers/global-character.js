@@ -2,7 +2,6 @@
  * 全局角色 IPC 处理器
  */
 import { ipcMain } from 'electron'
-import { generateUUID } from '../../utils/uuid.js'
 
 export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
   // 获取所有全局角色
@@ -142,8 +141,8 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
         }
       }
 
-      // 创建新角色
-      const newCharId = generateUUID()
+      // 使用角色库原始 ID，便于追溯来源和同步
+      const newCharId = characterId
 
       // 获取当前最大的 position 值（仅 AI 角色），新角色添加到尾部
       const maxPositionResult = db.prepare(
@@ -166,6 +165,89 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
 
       const newCharacter = db.prepare('SELECT * FROM characters WHERE id = ?').get(newCharId)
       return { success: true, data: newCharacter }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 从角色库同步角色设定到群组
+  ipcMain.handle('globalCharacter:syncToGroup', async (event, characterId, groupId) => {
+    try {
+      // 获取全局角色最新数据
+      const globalCharacter = globalCharManager.getById(characterId)
+      if (!globalCharacter) {
+        return { success: false, error: '角色库中不存在该角色' }
+      }
+
+      // 获取群组数据库
+      const db = dbManager.getGroupDB(groupId)
+
+      // 查找群组中对应 ID 的角色
+      const groupChar = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+      if (!groupChar) {
+        return { success: false, error: '群组中不存在该角色' }
+      }
+
+      // 更新群组角色的 name 和 system_prompt
+      db.prepare(`
+        UPDATE characters SET name = ?, system_prompt = ? WHERE id = ?
+      `).run(globalCharacter.name, globalCharacter.system_prompt, characterId)
+
+      const updated = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+      return { success: true, data: updated }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 同步角色设定到所有关联群组
+  ipcMain.handle('globalCharacter:syncToAllGroups', async (event, characterId) => {
+    try {
+      const globalCharacter = globalCharManager.getById(characterId)
+      if (!globalCharacter) {
+        return { success: false, error: '角色库中不存在该角色' }
+      }
+
+      const groupIds = dbManager.getGroupDBFiles()
+      const syncedGroups = []
+
+      for (const groupId of groupIds) {
+        try {
+          const db = dbManager.getGroupDB(groupId)
+          const groupChar = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+          if (groupChar) {
+            db.prepare(`
+              UPDATE characters SET name = ?, system_prompt = ? WHERE id = ?
+            `).run(globalCharacter.name, globalCharacter.system_prompt, characterId)
+            syncedGroups.push({ groupId, groupName: null })
+          }
+        } catch (err) {
+          console.error(`同步角色到群组 ${groupId} 失败:`, err)
+        }
+      }
+
+      // 获取群组名称
+      for (const item of syncedGroups) {
+        try {
+          const db = dbManager.getGroupDB(item.groupId)
+          const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(item.groupId)
+          item.groupName = group ? group.name : item.groupId
+        } catch {
+          item.groupName = item.groupId
+        }
+      }
+
+      return { success: true, data: { count: syncedGroups.length, groups: syncedGroups } }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // 检查角色是否存在于角色库
+  ipcMain.handle('globalCharacter:existsInLibrary', async (event, characterId) => {
+    try {
+      const character = globalCharManager.getById(characterId)
+      return { success: true, data: !!character }
     } catch (error) {
       return { success: false, error: error.message }
     }

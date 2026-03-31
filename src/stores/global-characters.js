@@ -148,6 +148,47 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
     }
   }
 
+  // 从角色库同步最新设定到群组角色
+  async function syncToGroup(characterId, groupId) {
+    try {
+      const result = await window.electronAPI.globalCharacter.syncToGroup(characterId, groupId)
+      if (result.success) {
+        return result.data
+      }
+      throw new Error(result.error)
+    } catch (error) {
+      console.error('Failed to sync character to group:', error)
+      throw error
+    }
+  }
+
+  // 从角色库同步最新设定到所有关联群组
+  async function syncToAllGroups(characterId) {
+    try {
+      const result = await window.electronAPI.globalCharacter.syncToAllGroups(characterId)
+      if (result.success) {
+        return result.data
+      }
+      throw new Error(result.error)
+    } catch (error) {
+      console.error('Failed to sync character to all groups:', error)
+      throw error
+    }
+  }
+
+  // 检查角色是否存在于角色库
+  async function existsInLibrary(characterId) {
+    try {
+      const result = await window.electronAPI.globalCharacter.existsInLibrary(characterId)
+      if (result.success) {
+        return result.data
+      }
+      return false
+    } catch (error) {
+      return false
+    }
+  }
+
   function clearSearch() {
     searchKeyword.value = ''
   }
@@ -253,6 +294,9 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
     deleteCharacter,
     searchCharacters,
     importToGroup,
+    syncToGroup,
+    syncToAllGroups,
+    existsInLibrary,
     clearSearch,
     // 标签方法
     loadTags,

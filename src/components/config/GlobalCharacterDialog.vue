@@ -149,6 +149,14 @@
           取消
         </button>
         <button
+          v-if="isEditing"
+          class="btn btn-outline"
+          :disabled="syncing"
+          @click="handleSync"
+        >
+          {{ syncing ? '同步中...' : '同步到群组' }}
+        </button>
+        <button
           class="btn btn-primary"
           :disabled="!isFormValid || saving"
           @click="handleSave"
@@ -165,6 +173,7 @@ import { ref, computed, onMounted, toRaw } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useMemoryStore } from '../../stores/memory.js'
 import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 import TagSelector from '../common/TagSelector.vue'
 
 const props = defineProps({
@@ -179,6 +188,7 @@ const emit = defineEmits(['close', 'saved'])
 const globalCharsStore = useGlobalCharactersStore()
 const memoryStore = useMemoryStore()
 const toast = useToastStore()
+const { confirm } = useDialog()
 
 const isEditing = computed(() => !!props.character)
 const activeTab = ref('basic')
@@ -192,6 +202,7 @@ const form = ref({
 })
 
 const saving = ref(false)
+const syncing = ref(false)
 const newMemoryContent = ref('')
 
 const isOverLimit = computed(() => form.value.systemPrompt.length > 5000)
@@ -221,6 +232,20 @@ const isFormValid = computed(() => {
     form.value.name.trim() &&
     form.value.systemPrompt.trim() &&
     !isOverLimit.value
+  )
+})
+
+// 检测表单是否有修改
+const isDirty = computed(() => {
+  if (!props.character) return false
+  return (
+    form.value.name.trim() !== (props.character.name || '') ||
+    form.value.systemPrompt.trim() !== (props.character.system_prompt || '') ||
+    form.value.gender !== (props.character.gender || '') ||
+    form.value.age !== (props.character.age || null) ||
+    JSON.stringify(form.value.tagIds) !== JSON.stringify(
+      props.character.tags ? props.character.tags.map(t => t.id) : []
+    )
   )
 })
 
@@ -295,6 +320,51 @@ async function handleSave() {
     toast.error('保存失败：' + error.message)
   } finally {
     saving.value = false
+  }
+}
+
+async function handleSync() {
+  if (syncing.value || !props.character) return
+
+  const confirmed = await confirm({
+    title: '同步到群组',
+    message: '确定将该角色的最新设定同步到所有关联群组吗？群组中的角色名称和人物设定将被覆盖。',
+    confirmText: '确定同步',
+    cancelText: '取消'
+  })
+  if (!confirmed) return
+
+  syncing.value = true
+  try {
+    // 如果有修改，先自动保存
+    if (isDirty.value) {
+      if (!isFormValid.value) {
+        toast.error('表单验证未通过，无法保存')
+        return
+      }
+      const data = {
+        name: form.value.name.trim(),
+        gender: form.value.gender || null,
+        age: form.value.age || null,
+        systemPrompt: form.value.systemPrompt.trim(),
+        tagIds: toRaw(form.value.tagIds)
+      }
+      await globalCharsStore.updateCharacter(props.character.id, data)
+      emit('saved')
+    }
+
+    // 同步到所有关联群组
+    const result = await globalCharsStore.syncToAllGroups(props.character.id)
+    if (result.count === 0) {
+      toast.info('该角色尚未导入到任何群组')
+    } else {
+      const names = result.groups.map(g => g.groupName).join('、')
+      toast.success(`已同步到 ${result.count} 个群组：${names}`)
+    }
+  } catch (error) {
+    toast.error('同步失败：' + error.message)
+  } finally {
+    syncing.value = false
   }
 }
 </script>
@@ -681,5 +751,25 @@ async function handleSave() {
   justify-content: flex-end;
   gap: $spacing-md;
   flex-shrink: 0;
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid $color-primary;
+    color: $color-primary;
+    padding: $spacing-sm $spacing-lg;
+    border-radius: $border-radius-md;
+    cursor: pointer;
+    font-size: $font-size-sm;
+    transition: background 0.2s, opacity 0.2s;
+
+    &:hover:not(:disabled) {
+      background: rgba($color-primary, 0.08);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
 }
 </style>

@@ -388,11 +388,22 @@ async function handleConfirm() {
     let failedChars = 0
     for (const char of preview.characters) {
       try {
-        await charactersStore.createCharacter({
-          groupId: group.id,
-          name: char.name,
-          systemPrompt: char.systemPrompt
-        })
+        if (saveToLibrary.value) {
+          // 先保存到角色库，再用 importToGroup 导入群组（保持 ID 一致）
+          const libChar = await globalCharsStore.createCharacter({
+            name: char.name,
+            gender: char.gender,
+            age: char.age,
+            systemPrompt: char.systemPrompt
+          })
+          await globalCharsStore.importToGroup(libChar.id, group.id)
+        } else {
+          await charactersStore.createCharacter({
+            groupId: group.id,
+            name: char.name,
+            systemPrompt: char.systemPrompt
+          })
+        }
       } catch (err) {
         failedChars++
         console.warn('[QuickGroup] 创建角色失败:', char.name, err)
@@ -401,22 +412,6 @@ async function handleConfirm() {
 
     if (failedChars > 0) {
       toast.warning(`${failedChars} 个角色创建失败，其余已成功`)
-    }
-
-    // 3. 可选：保存到全局角色库
-    if (saveToLibrary.value) {
-      for (const char of preview.characters) {
-        try {
-          await globalCharsStore.createCharacter({
-            name: char.name,
-            gender: char.gender,
-            age: char.age,
-            systemPrompt: char.systemPrompt
-          })
-        } catch (err) {
-          console.warn('[QuickGroup] 保存角色到角色库失败:', char.name, err)
-        }
-      }
     }
 
     // 4. 选中新群组并刷新角色列表

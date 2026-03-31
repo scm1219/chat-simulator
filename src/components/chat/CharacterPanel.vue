@@ -12,7 +12,8 @@
             <span class="collapse-icon" :class="{ collapsed: groupSettingsCollapsed }">▼</span>
           </div>
         </div>
-        <div class="group-settings-body" v-show="!groupSettingsCollapsed">
+        <div class="group-settings-body" :class="{ collapsed: groupSettingsCollapsed }">
+          <div class="group-settings-body-inner">
           <div class="setting-item inline-setting">
             <label>最大历史轮数</label>
             <input
@@ -94,6 +95,7 @@
                 <span>否</span>
               </label>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -185,9 +187,18 @@
           <div class="character-prompt-expanded" v-else>
             <div class="prompt-header">
               <span class="prompt-label">角色设定（只读）</span>
-              <button class="btn btn-link btn-sm collapse-btn" @click="togglePromptExpand(char.id)">
-                ▲ 收起
-              </button>
+              <div class="prompt-header-actions">
+                <button
+                  v-if="libraryCharIds.has(char.id)"
+                  class="btn btn-link btn-sm sync-btn"
+                  @click="syncFromLibrary(char)"
+                  :disabled="syncingIds.has(char.id)"
+                  title="从角色库同步最新设定"
+                >{{ syncingIds.has(char.id) ? '⏳' : '🔄' }}</button>
+                <button class="btn btn-link btn-sm collapse-btn" @click="togglePromptExpand(char.id)">
+                  ▲ 收起
+                </button>
+              </div>
             </div>
             <div class="character-prompt-readonly">{{ char.system_prompt || '暂无设定' }}</div>
           </div>
@@ -293,6 +304,7 @@ import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useMemoryStore } from '../../stores/memory.js'
+import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useDialog } from '../../composables/useDialog'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
 import EditCharacterDialog from '../config/EditCharacterDialog.vue'
@@ -303,6 +315,7 @@ const charactersStore = useCharactersStore()
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const memoryStore = useMemoryStore()
+const globalCharsStore = useGlobalCharactersStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
@@ -313,6 +326,8 @@ const memoryDialogVisible = ref(false)  // 记忆对话框可见性
 const memoryDialogChar = ref(null)  // 记忆对话框当前角色
 const memoryDialogInput = ref('')  // 记忆对话框输入
 const editingCharacter = ref(null)
+const libraryCharIds = ref(new Set()) // 记录哪些角色存在于角色库
+const syncingIds = ref(new Set()) // 正在同步的角色 ID
 
 const currentGroup = computed(() => groupsStore.currentGroup)
 
@@ -323,6 +338,29 @@ const aiCharacterCount = computed(() => {
 
 function togglePromptExpand(charId) {
   expandedPrompts.value[charId] = !expandedPrompts.value[charId]
+  // 展开时检查角色是否存在于角色库
+  if (expandedPrompts.value[charId] && !libraryCharIds.value.has(charId)) {
+    globalCharsStore.existsInLibrary(charId).then(exists => {
+      if (exists) {
+        libraryCharIds.value.add(charId)
+      }
+    })
+  }
+}
+
+// 同步角色设定从角色库到群组
+async function syncFromLibrary(char) {
+  if (!currentGroup.value) return
+  syncingIds.value.add(char.id)
+  try {
+    await globalCharsStore.syncToGroup(char.id, currentGroup.value.id)
+    await charactersStore.loadCharacters(currentGroup.value.id)
+    toast.success(`已同步 ${char.name} 的最新设定`)
+  } catch (error) {
+    toast.error('同步失败: ' + error.message)
+  } finally {
+    syncingIds.value.delete(char.id)
+  }
 }
 
 // 打开记忆对话框
@@ -583,7 +621,17 @@ async function sendCommand(char) {
     }
 
     .group-settings-body {
-      margin-top: $spacing-md;
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.3s ease;
+
+      &.collapsed {
+        grid-template-rows: 0fr;
+      }
+
+      .group-settings-body-inner {
+        overflow: hidden;
+      }
     }
   }
 }
@@ -823,6 +871,26 @@ async function sendCommand(char) {
     .collapse-btn {
       font-size: $font-size-xs;
       color: $text-secondary;
+    }
+
+    .prompt-header-actions {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+    }
+
+    .sync-btn {
+      font-size: $font-size-xs;
+      color: $color-primary;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &:hover:not(:disabled) {
+        opacity: 0.8;
+      }
     }
   }
 

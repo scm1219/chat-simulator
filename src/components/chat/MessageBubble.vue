@@ -403,6 +403,8 @@ async function handleResend() {
   white-space: pre-wrap;
   cursor: pointer;
   transition: background 0.2s ease;
+  border: 2px solid transparent;
+  box-sizing: border-box;
 }
 
 .user .bubble-content {
@@ -414,7 +416,7 @@ async function handleResend() {
 .assistant .bubble-content {
   background: $bubble-assistant;
   color: $bubble-assistant-text;
-  border: 1px solid $border-color;
+  border: 2px solid $border-color;
   border-bottom-left-radius: 4px;
 }
 

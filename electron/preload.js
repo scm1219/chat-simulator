@@ -129,6 +129,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     search: (keyword) => ipcRenderer.invoke('globalCharacter:search', keyword),
     importToGroup: (characterId, groupId) =>
       ipcRenderer.invoke('globalCharacter:importToGroup', characterId, groupId),
+    syncToGroup: (characterId, groupId) =>
+      ipcRenderer.invoke('globalCharacter:syncToGroup', characterId, groupId),
+    syncToAllGroups: (characterId) =>
+      ipcRenderer.invoke('globalCharacter:syncToAllGroups', characterId),
+    existsInLibrary: (characterId) =>
+      ipcRenderer.invoke('globalCharacter:existsInLibrary', characterId),
     // 标签管理
     getAllTags: () => ipcRenderer.invoke('globalCharacter:getAllTags'),
     createTag: (data) => ipcRenderer.invoke('globalCharacter:createTag', data),
