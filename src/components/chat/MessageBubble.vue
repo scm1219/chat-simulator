@@ -10,16 +10,16 @@
             ✏️
           </button>
           <button
-            :class="['action-btn', 'danger', { confirming: deleteConfirming }]"
+            class="action-btn danger"
             @click="handleDeleteClick"
-            :title="deleteConfirming ? '确认删除' : '删除'"
+            title="删除"
           >
-            {{ deleteConfirming ? '✔️' : '🗑️' }}
+            🗑️
           </button>
           <button
             v-if="!editing"
             :class="['action-btn', { disabled: sending }]"
-            @click="handleResend"
+            @click="handleResendClick"
             :disabled="sending"
             title="重发"
           >
@@ -51,11 +51,11 @@
             ✏️
           </button>
           <button
-            :class="['action-btn', 'danger', { confirming: deleteConfirming }]"
+            class="action-btn danger"
             @click="handleDeleteClick"
-            :title="deleteConfirming ? '确认删除' : '删除'"
+            title="删除"
           >
-            {{ deleteConfirming ? '✔️' : '🗑️' }}
+            🗑️
           </button>
         </div>
       </div>
@@ -104,9 +104,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 
 const props = defineProps({
   message: {
@@ -126,10 +127,7 @@ const isHighlighted = computed(() => {
 
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
-
-// 删除确认状态
-const deleteConfirming = ref(false)
-let deleteConfirmTimer = null
+const { confirm } = useDialog()
 
 const isUser = computed(() => props.message.role === 'user')
 
@@ -213,13 +211,25 @@ const editContent = ref('')
 const messageContainer = ref(null)
 const editTextarea = ref(null)
 
+// 记录编辑前气泡的宽度
+const editWidth = ref(null)
+
 async function startEdit() {
+  // 记录当前气泡内容的实际宽度
+  const bubble = messageContainer.value?.querySelector('.bubble-content')
+  if (bubble) {
+    editWidth.value = bubble.offsetWidth
+  }
+
   editing.value = true
   editContent.value = props.message.content
 
-  // 等待 DOM 更新后聚焦文本框并调整高度
+  // 等待 DOM 更新后聚焦文本框并调整高度和宽度
   await nextTick()
   if (editTextarea.value) {
+    if (editWidth.value) {
+      editTextarea.value.style.width = editWidth.value + 'px'
+    }
     editTextarea.value.focus()
     adjustTextareaHeight()
   }
@@ -263,39 +273,36 @@ async function saveEdit() {
 }
 
 async function handleDeleteClick() {
-  if (deleteConfirming.value) {
-    // 第二次点击，执行删除
+  const confirmed = await confirm({
+    title: '删除消息',
+    message: '确定要删除这条消息吗？删除后不可恢复。',
+    confirmText: '删除',
+    cancelText: '取消',
+    confirmType: 'danger'
+  })
+  if (confirmed) {
     await deleteMessage()
-    resetDeleteConfirm()
-  } else {
-    // 第一次点击，进入确认模式
-    deleteConfirming.value = true
-
-    // 3秒后自动重置
-    deleteConfirmTimer = setTimeout(() => {
-      resetDeleteConfirm()
-    }, 3000)
   }
 }
-
-function resetDeleteConfirm() {
-  deleteConfirming.value = false
-  if (deleteConfirmTimer) {
-    clearTimeout(deleteConfirmTimer)
-    deleteConfirmTimer = null
-  }
-}
-
-// 组件卸载时清理定时器
-onUnmounted(() => {
-  resetDeleteConfirm()
-})
 
 async function deleteMessage() {
   try {
     await messagesStore.deleteMessage(props.message.id)
   } catch (error) {
     toast.error('删除消息失败: ' + error.message)
+  }
+}
+
+async function handleResendClick() {
+  const confirmed = await confirm({
+    title: '重发消息',
+    message: '确定要重新发送这条消息吗？',
+    confirmText: '重发',
+    cancelText: '取消',
+    confirmType: 'warning'
+  })
+  if (confirmed) {
+    await handleResend()
   }
 }
 
@@ -373,17 +380,6 @@ async function handleResend() {
     color: #dc2626;
   }
 
-  &.confirming {
-    background: #dc2626;
-    color: white;
-    animation: pulse 0.5s ease-in-out infinite alternate;
-
-    &:hover {
-      background: #b91c1c;
-      color: white;
-    }
-  }
-
   &.disabled {
     opacity: 0.3;
     cursor: not-allowed;
@@ -391,15 +387,6 @@ async function handleResend() {
     &:hover {
       background: none;
     }
-  }
-}
-
-@keyframes pulse {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.1);
   }
 }
 
