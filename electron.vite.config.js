@@ -5,9 +5,14 @@ import { resolve } from 'path'
 export default defineConfig({
   main: {
     build: {
+      outDir: 'out/main',
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main.js')
+        },
+        output: {
+          entryFileNames: '[name].mjs',
+          format: 'es'
         },
         external: ['electron', 'better-sqlite3']
       }

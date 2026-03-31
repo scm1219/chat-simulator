@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "LLM 角色扮演聊天模拟器",
   "main": "out/main/index.mjs",
+  "type": "module",
   "author": "Your Name",
   "license": "MIT",
   "scripts": {
