@@ -10,9 +10,39 @@
     "dev": "node scripts/dev.js",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:win": "electron-vite build --win",
-    "build:mac": "electron-vite build --mac",
-    "build:linux": "electron-vite build --linux"
+    "build:win": "electron-vite build && npx electron-builder --win",
+    "build:mac": "electron-vite build && npx electron-builder --mac",
+    "build:linux": "electron-vite build && npx electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.chatsimulator.app",
+    "productName": "Chat Simulator",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ]
   },
   "dependencies": {
     "archiver": "^7.0.1",
