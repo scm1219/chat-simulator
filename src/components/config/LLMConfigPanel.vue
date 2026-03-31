@@ -140,9 +140,13 @@ const providerGroups = computed(() => {
     }
   })
 
-  // 过滤掉没有配置的供应商，并按名称排序
+  // 过滤掉没有配置的供应商，按名称排序；供应商内的配置按名称字典排序
   return Object.values(groups)
     .filter(group => group.profiles.length > 0)
+    .map(group => ({
+      ...group,
+      profiles: [...group.profiles].sort((a, b) => a.name.localeCompare(b.name))
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 

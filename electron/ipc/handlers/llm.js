@@ -501,8 +501,8 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
   })
 
   // 快速建群：根据描述生成群组信息
-  ipcMain.handle('llm:generateGroup', async (event, description = '') => {
-    console.log('[LLM] 开始生成群组信息', { description })
+  ipcMain.handle('llm:generateGroup', async (event, description = '', profileId = '') => {
+    console.log('[LLM] 开始生成群组信息', { description, profileId })
 
     try {
       // 1. 获取 LLM 配置文件列表
@@ -512,8 +512,10 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         return { success: false, error: '请先在 LLM 配置管理中添加配置' }
       }
 
-      // 2. 使用第一个配置文件
-      const profile = llmProfiles[0]
+      // 2. 使用指定或第一个配置文件
+      const profile = profileId
+        ? llmProfiles.find(p => p.id === profileId) || llmProfiles[0]
+        : llmProfiles[0]
       console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
 
       // 3. 创建 LLM 客户端

@@ -346,7 +346,7 @@ watch([proxyType, customProxyUrl, bypassRules], () => {
 let isUpdatingFromProps = false
 
 // 供应商列表
-const providers = Object.values(LLM_PROVIDERS)
+const providers = Object.values(LLM_PROVIDERS).sort((a, b) => a.name.localeCompare(b.name))
 
 // 当前供应商配置
 const currentProvider = computed(() => {

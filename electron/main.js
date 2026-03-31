@@ -36,6 +36,17 @@ function createWindow() {
   } else {
     console.log('Loading production file')
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    // 生产环境设置 CSP，禁止 unsafe-eval
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://* http://*; img-src 'self' data: blob: https://* http://*"
+          ]
+        }
+      })
+    })
   }
 
   // 窗口准备好后显示

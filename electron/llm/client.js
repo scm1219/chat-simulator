@@ -86,6 +86,20 @@ export class LLMClient {
   }
 
   /**
+   * 设置思考模式参数
+   * 同时传递三种格式，兼容所有供应商（忽略不识别的字段）
+   * - thinking: DeepSeek、智谱 GLM 等
+   * - chat_template_kwargs: ModelScope（Qwen3.5 系列）
+   * - enable_thinking: 阿里云百炼平台
+   */
+  applyThinkingMode(requestData, thinkingEnabled) {
+    const enabled = thinkingEnabled === true
+    requestData.thinking = { type: enabled ? 'enabled' : 'disabled' }
+    requestData.chat_template_kwargs = { enable_thinking: enabled }
+    requestData.enable_thinking = enabled
+  }
+
+  /**
    * 构建请求头
    */
   buildHeaders() {
@@ -141,22 +155,8 @@ export class LLMClient {
         requestData.stream_options = { include_usage: true }
       }
 
-      // 处理思考模式参数（智谱 GLM 等模型支持）
-      if (options.thinkingEnabled === true) {
-        // 明确启用思考模式
-        requestData.thinking = {
-          type: 'enabled'
-        }
-      } else {
-        // 禁用思考模式或未设置时，ModelScope 默认关闭思考（Qwen3.5 默认开启）
-        if (this.provider === 'modelscope') {
-          requestData.chat_template_kwargs = { enable_thinking: false }
-        } else {
-          requestData.thinking = {
-            type: 'disabled'
-          }
-        }
-      }
+      // 处理思考模式参数：同时传递三种格式，兼容所有供应商
+      this.applyThinkingMode(requestData, options.thinkingEnabled)
 
       // 打印请求参数（用于调试）
       console.log('[LLM Client] 请求参数:', {
@@ -169,7 +169,9 @@ export class LLMClient {
         temperature: requestData.temperature,
         max_tokens: requestData.max_tokens,
         stream: requestData.stream,
-        thinking: requestData.thinking || '未设置（模型自动决定）'
+        thinking: requestData.thinking || '未设置（模型自动决定）',
+        chat_template_kwargs: requestData.chat_template_kwargs || undefined,
+        enable_thinking: requestData.enable_thinking !== undefined ? requestData.enable_thinking : undefined
       })
 
       if (isStreaming) {

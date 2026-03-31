@@ -28,6 +28,20 @@
           <!-- 步骤 1：输入描述 -->
           <div v-if="step === 'input'" class="step-input">
             <div class="form-group">
+              <label class="form-label">LLM 配置</label>
+              <select v-model="selectedProfileId" class="input" :disabled="loadingProfiles">
+                <option value="">-- 请选择配置 --</option>
+                <option
+                  v-for="profile in llmProfiles"
+                  :key="profile.id"
+                  :value="profile.id"
+                >
+                  {{ profile.name }} ({{ getProviderName(profile.provider) }} - {{ profile.model }})
+                </option>
+              </select>
+            </div>
+
+            <div class="form-group">
               <label class="form-label">群组描述</label>
               <textarea
                 v-model="description"
@@ -262,7 +276,16 @@ const preview = reactive({
   characters: []
 })
 
-const llmProfiles = computed(() => profilesStore.profiles)
+// 按供应商定义顺序排序，同供应商内按名称字典序
+const providerOrder = Object.keys(LLM_PROVIDERS)
+const llmProfiles = computed(() => {
+  return [...profilesStore.profiles].sort((a, b) => {
+    const ai = providerOrder.indexOf(a.provider)
+    const bi = providerOrder.indexOf(b.provider)
+    if (ai !== bi) return ai - bi
+    return a.name.localeCompare(b.name)
+  })
+})
 const loadingProfiles = computed(() => profilesStore.loading)
 
 const canCreate = computed(() => {
@@ -323,9 +346,14 @@ function removeCharacter(index) {
 async function handleGenerate() {
   if (!description.value.trim()) return
 
+  if (!selectedProfileId.value) {
+    toast.warning('请先选择 LLM 配置')
+    return
+  }
+
   generating.value = true
   try {
-    const result = await window.electronAPI.llm.generateGroup(description.value.trim())
+    const result = await window.electronAPI.llm.generateGroup(description.value.trim(), selectedProfileId.value)
 
     if (result.success) {
       preview.name = result.data.name || ''
@@ -336,11 +364,6 @@ async function handleGenerate() {
         age: c.age || 20,
         systemPrompt: c.systemPrompt || ''
       }))
-
-      // 自动选择第一个 LLM 配置
-      if (llmProfiles.value.length > 0 && !selectedProfileId.value) {
-        selectedProfileId.value = llmProfiles.value[0].id
-      }
 
       step.value = 'preview'
       toast.success('群组方案生成成功！')

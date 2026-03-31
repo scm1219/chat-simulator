@@ -22,7 +22,7 @@ export const LLM_PROVIDERS = {
     id: 'qwen',
     name: '通义千问',
     baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen-plus', 'qwen-turbo', 'qwen-max'],
+    models: ['qwen-plus', 'qwen3-max', 'qwen3.5-flash', 'qwen3.5-plus'],
     needApiKey: true,
     needBaseUrl: false
   },
@@ -38,7 +38,7 @@ export const LLM_PROVIDERS = {
     id: 'zhipu',
     name: '智谱AI',
     baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-5', 'glm-4.7', 'glm-4.6v', 'glm-4-plus', 'glm-4-flash'],
+    models: ['glm-4.5-air', 'glm-4.7-flash', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1'],
     needApiKey: true,
     needBaseUrl: false
   },

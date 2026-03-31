@@ -165,7 +165,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式内容片段
     streamChunkListener = window.electronAPI.message.onStreamChunk((data) => {
-      console.log('[Messages] 收到流式内容片段', data.tempId, data.type, data.content?.length)
+      // console.log('[Messages] 收到流式内容片段', data.tempId, data.type, data.content?.length)
       // 更新临时消息的流式内容
       const message = messages.value.find(msg => msg.id === data.tempId || msg.tempId === data.tempId)
       if (message) {

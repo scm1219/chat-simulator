@@ -177,7 +177,16 @@ const form = ref({
   background: ''
 })
 
-const llmProfiles = computed(() => profilesStore.profiles)
+// 按供应商定义顺序排序，同供应商内按名称字典序
+const providerOrder = Object.keys(LLM_PROVIDERS)
+const llmProfiles = computed(() => {
+  return [...profilesStore.profiles].sort((a, b) => {
+    const ai = providerOrder.indexOf(a.provider)
+    const bi = providerOrder.indexOf(b.provider)
+    if (ai !== bi) return ai - bi
+    return a.name.localeCompare(b.name)
+  })
+})
 const loadingProfiles = computed(() => profilesStore.loading)
 const showProfileManager = ref(false)
 

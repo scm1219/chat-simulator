@@ -21,13 +21,19 @@
               @change="handleModelChange"
             >
               <option value="" disabled>-- 请选择模型 --</option>
-              <option
-                v-for="profile in llmProfilesStore.profiles"
-                :key="profile.id"
-                :value="profile.id"
+              <optgroup
+                v-for="group in profileGroups"
+                :key="group.id"
+                :label="group.name"
               >
-                {{ profile.name }} ({{ profile.model }})
-              </option>
+                <option
+                  v-for="profile in group.profiles"
+                  :key="profile.id"
+                  :value="profile.id"
+                >
+                  {{ profile.name }} ({{ profile.model }})
+                </option>
+              </optgroup>
             </select>
             <span v-if="switchingModel" class="switching-indicator">切换中...</span>
           </div>
@@ -83,6 +89,7 @@ import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
+import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 
@@ -103,6 +110,25 @@ const currentGroup = computed(() => groupsStore.currentGroup)
 const selectedProfileId = ref('')
 const switchingModel = ref(false)
 const exporting = ref(false)
+
+// 按供应商分组的模型列表（供应商名称排序，组内模型名称排序）
+const profileGroups = computed(() => {
+  const groups = {}
+  llmProfilesStore.profiles.forEach(profile => {
+    const providerId = profile.provider
+    const providerName = LLM_PROVIDERS[providerId]?.name || providerId
+    if (!groups[providerId]) {
+      groups[providerId] = { id: providerId, name: providerName, profiles: [] }
+    }
+    groups[providerId].profiles.push(profile)
+  })
+  return Object.values(groups)
+    .map(group => ({
+      ...group,
+      profiles: [...group.profiles].sort((a, b) => a.name.localeCompare(b.name))
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
 
 // 根据当前群组配置找到对应的 profile ID
 function findCurrentProfileId() {
@@ -302,6 +328,9 @@ watch(
   { flush: 'post' }
 )
 
+// 流式消息监听器清理引用
+let cleanupStreamListeners = null
+
 // 监听新消息
 onMounted(async () => {
   // 加载 LLM 配置列表
@@ -317,12 +346,12 @@ onMounted(async () => {
   })
 
   // 设置流式消息监听器
-  const cleanupStreamListeners = messagesStore.setupStreamListeners()
+  cleanupStreamListeners = messagesStore.setupStreamListeners()
+})
 
-  // 组件卸载时清理监听器
-  onUnmounted(() => {
-    cleanupStreamListeners?.()
-  })
+// 组件卸载时清理监听器
+onUnmounted(() => {
+  cleanupStreamListeners?.()
 })
 </script>
 
