@@ -24,7 +24,8 @@
       "WebSearch",
       "Bash(node -e \":*)",
       "Bash(npx electron-vite:*)",
-      "Bash(node -c electron/ipc/handlers/llm.js)"
+      "Bash(node -c electron/ipc/handlers/llm.js)",
+      "Bash(npm view:*)"
     ]
   }
 }
