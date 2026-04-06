@@ -188,11 +188,16 @@ function handleAddModelToProvider(providerId) {
   editingProfile.value = null
   const providerConfig = LLM_PROVIDERS[providerId]
 
+  // 获取第一个已有配置的 API Key 和地址作为默认值
+  const firstProfile = profiles.value?.[0]
+  const defaultApiKey = firstProfile?.apiKey || ''
+  const defaultBaseURL = firstProfile?.baseURL || providerConfig.baseURL || ''
+
   formData.value = {
     name: `${providerConfig.name} 配置`,
     provider: providerId,
-    apiKey: '',
-    baseURL: providerConfig.baseURL || '',
+    apiKey: defaultApiKey,
+    baseURL: defaultBaseURL,
     model: providerConfig.models?.[0] || '',
     streamEnabled: true,
     thinkingEnabled: false,

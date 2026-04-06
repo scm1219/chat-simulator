@@ -42,6 +42,14 @@ export const LLM_PROVIDERS = {
     needApiKey: true,
     needBaseUrl: false
   },
+  'zhipu-coding': {
+    id: 'zhipu-coding',
+    name: '智谱AI(Coding)',
+    baseURL: 'https://open.bigmodel.cn/api/coding/paas/v4',
+    models: ['glm-4.5-air', 'glm-4.7-flash', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1'],
+    needApiKey: true,
+    needBaseUrl: false
+  },
   baichuan: {
     id: 'baichuan',
     name: '百川智能',
