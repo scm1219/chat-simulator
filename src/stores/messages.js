@@ -198,6 +198,7 @@ export const useMessagesStore = defineStore('messages', () => {
         reasoning_content: data.reasoningContent || null,
         prompt_tokens: data.promptTokens ?? null,
         completion_tokens: data.completionTokens ?? null,
+        model: data.model || null,
         timestamp: data.timestamp
       })
     })

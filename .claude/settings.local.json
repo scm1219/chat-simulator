@@ -25,7 +25,8 @@
       "Bash(node -e \":*)",
       "Bash(npx electron-vite:*)",
       "Bash(node -c electron/ipc/handlers/llm.js)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "mcp__zread__get_repo_structure"
     ]
   }
 }

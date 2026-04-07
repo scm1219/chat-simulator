@@ -98,6 +98,10 @@
       <span v-if="tokenInfo" class="token-info">
         <span class="token-item token-in" title="输入 token">&#8593;{{ tokenInfo.prompt }}</span>
         <span class="token-item token-out" title="输出 token">&#8595;{{ tokenInfo.completion }}</span>
+        <span v-if="displayModel" class="token-item token-model" :title="'模型: ' + displayModel">{{ displayModel }}</span>
+      </span>
+      <span v-else-if="displayModel" class="token-info">
+        <span class="token-item token-model" :title="'模型: ' + displayModel">{{ displayModel }}</span>
       </span>
     </div>
   </div>
@@ -203,6 +207,12 @@ const tokenInfo = computed(() => {
     prompt: prompt ?? 0,
     completion: completion ?? 0
   }
+})
+
+// 模型信息（仅 assistant 消息显示）
+const displayModel = computed(() => {
+  if (isUser.value) return null
+  return props.message.model || null
 })
 
 // 编辑状态
@@ -478,6 +488,14 @@ async function handleResend() {
 
 .token-out {
   color: $color-danger;
+}
+
+.token-model {
+  color: $text-placeholder;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user .message-time {

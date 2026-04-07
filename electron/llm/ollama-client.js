@@ -140,6 +140,7 @@ export class OllamaNativeClient {
         success: true,
         content: content,
         reasoningContent: thinking || null,
+        model: response.data.model || this.model,
         usage: {
           prompt_tokens: response.data.prompt_eval_count || 0,
           completion_tokens: response.data.eval_count || 0,
@@ -163,6 +164,7 @@ export class OllamaNativeClient {
 
       let fullContent = ''
       let fullThinking = ''
+      let responseModel = null
 
       return new Promise((resolve, reject) => {
         let buffer = ''
@@ -177,6 +179,11 @@ export class OllamaNativeClient {
 
             try {
               const parsed = JSON.parse(line)
+
+              // 收集 model（从首个包含 model 的 chunk 中获取）
+              if (parsed.model && !responseModel) {
+                responseModel = parsed.model
+              }
 
               // Ollama 原生格式
               const message = parsed.message
@@ -200,7 +207,8 @@ export class OllamaNativeClient {
                 resolve({
                   success: true,
                   content: fullContent,
-                  reasoningContent: fullThinking || null
+                  reasoningContent: fullThinking || null,
+                  model: responseModel || this.model
                 })
                 return
               }
@@ -219,7 +227,8 @@ export class OllamaNativeClient {
                 resolve({
                   success: true,
                   content: fullContent,
-                  reasoningContent: fullThinking || null
+                  reasoningContent: fullThinking || null,
+                  model: responseModel || this.model
                 })
                 return
               }
@@ -231,7 +240,8 @@ export class OllamaNativeClient {
           resolve({
             success: true,
             content: fullContent,
-            reasoningContent: fullThinking || null
+            reasoningContent: fullThinking || null,
+            model: responseModel || this.model
           })
         })
 

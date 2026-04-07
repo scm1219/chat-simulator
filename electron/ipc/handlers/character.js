@@ -69,6 +69,10 @@ export function setupCharacterHandlers(dbManager) {
             updates.push('thinking_enabled = ?')
             values.push(data.thinkingEnabled ? 1 : 0)
           }
+          if (data.customLlmProfileId !== undefined) {
+            updates.push('custom_llm_profile_id = ?')
+            values.push(data.customLlmProfileId || null)
+          }
 
           if (updates.length > 0) {
             values.push(id)

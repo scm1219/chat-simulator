@@ -214,6 +214,7 @@ export class LLMClient {
           success: true,
           content: content,
           reasoningContent: reasoningContent,
+          model: response.data.model || this.model,
           usage: response.data.usage || undefined
         }
       }
@@ -234,11 +235,13 @@ export class LLMClient {
       let fullContent = ''
       let fullReasoningContent = ''
       let usage = null
+      let responseModel = null
 
       const buildResult = () => ({
         success: true,
         content: fullContent,
         reasoningContent: fullReasoningContent || null,
+        model: responseModel || this.model,
         usage: usage || undefined
       })
 
@@ -275,6 +278,11 @@ export class LLMClient {
                 // 提取 usage（通常在最后一个 chunk 中）
                 if (parsed.usage) {
                   usage = parsed.usage
+                }
+
+                // 提取 model（从首个包含 model 的 chunk 中获取）
+                if (parsed.model && !responseModel) {
+                  responseModel = parsed.model
                 }
               } catch (e) {
                 console.warn('[LLM] 解析流式数据失败', e.message)

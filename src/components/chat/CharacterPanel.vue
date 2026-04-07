@@ -220,6 +220,39 @@
               {{ char.sending ? '发送中...' : '发送' }}
             </button>
           </div>
+
+          <!-- 独立模型设置（仅 AI 角色） -->
+          <div v-if="char.is_user !== 1" class="character-model-setting">
+            <label class="model-checkbox-label">
+              <input
+                type="checkbox"
+                :checked="!!char.custom_llm_profile_id"
+                @change="toggleCustomModel(char)"
+              />
+              <span>独立设置模型</span>
+            </label>
+            <select
+              v-if="char.custom_llm_profile_id"
+              class="model-select"
+              :value="char.custom_llm_profile_id"
+              @change="updateCharacterModel(char, $event.target.value)"
+            >
+              <option value="">-- 使用群组默认 --</option>
+              <optgroup
+                v-for="group in profileGroups"
+                :key="group.providerId"
+                :label="group.providerName"
+              >
+                <option
+                  v-for="profile in group.profiles"
+                  :key="profile.id"
+                  :value="profile.id"
+                >
+                  {{ profile.name }} ({{ profile.model }})
+                </option>
+              </optgroup>
+            </select>
+          </div>
         </div>
 
         <div v-if="charactersStore.characters.length === 0" class="empty-state">
@@ -298,14 +331,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useMemoryStore } from '../../stores/memory.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
+import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useDialog } from '../../composables/useDialog'
+import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
 import EditCharacterDialog from '../config/EditCharacterDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
@@ -316,6 +351,7 @@ const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const memoryStore = useMemoryStore()
 const globalCharsStore = useGlobalCharactersStore()
+const llmProfilesStore = useLLMProfilesStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
@@ -330,6 +366,42 @@ const libraryCharIds = ref(new Set()) // 记录哪些角色存在于角色库
 const syncingIds = ref(new Set()) // 正在同步的角色 ID
 
 const currentGroup = computed(() => groupsStore.currentGroup)
+
+// LLM Profile 按供应商分组（用于下拉框）
+const profileGroups = computed(() => {
+  const profiles = llmProfilesStore.profiles
+  if (!profiles || profiles.length === 0) return []
+
+  const groups = {}
+  Object.values(LLM_PROVIDERS).forEach(provider => {
+    groups[provider.id] = {
+      providerId: provider.id,
+      providerName: provider.name,
+      profiles: []
+    }
+  })
+
+  profiles.forEach(profile => {
+    if (groups[profile.provider]) {
+      groups[profile.provider].profiles.push(profile)
+    }
+  })
+
+  return Object.values(groups)
+    .filter(group => group.profiles.length > 0)
+    .sort((a, b) => a.providerName.localeCompare(b.providerName))
+})
+
+// 获取供应商名称
+function getProviderName(providerId) {
+  const provider = LLM_PROVIDERS[providerId]
+  return provider ? provider.name : providerId
+}
+
+// 加载 LLM Profile 列表
+onMounted(async () => {
+  await llmProfilesStore.loadProfiles()
+})
 
 // 获取非用户角色的数量
 const aiCharacterCount = computed(() => {
@@ -513,6 +585,33 @@ async function toggleCharacterThinking(char) {
     })
   } catch (error) {
     toast.error('更新角色思考模式失败: ' + error.message)
+  }
+}
+
+// 切换角色独立模型设置
+async function toggleCustomModel(char) {
+  try {
+    const newValue = char.custom_llm_profile_id ? null : (llmProfilesStore.profiles[0]?.id || null)
+    await charactersStore.updateCharacter(char.id, {
+      customLlmProfileId: newValue
+    })
+    // 重新加载角色列表以更新 UI
+    if (currentGroup.value) {
+      await charactersStore.loadCharacters(currentGroup.value.id)
+    }
+  } catch (error) {
+    toast.error('更新角色模型设置失败: ' + error.message)
+  }
+}
+
+// 更新角色使用的 LLM Profile
+async function updateCharacterModel(char, profileId) {
+  try {
+    await charactersStore.updateCharacter(char.id, {
+      customLlmProfileId: profileId || null
+    })
+  } catch (error) {
+    toast.error('更新角色模型失败: ' + error.message)
   }
 }
 
@@ -910,6 +1009,63 @@ async function sendCommand(char) {
   display: flex;
   gap: $spacing-sm;
   margin-bottom: $spacing-sm;
+}
+
+.character-model-setting {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  margin-bottom: $spacing-sm;
+  padding-top: $spacing-xs;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+
+  .model-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+    cursor: pointer;
+    user-select: none;
+    font-size: $font-size-xs;
+    color: $text-secondary;
+
+    input[type="checkbox"] {
+      cursor: pointer;
+      width: 14px;
+      height: 14px;
+      accent-color: $color-primary;
+    }
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+
+  .model-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-sm;
+    font-size: $font-size-sm;
+    background: $bg-primary;
+    color: $text-primary;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &:focus {
+      border-color: $color-primary;
+    }
+
+    optgroup {
+      font-weight: $font-weight-medium;
+      color: $text-secondary;
+    }
+
+    option {
+      color: $text-primary;
+      padding: 4px 0;
+    }
+  }
 }
 
 .command-input {

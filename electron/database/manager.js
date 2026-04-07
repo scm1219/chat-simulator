@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS characters (
   is_user INTEGER DEFAULT 0,
   position INTEGER DEFAULT 0,
   thinking_enabled INTEGER DEFAULT 0,
+  custom_llm_profile_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
@@ -226,6 +227,22 @@ export class DatabaseManager {
       db.exec('ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER')
       db.exec('ALTER TABLE messages ADD COLUMN completion_tokens INTEGER')
       console.log(`[Database][${groupId}] 迁移完成：token 字段已添加`)
+    }
+
+    // 检查 characters 表是否有 custom_llm_profile_id 字段
+    const hasCustomLLMProfileId = charTableInfo.some(col => col.name === 'custom_llm_profile_id')
+    if (!hasCustomLLMProfileId) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 characters.custom_llm_profile_id 字段`)
+      db.exec('ALTER TABLE characters ADD COLUMN custom_llm_profile_id TEXT')
+      console.log(`[Database][${groupId}] 迁移完成: custom_llm_profile_id 字段已添加`)
+    }
+
+    // 检查 messages 表是否有 model 字段
+    const hasModel = tableInfo.some(col => col.name === 'model')
+    if (!hasModel) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.model 字段`)
+      db.exec('ALTER TABLE messages ADD COLUMN model TEXT')
+      console.log(`[Database][${groupId}] 迁移完成: model 字段已添加`)
     }
 
     // 检查 groups 表是否有 auto_memory_extract 字段

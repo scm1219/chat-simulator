@@ -23,6 +23,65 @@ function resolveClientProxy(profile, baseURL) {
 }
 
 /**
+ * 为角色创建 LLM 客户端
+ * 如果角色有独立 LLM Profile 配置，使用角色级配置；否则回退到群组配置
+ * @param {object} character - 角色对象（含 custom_llm_profile_id）
+ * @param {object} group - 群组对象
+ * @param {Array} llmProfiles - 所有 LLM Profile 列表
+ * @param {string} apiKey - API Key
+ * @returns {{ client: LLMClient|OllamaNativeClient, profileId: string|null }}
+ */
+function createClientForCharacter(character, group, llmProfiles, apiKey) {
+  // 角色有独立 LLM Profile，使用角色级配置
+  if (character.custom_llm_profile_id) {
+    const profile = llmProfiles.find(p => p.id === character.custom_llm_profile_id)
+    if (profile) {
+      console.log(`[LLM] 角色 ${character.name} 使用独立 LLM 配置: ${profile.name} (${profile.provider}/${profile.model})`)
+      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
+      const client = createLLMClient({
+        provider: profile.provider,
+        apiKey: profile.apiKey || apiKey,
+        baseURL: profile.baseURL,
+        model: profile.model,
+        proxy: resolvedProxy,
+        bypassRules,
+        streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
+        useNativeApi: profile.useNativeApi === true
+      })
+      return { client, profileId: profile.id }
+    } else {
+      console.warn(`[LLM] 角色 ${character.name} 的独立 LLM Profile ${character.custom_llm_profile_id} 未找到，回退到群组配置`)
+    }
+  }
+
+  // 使用群组默认配置
+  const currentProfile = llmProfiles.find(p =>
+    p.provider === group.llm_provider && p.model === group.llm_model
+  )
+  const streamEnabled = currentProfile?.streamEnabled !== undefined
+    ? currentProfile.streamEnabled
+    : true
+  const useNativeApi = currentProfile?.useNativeApi === true
+  const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(
+    currentProfile || null,
+    group.llm_base_url
+  )
+
+  const client = createLLMClient({
+    provider: group.llm_provider,
+    apiKey: apiKey,
+    baseURL: group.llm_base_url,
+    model: group.llm_model,
+    proxy: resolvedProxy,
+    bypassRules,
+    streamEnabled,
+    useNativeApi
+  })
+
+  return { client, profileId: null }
+}
+
+/**
  * 创建 LLM 客户端（根据配置自动选择 OpenAI 兼容或原生客户端）
  */
 function createLLMClient(config) {
@@ -187,34 +246,8 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
       }
       console.log('[LLM] API Key 配置检查', { hasKey: !!apiKey, needApiKey, provider: group.llm_provider })
 
-      // 6. 创建 LLM 客户端
-      // 获取 LLM 配置文件，读取流式输出、原生 API 和代理设置
+      // 6. 获取 LLM 配置文件列表
       const llmProfiles = getLLMProfiles()
-      const currentProfile = llmProfiles.find(p =>
-        p.provider === group.llm_provider && p.model === group.llm_model
-      )
-      const streamEnabled = currentProfile?.streamEnabled !== undefined
-        ? currentProfile.streamEnabled
-        : true
-      const useNativeApi = currentProfile?.useNativeApi === true
-
-      // 从 Profile 解析代理配置
-      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(
-        currentProfile || null,
-        group.llm_base_url
-      )
-
-      const client = createLLMClient({
-        provider: group.llm_provider,
-        apiKey: apiKey,
-        baseURL: group.llm_base_url,
-        model: group.llm_model,
-        proxy: resolvedProxy,
-        bypassRules,
-        streamEnabled: streamEnabled,
-        useNativeApi: useNativeApi
-      })
-      console.log('[LLM] LLM 客户端创建成功', { streamEnabled, useNativeApi, proxyType: currentProfile?.proxy?.type || 'none' })
 
       // 7. 根据回复模式调用 LLM
       const responseMode = group.response_mode || 'sequential'
@@ -224,10 +257,11 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
       const responses = []
 
       if (responseMode === 'parallel') {
-        // 并行模式：同时调用所有角色
-        const promises = characters.map(character =>
-          generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
-        )
+        // 并行模式：同时调用所有角色（每个角色独立创建客户端）
+        const promises = characters.map(character => {
+          const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
+          return generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
+        })
         const results = await Promise.all(promises)
         responses.push(...results)
       } else {
@@ -241,6 +275,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
           console.log('[LLM] 随机发言顺序:', characters.map(c => c.name))
         }
         for (const character of characters) {
+          const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
           const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
           responses.push(response)
 
@@ -354,33 +389,9 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         return { success: false, error: '请先配置 API Key' }
       }
 
-      // 7. 创建 LLM 客户端
-      // 获取 LLM 配置文件，读取流式输出、原生 API 和代理设置
+      // 7. 获取 LLM 配置文件列表并创建客户端
       const llmProfiles = getLLMProfiles()
-      const currentProfile = llmProfiles.find(p =>
-        p.provider === group.llm_provider && p.model === group.llm_model
-      )
-      const streamEnabled = currentProfile?.streamEnabled !== undefined
-        ? currentProfile.streamEnabled
-        : true
-      const useNativeApi = currentProfile?.useNativeApi === true
-
-      // 从 Profile 解析代理配置
-      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(
-        currentProfile || null,
-        group.llm_base_url
-      )
-
-      const client = createLLMClient({
-        provider: group.llm_provider,
-        apiKey: apiKey,
-        baseURL: group.llm_base_url,
-        model: group.llm_model,
-        proxy: resolvedProxy,
-        bypassRules,
-        streamEnabled: streamEnabled,
-        useNativeApi: useNativeApi
-      })
+      const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
 
       // 8. 生成单角色回复
       const thinkingEnabled = group.thinking_enabled === 1
@@ -669,21 +680,23 @@ async function generateCharacterResponse(client, character, history, userContent
         usage: result.usage
       })
 
-      // 保存完整回复到数据库（包含思考内容和 token 用量）
+      // 保存完整回复到数据库（包含思考内容、token 用量和模型信息）
       const assistantMsgId = generateUUID()
       const promptTokens = result.usage?.prompt_tokens ?? null
       const completionTokens = result.usage?.completion_tokens ?? null
+      const responseModel = result.model || null
       console.log(`[LLM] ${character.name} - 保存消息到数据库`, {
         messageId: assistantMsgId,
         characterId: character.id,
         characterName: character.name,
         promptTokens,
-        completionTokens
+        completionTokens,
+        model: responseModel
       })
       db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens)
+        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel)
 
       // 验证保存是否成功
       const savedMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(assistantMsgId)
@@ -705,6 +718,7 @@ async function generateCharacterResponse(client, character, history, userContent
         reasoningContent: result.reasoningContent || null,
         promptTokens: promptTokens,
         completionTokens: completionTokens,
+        model: responseModel,
         timestamp: new Date().toISOString()
       })
 
