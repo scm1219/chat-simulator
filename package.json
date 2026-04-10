@@ -30,7 +30,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -47,7 +49,7 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
-    "axios": "^1.14.0",
+    "axios": "^1.15.0",
     "pinia": "^3.0.4",
     "uuid": "^13.0.0",
     "vue": "^3.5.32"
@@ -56,9 +58,9 @@
     "@electron/rebuild": "^4.0.3",
     "@vitejs/plugin-vue": "^6.0.5",
     "better-sqlite3": "^12.8.0",
-    "electron": "^41.1.1",
+    "electron": "^41.2.0",
     "electron-vite": "^5.0.0",
     "sass": "^1.99.0",
-    "vite": "^8.0.3"
+    "vite": "^8.0.8"
   }
 }
