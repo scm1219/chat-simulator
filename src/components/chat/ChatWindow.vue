@@ -66,13 +66,31 @@
         />
       </div>
 
+      <!-- 平淡提示 & 事件面板（输入框上方） -->
+      <StalenessTip
+        :visible="showStalenessTip"
+        @showEvents="showEventPanel = true"
+        @dismiss="showStalenessTip = false"
+      />
+      <EventPanel
+        v-if="showEventPanel"
+        :group-id="currentGroup?.id"
+        :scene-type="currentGroup?.event_scene_type || 'general'"
+        @eventTriggered="handleEventTriggered"
+      />
+
       <!-- 输入框 -->
       <div class="chat-input">
-        <MessageInput
-          @send="handleSendMessage"
-          @clear="handleClearMessages"
-          :disabled="messagesStore.sending"
-        />
+        <div class="input-row">
+          <MessageInput
+            @send="handleSendMessage"
+            @clear="handleClearMessages"
+            :disabled="messagesStore.sending"
+          />
+          <button class="btn-event" @click="showEventPanel = !showEventPanel" title="事件">
+            &#127916;
+          </button>
+        </div>
       </div>
     </div>
 
@@ -92,12 +110,20 @@ import { useToastStore } from '../../stores/toast'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
+import StalenessTip from './StalenessTip.vue'
+import EventPanel from './EventPanel.vue'
+import { useNarrativeStore } from '../../stores/narrative.js'
 
 const groupsStore = useGroupsStore()
 const messagesStore = useMessagesStore()
 const charactersStore = useCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
 const toast = useToastStore()
+const narrativeStore = useNarrativeStore()
+
+// 事件面板 & 平淡提示
+const showStalenessTip = ref(false)
+const showEventPanel = ref(false)
 
 // 右侧面板控制
 const rightPanelVisible = inject('rightPanelVisible')
@@ -192,6 +218,11 @@ function getCharacter(characterId) {
 async function handleSendMessage(content) {
   try {
     await messagesStore.sendMessage(content)
+    // 发送完成后检查平淡度
+    if (groupsStore.currentGroupId) {
+      await narrativeStore.checkStaleness(groupsStore.currentGroupId)
+      showStalenessTip.value = narrativeStore.staleness.stale
+    }
   } catch (error) {
     toast.error('发送消息失败: ' + error.message)
   }
@@ -229,6 +260,12 @@ async function handleExportMessages() {
   }
 }
 
+// 事件触发后的处理
+function handleEventTriggered() {
+  showEventPanel.value = false
+  showStalenessTip.value = false
+}
+
 // 滚动到底部（使用平滑滚动）
 async function scrollToBottom(smooth = true) {
   await nextTick()
@@ -256,10 +293,16 @@ watch(() => groupsStore.currentGroupId, async (newGroupId) => {
     await scrollToBottom()
     // 更新模型选择器
     selectedProfileId.value = findCurrentProfileId()
+    // 重置叙事相关状态
+    showStalenessTip.value = false
+    showEventPanel.value = false
+    narrativeStore.clearAftermath()
   } else {
     // 清空本地消息列表，不需要调用 IPC
     messagesStore.clearLocalMessages()
     selectedProfileId.value = ''
+    showStalenessTip.value = false
+    showEventPanel.value = false
   }
 })
 
@@ -330,6 +373,27 @@ watch(
 
 // 流式消息监听器清理引用
 let cleanupStreamListeners = null
+let cleanupAftermath = null
+
+// 监听余波消息，添加到消息列表（只处理新增的部分）
+watch(() => narrativeStore.aftermathMessages.length, (newLen, oldLen) => {
+  if (newLen <= oldLen) return
+  const msgs = narrativeStore.aftermathMessages
+  for (let i = oldLen; i < newLen; i++) {
+    const msg = msgs[i]
+    messagesStore.appendMessage({
+      id: msg.id,
+      group_id: msg.groupId,
+      character_id: msg.characterId,
+      character_name: msg.characterName,
+      role: msg.role,
+      content: msg.content,
+      reasoning_content: null,
+      isAftermath: true,
+      timestamp: msg.timestamp
+    })
+  }
+})
 
 // 监听新消息
 onMounted(async () => {
@@ -347,11 +411,15 @@ onMounted(async () => {
 
   // 设置流式消息监听器
   cleanupStreamListeners = messagesStore.setupStreamListeners()
+
+  // 设置余波消息监听器
+  cleanupAftermath = narrativeStore.setupAftermathListener()
 })
 
 // 组件卸载时清理监听器
 onUnmounted(() => {
   cleanupStreamListeners?.()
+  cleanupAftermath?.()
 })
 </script>
 
@@ -493,5 +561,30 @@ onUnmounted(() => {
   border-top: 1px solid $border-color;
   background: $bg-primary;
   padding: $spacing-lg;
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-sm;
+}
+
+.btn-event {
+  background: none;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: $wechat-green;
+  }
 }
 </style>

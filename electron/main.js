@@ -89,6 +89,8 @@ app.whenReady().then(async () => {
   const { setupGlobalCharacterHandlers } = await import('./ipc/handlers/global-character.js')
   const { setupMemoryHandlers } = await import('./ipc/handlers/memory.js')
   const { setupSearchHandlers } = await import('./ipc/handlers/search.js')
+  const { NarrativeEngine } = await import('./narrative/engine.js')
+  const { setupNarrativeHandlers } = await import('./ipc/handlers/narrative.js')
 
   // 初始化数据库管理器
   dbManager = new DatabaseManager()
@@ -99,15 +101,20 @@ app.whenReady().then(async () => {
   // 初始化角色记忆管理器
   memoryManager = new MemoryManager()
 
+  // 初始化叙事引擎
+  const narrativeEngine = new NarrativeEngine()
+  narrativeEngine.setDBManager(dbManager)
+
   // 设置 IPC 处理器（必须在创建窗口之前完成）
   setupGroupHandlers(dbManager)
   setupCharacterHandlers(dbManager)
   setupMessageHandlers(dbManager)
-  setupLLMHandlers(dbManager, memoryManager)
+  setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
   setupConfigHandlers(dbManager)
   setupGlobalCharacterHandlers(dbManager, globalCharManager)
   setupMemoryHandlers(memoryManager)
   setupSearchHandlers(dbManager)
+  setupNarrativeHandlers(narrativeEngine)
 
   // 所有处理程序注册完成后再创建窗口
   createWindow()

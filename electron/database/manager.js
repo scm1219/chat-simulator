@@ -68,6 +68,42 @@ AFTER UPDATE ON groups
 BEGIN
   UPDATE groups SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
+
+-- ============ 角色情绪表 ============
+CREATE TABLE IF NOT EXISTS character_emotions (
+  character_id TEXT PRIMARY KEY,
+  emotion TEXT NOT NULL DEFAULT '平静',
+  intensity REAL NOT NULL DEFAULT 0.0,
+  decay_rate REAL NOT NULL DEFAULT 0.1,
+  source TEXT NOT NULL DEFAULT 'keyword',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ============ 角色关系表 ============
+CREATE TABLE IF NOT EXISTS character_relationships (
+  from_id TEXT NOT NULL,
+  to_id TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'stranger',
+  favorability INTEGER NOT NULL DEFAULT 0,
+  description TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  PRIMARY KEY (from_id, to_id),
+  FOREIGN KEY (from_id) REFERENCES characters(id) ON DELETE CASCADE,
+  FOREIGN KEY (to_id) REFERENCES characters(id) ON DELETE CASCADE
+);
+
+-- ============ 叙事事件记录表 ============
+CREATE TABLE IF NOT EXISTS narrative_events (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  event_key TEXT NOT NULL,
+  content TEXT NOT NULL,
+  impact TEXT,
+  event_type TEXT NOT NULL DEFAULT 'user_triggered',
+  triggered_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+);
 `
 
 export class DatabaseManager {
@@ -251,6 +287,32 @@ export class DatabaseManager {
       console.log(`[Database][${groupId}] 执行迁移：添加 groups.auto_memory_extract 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN auto_memory_extract INTEGER DEFAULT 0')
       console.log(`[Database][${groupId}] 迁移完成: auto_memory_extract 字段已添加`)
+    }
+
+    // --- 叙事引擎相关迁移 ---
+
+    // 添加 narrative_enabled 字段
+    const hasNarrativeEnabled = groupsTableInfo.some(col => col.name === 'narrative_enabled')
+    if (!hasNarrativeEnabled) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 groups.narrative_enabled 字段`)
+      db.exec('ALTER TABLE groups ADD COLUMN narrative_enabled INTEGER NOT NULL DEFAULT 1')
+      console.log(`[Database][${groupId}] 迁移完成: narrative_enabled 字段已添加`)
+    }
+
+    // 添加 aftermath_enabled 字段
+    const hasAftermathEnabled = groupsTableInfo.some(col => col.name === 'aftermath_enabled')
+    if (!hasAftermathEnabled) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 groups.aftermath_enabled 字段`)
+      db.exec('ALTER TABLE groups ADD COLUMN aftermath_enabled INTEGER NOT NULL DEFAULT 1')
+      console.log(`[Database][${groupId}] 迁移完成: aftermath_enabled 字段已添加`)
+    }
+
+    // 添加 event_scene_type 字段
+    const hasEventSceneType = groupsTableInfo.some(col => col.name === 'event_scene_type')
+    if (!hasEventSceneType) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 groups.event_scene_type 字段`)
+      db.exec("ALTER TABLE groups ADD COLUMN event_scene_type TEXT DEFAULT 'general'")
+      console.log(`[Database][${groupId}] 迁移完成: event_scene_type 字段已添加`)
     }
 
     console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)

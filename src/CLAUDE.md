@@ -2,11 +2,26 @@
 
 [根目录](../CLAUDE.md) > **src**
 
-> 最后更新：2026-03-29
+> 最后更新：2026-04-17
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-17
+- **新增**：`QuickGroupDialog.vue`（AI 快速建群对话框，含快速建群/提示词设置两 Tab）
+- **新增**：`GroupList.vue` 集成快速建群入口（"AI 建群"按钮）
+- **新增**：`CharacterPanel.vue` 支持角色独立 LLM 配置（`custom_llm_profile_id` 开关和选择器）
+- **新增**：`CharacterPanel.vue` 支持角色库同步功能（`syncToGroup`、`existsInLibrary`）
+- **新增**：`GlobalCharacterDialog.vue` 支持同步角色设定到所有关联群组（`syncToAllGroups`）
+- **新增**：`globalCharactersStore` 新增方法：`syncToGroup`、`syncToAllGroups`、`existsInLibrary`
+- **修正**：全局角色库导入机制说明（使用原始 ID，非副本）
+- **新增**：叙事引擎 Store（`narrative.js`，情绪/关系/事件/余波状态管理）
+- **新增**：`EmotionTag.vue`（角色情绪标签组件，显示当前情绪状态）
+- **新增**：`RelationshipPanel.vue`（角色关系图谱面板，双向关系可视化）
+- **新增**：`EventPanel.vue`（叙事事件面板，事件列表与手动触发）
+- **新增**：`StalenessTip.vue`（对话平淡提示组件，基于平淡度显示建议）
+- **新增**：`GroupSettingsDialog.vue` 集成叙事配置（引擎开关、余波开关、事件场景类型）
 
 ### 2026-03-29
 - **新增**：全局角色库 Store（`global-characters.js`）、角色标签管理、搜索筛选、导入到群组
@@ -14,7 +29,6 @@
 - **新增**：Toast Store（`toast.js`）、全局消息提示
 - **新增**：`useDialog` composable（程序化确认对话框）
 - **新增**：`LeftPanel.vue`（三 Tab 导航：聊天群/角色库/LLM 配置）
-）
 - **新增**：`CharacterLibrary.vue`（角色库面板，含搜索、标签筛选、分页、导入）
 - **新增**：`GroupSearch.vue`（全局搜索，含防抖、关键词高亮）
 - **新增**：`LLMConfigPanel.vue`（按供应商分组的 LLM 配置管理面板）
@@ -48,9 +62,10 @@
 渲染进程是应用的前端界面，负责：
 1. **UI 渲染**：提供微信风格的多栏布局界面
 2. **用户交互**：处理用户输入、点击、搜索等操作
-3. **状态管理**：使用 Pinia 管理应用状态（7 个 Store）
+3. **状态管理**：使用 Pinia 管理应用状态（9 个 Store）
 4. **IPC 通信**：通过 `window.electronAPI` 与主进程通信
 5. **流式消息展示**：实时展示 LLM 流式输出和推理过程
+6. **AI 快速建群**：通过自然语言描述生成完整群组方案
 
 ---
 
@@ -86,16 +101,17 @@ src/
 │   ├── layout/                # 布局组件
 │   │   ├── MainLayout.vue     # 主布局（四栏 grid）
 │   │   ├── LeftPanel.vue      # 左侧面板（三 Tab）
-│   │   ├── GroupList.vue      # 群组列表
+│   │   ├── GroupList.vue      # 群组列表（含 AI 建群入口）
 │   │   ├── GroupSearch.vue    # 全局搜索
 │   │   └── CharacterLibrary.vue # 角色库面板
 │   ├── chat/                  # 聊天组件
 │   │   ├── ChatWindow.vue     # 聊天窗口（中栏）
 │   │   ├── MessageBubble.vue  # 消息气泡
 │   │   ├── MessageInput.vue   # 消息输入框
-│   │   └── CharacterPanel.vue # 角色面板（右栏）
+│   │   └── CharacterPanel.vue # 角色面板（右栏，含独立 LLM 配置）
 │   ├── config/                # 配置组件
 │   │   ├── CreateGroupDialog.vue      # 创建群组对话框
+│   │   ├── QuickGroupDialog.vue       # AI 快速建群对话框
 │   │   ├── CreateCharacterDialog.vue  # 创建群内角色对话框
 │   │   ├── EditCharacterDialog.vue    # 编辑群内角色对话框
 │   │   ├── GroupSettingsDialog.vue    # 群设置对话框
@@ -108,14 +124,18 @@ src/
 │       ├── Toast.vue          # 全局消息提示
 │       ├── ConfirmDialog.vue  # 确认对话框
 │       ├── TagFilter.vue      # 标签筛选
-│       └── TagSelector.vue    # 标签选择器（含创建）
+│       ├── TagSelector.vue    # 标签选择器（含创建）
+│       ├── EmotionTag.vue     # 角色情绪标签
+│       ├── RelationshipPanel.vue # 角色关系图谱面板
+│       ├── EventPanel.vue     # 叙事事件面板
+│       └── StalenessTip.vue   # 对话平淡提示
 ├── stores/                    # 状态管理
 │   ├── groups.js              # 群组
 │   ├── characters.js          # 群内角色
 │   ├── messages.js            # 消息
 │   ├── config.js              # 配置
 │   ├── llm-profiles.js        # LLM 配置 Profile
-│   ├── global-characters.js   # 全局角色库
+│   ├── global-characters.js   # 全局角色库（含同步）
 │   ├── memory.js              # 角色记忆
 │   └── toast.js               # 消息提示
 ├── composables/
@@ -143,7 +163,28 @@ src/
 - 预加载角色库数据
 - 使用 `v-show` 切换内容，保持状态
 
-#### 3. CharacterLibrary（角色库面板）
+#### 3. GroupList（群组列表）
+**路径**：`src/components/layout/GroupList.vue`
+
+**职责**：
+- 显示所有群组列表
+- 搜索功能
+- "AI 建群"按钮，打开 `QuickGroupDialog`
+
+#### 4. QuickGroupDialog（AI 快速建群对话框）
+**路径**：`src/components/config/QuickGroupDialog.vue`
+
+**职责**：
+- 两个 Tab：快速建群、提示词设置
+- **快速建群流程**：
+  1. 选择 LLM 配置 Profile
+  2. 输入群组描述（如"办公室白领聊天群，3个女性，1个男性"）
+  3. 点击"AI 生成"，调用 `llm:generateGroup` 接口
+  4. 预览生成的群名称、背景设定、角色列表（可编辑）
+  5. 确认创建群组和角色（可选同时保存到角色库）
+- **提示词设置**：可自定义系统提示词、用户提示模板、默认用户提示
+
+#### 5. CharacterLibrary（角色库面板）
 **路径**：`src/components/layout/CharacterLibrary.vue`
 
 **职责**：
@@ -153,7 +194,7 @@ src/
 - 导入角色到当前群组
 - AI 角色抽卡入口
 
-#### 4. GroupSearch（全局搜索）
+#### 6. GroupSearch（全局搜索）
 **路径**：`src/components/layout/GroupSearch.vue`
 
 **职责**：
@@ -162,7 +203,7 @@ src/
 - 关键词高亮显示
 - 点击结果跳转到对应群组
 
-#### 5. GlobalCharacterDialog（角色库角色对话框）
+#### 7. GlobalCharacterDialog（角色库角色对话框）
 **路径**：`src/components/config/GlobalCharacterDialog.vue`
 
 **职责**：
@@ -170,8 +211,20 @@ src/
 - 创建/编辑全局角色
 - 标签选择器集成
 - 记忆 CRUD（编辑模式）
+- **同步功能**：编辑模式下支持将角色设定同步到所有关联群组
 
-#### 6. CharacterGachaDialog（角色抽卡对话框）
+#### 8. CharacterPanel（角色面板）
+**路径**：`src/components/chat/CharacterPanel.vue`
+
+**职责**：
+- 角色列表（含用户角色特殊显示）
+- 启用/禁用角色
+- 角色编辑
+- **独立 LLM 配置**：每个角色可开关独立 LLM Profile，选择不同的供应商/模型
+- **角色库同步**：群组角色如果来自角色库，显示"同步"按钮更新设定
+- 群设置入口
+
+#### 9. CharacterGachaDialog（角色抽卡对话框）
 **路径**：`src/components/config/CharacterGachaDialog.vue`
 
 **职责**：
@@ -180,7 +233,7 @@ src/
 - 可配置系统提示词和用户提示模板
 - 预览生成结果，添加到角色库
 
-#### 7. LLMConfigPanel（LLM 配置面板）
+#### 10. LLMConfigPanel（LLM 配置面板）
 **路径**：`src/components/config/LLMConfigPanel.vue`
 
 **职责**：
@@ -189,7 +242,7 @@ src/
 - 思考模式切换
 - 内嵌编辑/添加表单
 
-#### 8. ChatWindow（聊天窗口）
+#### 11. ChatWindow（聊天窗口）
 **路径**：`src/components/chat/ChatWindow.vue`
 
 **职责**：
@@ -198,15 +251,19 @@ src/
 - 提供消息输入框（`MessageInput`）
 - 监听流式消息事件并实时更新
 
-#### 9. 其他组件
+#### 12. 其他组件
 - **MessageBubble**：消息气泡（用户/助手/系统三种样式）
 - **MessageInput**：消息输入框（Enter 发送，Shift+Enter 换行）
-- **CharacterPanel**：角色面板（角色列表、启用/禁用、编辑、群设置）
 - **Toast**：全局消息提示（success/error/warning/info 四种类型）
 - **ConfirmDialog**：确认对话框（通过 `useDialog` composable 调用）
 - **TagFilter**：标签筛选组件（多选切换）
 - **TagSelector**：标签选择器（含创建自定义标签、颜色选择）
 - **EditCharacterDialog**：编辑群内角色
+- **CreateGroupDialog**：手动创建群组对话框
+- **CreateCharacterDialog**：创建群内角色对话框
+- **GroupSettingsDialog**：群设置对话框
+- **LLMProfileDialog**：LLM 配置管理对话框
+- **LLMProfileForm**：LLM 配置表单
 
 ---
 
@@ -215,29 +272,9 @@ src/
 ### 核心依赖
 - **vue**：前端框架
 - **pinia**：状态管理
-- **axios**：HTTP 客户端（备用，主进程已使用）
 
 ### 构建配置
-**路径**：`vite.config.js`
-
-**关键配置**：
-```javascript
-export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        additionalData: `@use "@/styles/variables.scss" as *;`
-      }
-    }
-  }
-})
-```
+**路径**：`electron.vite.config.js`（由 electron-vite 管理）
 
 ### 样式系统
 **路径**：`src/styles/`
@@ -258,7 +295,7 @@ export default defineConfig({
 
 ## 数据模型
 
-### Pinia Stores（8 个）
+### Pinia Stores（9 个）
 
 #### 1. groupsStore（群组状态）
 **路径**：`src/stores/groups.js`
@@ -296,7 +333,7 @@ export default defineConfig({
 
 **计算属性**：`filteredCharacters`（带标签和关键词筛选）、`characterCount`、`defaultTags`、`customTags`
 
-**方法**：角色 CRUD、标签 CRUD、`searchCharacters`、`importToGroup`、`toggleTagFilter`、`clearTagFilter`
+**方法**：角色 CRUD、标签 CRUD、`searchCharacters`、`importToGroup`、`syncToGroup`、`syncToAllGroups`、`existsInLibrary`、`toggleTagFilter`、`clearTagFilter`
 
 #### 7. memoryStore（角色记忆）
 **路径**：`src/stores/memory.js`
@@ -309,6 +346,13 @@ export default defineConfig({
 **路径**：`src/stores/toast.js`
 
 **方法**：`success`、`error`、`warning`、`info`（便捷方法）、`addToast`、`removeToast`
+
+#### 9. narrativeStore（叙事引擎状态）
+**路径**：`src/stores/narrative.js`
+
+**状态**：`emotions`（角色情绪映射）、`relationships`（角色关系列表）、`events`（当前事件列表）、`staleness`（对话平淡度）、`config`（群组叙事配置）
+
+**方法**：`loadEmotions`、`loadRelationships`、`loadEvents`、`loadStaleness`、`loadConfig`、`setRelationship`、`triggerEvent`、`clearEvent`、`saveConfig`、`setupAftermathListeners`
 
 ---
 
@@ -333,9 +377,10 @@ export default defineConfig({
 
 3. **E2E 测试**：使用 Playwright 测试完整流程
    - 创建群组、添加角色、发送消息
-   - 角色库管理、导入角色
+   - 角色库管理、导入角色、同步角色
    - 全局搜索
    - LLM 配置管理
+   - AI 快速建群
 
 ---
 
@@ -363,6 +408,15 @@ await window.electronAPI.memory.add({...})
 
 // 全局搜索
 const results = await window.electronAPI.search.global(keyword)
+
+// AI 快速建群
+const group = await window.electronAPI.llm.generateGroup(description, profileId)
+
+// 快速建群配置
+const config = await window.electronAPI.config.quickGroupConfig.get()
+
+// 角色库同步
+const synced = await window.electronAPI.globalCharacter.syncToAllGroups(characterId)
 ```
 
 ### 3. 如何监听主进程事件？
@@ -404,8 +458,9 @@ const confirmed = await confirm({
 ### 6. 全局角色库和群组角色如何协作？
 - 全局角色库通过 `LeftPanel` 的"角色库" Tab 管理
 - 群组角色通过 `CharacterPanel` 管理
-- 全局角色可以一键导入到当前群组
-- 导入时创建副本，修改不影响原角色
+- 全局角色可以一键导入到当前群组（使用角色库原始 ID）
+- 导入后可通过 `syncToGroup` 从角色库同步更新到群组
+- 在角色库编辑角色时可通过 `syncToAllGroups` 同步到所有关联群组
 - 角色记忆通过角色名称跨群组关联
 
 ### 7. 标签系统如何工作？
@@ -414,6 +469,12 @@ const confirmed = await confirm({
 - 角色可关联多个标签
 - 角色库列表支持标签筛选
 - 系统默认标签不可删除
+
+### 8. 角色独立 LLM 配置如何使用？
+- 在 `CharacterPanel` 中，每个角色卡片有"独立配置"开关
+- 开启后可选择不同的 LLM Profile
+- 角色发言时将使用独立配置的供应商/模型/API Key/代理
+- 关闭后回退到群组配置
 
 ---
 
@@ -451,7 +512,7 @@ const confirmed = await confirm({
 ### 布局组件
 - `src/components/layout/MainLayout.vue`：主布局
 - `src/components/layout/LeftPanel.vue`：左侧面板（三 Tab）
-- `src/components/layout/GroupList.vue`：群组列表
+- `src/components/layout/GroupList.vue`：群组列表（含 AI 建群入口）
 - `src/components/layout/GroupSearch.vue`：全局搜索
 - `src/components/layout/CharacterLibrary.vue`：角色库面板
 
@@ -459,10 +520,11 @@ const confirmed = await confirm({
 - `src/components/chat/ChatWindow.vue`：聊天窗口
 - `src/components/chat/MessageBubble.vue`：消息气泡
 - `src/components/chat/MessageInput.vue`：消息输入框
-- `src/components/chat/CharacterPanel.vue`：角色面板
+- `src/components/chat/CharacterPanel.vue`：角色面板（含独立 LLM 配置、同步功能）
 
 ### 配置组件
 - `src/components/config/CreateGroupDialog.vue`：创建群组对话框
+- `src/components/config/QuickGroupDialog.vue`：AI 快速建群对话框
 - `src/components/config/CreateCharacterDialog.vue`：创建群内角色对话框
 - `src/components/config/EditCharacterDialog.vue`：编辑群内角色对话框
 - `src/components/config/GroupSettingsDialog.vue`：群设置对话框
@@ -477,6 +539,10 @@ const confirmed = await confirm({
 - `src/components/common/ConfirmDialog.vue`：确认对话框
 - `src/components/common/TagFilter.vue`：标签筛选
 - `src/components/common/TagSelector.vue`：标签选择器
+- `src/components/common/EmotionTag.vue`：角色情绪标签
+- `src/components/common/RelationshipPanel.vue`：角色关系图谱面板
+- `src/components/common/EventPanel.vue`：叙事事件面板
+- `src/components/common/StalenessTip.vue`：对话平淡提示
 
 ### 状态管理
 - `src/stores/groups.js`：群组状态
@@ -484,9 +550,10 @@ const confirmed = await confirm({
 - `src/stores/messages.js`：消息状态
 - `src/stores/config.js`：配置状态
 - `src/stores/llm-profiles.js`：LLM 配置状态
-- `src/stores/global-characters.js`：全局角色库状态
+- `src/stores/global-characters.js`：全局角色库状态（含同步）
 - `src/stores/memory.js`：角色记忆状态
 - `src/stores/toast.js`：消息提示状态
+- `src/stores/narrative.js`：叙事引擎状态
 
 ### Composables
 - `src/composables/useDialog.js`：确认对话框
@@ -497,5 +564,5 @@ const confirmed = await confirm({
 
 ---
 
-**文档版本**：2.0.0
+**文档版本**：2.1.0
 **维护者**：AI 架构师（自适应版）

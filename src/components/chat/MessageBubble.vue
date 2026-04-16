@@ -1,5 +1,5 @@
 <template>
-  <div :class="['message-bubble', message.role, { highlighted: isHighlighted }]" ref="messageContainer">
+  <div :class="['message-bubble', message.role, { highlighted: isHighlighted, aftermath: message.isAftermath }]" ref="messageContainer">
     <div v-if="isUser" class="message-content-user">
       <div class="message-header">
         <div v-if="character || message.characterName" class="character-name">
@@ -512,6 +512,18 @@ async function handleResend() {
 
   .bubble-content {
     box-shadow: 0 0 0 2px rgba(255, 214, 0, 0.6);
+  }
+}
+
+// 余波消息样式
+.message-bubble.aftermath {
+  font-style: italic;
+  opacity: 0.85;
+
+  .bubble-content {
+    background: #f0f7f0;
+    color: #4a6741;
+    border: 1px dashed #b8d4b0;
   }
 }
 

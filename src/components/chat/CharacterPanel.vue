@@ -100,15 +100,22 @@
         </div>
       </div>
 
-      <!-- 角色列表 -->
-      <div class="panel-section">
-        <h3>角色列表</h3>
-        <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
-          + 添加角色
-        </button>
+      <!-- Tab 切换 -->
+      <div class="tab-bar">
+        <button :class="{ active: activeTab === 'characters' }" @click="activeTab = 'characters'">角色</button>
+        <button :class="{ active: activeTab === 'relationships' }" @click="activeTab = 'relationships'">关系</button>
       </div>
 
-      <div class="character-list">
+      <!-- 角色列表 Tab -->
+      <div v-if="activeTab === 'characters'">
+        <div class="panel-section">
+          <h3>角色列表</h3>
+          <button class="btn btn-primary btn-sm" @click="showCreateDialog = true">
+            + 添加角色
+          </button>
+        </div>
+
+        <div class="character-list">
         <div
           v-for="(char, index) in charactersStore.characters"
           :key="char.id"
@@ -124,6 +131,11 @@
               >❌</button>
             </div>
             <span class="character-name">{{ char.name }}</span>
+            <EmotionTag
+              v-if="getCharEmotion(char.id)"
+              :emotion="getCharEmotion(char.id).emotion"
+              :intensity="getCharEmotion(char.id).intensity"
+            />
               <button
                 v-if="char.is_user !== 1"
                 class="btn-memory-icon"
@@ -260,6 +272,12 @@
           <p class="hint">点击"添加角色"创建一个</p>
         </div>
       </div>
+      </div>
+
+      <!-- 关系管理 Tab -->
+      <div v-else class="relationship-tab">
+        <RelationshipPanel :group-id="currentGroup.id" :characters="charactersStore.characters" />
+      </div>
     </div>
 
     <div v-else class="empty-panel">
@@ -331,7 +349,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
@@ -339,11 +357,14 @@ import { useToastStore } from '../../stores/toast'
 import { useMemoryStore } from '../../stores/memory.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
+import { useNarrativeStore } from '../../stores/narrative.js'
 import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
 import EditCharacterDialog from '../config/EditCharacterDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
+import EmotionTag from './EmotionTag.vue'
+import RelationshipPanel from './RelationshipPanel.vue'
 
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
@@ -352,8 +373,10 @@ const toast = useToastStore()
 const memoryStore = useMemoryStore()
 const globalCharsStore = useGlobalCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
+const narrativeStore = useNarrativeStore()
 const { confirm } = useDialog()
 const showCreateDialog = ref(false)
+const activeTab = ref('characters') // 'characters' | 'relationships'
 const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
@@ -401,6 +424,21 @@ function getProviderName(providerId) {
 // 加载 LLM Profile 列表
 onMounted(async () => {
   await llmProfilesStore.loadProfiles()
+})
+
+// 获取角色情绪
+function getCharEmotion(characterId) {
+  const emotion = narrativeStore.emotions.find(e => e.character_id === characterId)
+  if (emotion && emotion.emotion !== '平静' && emotion.intensity > 0.1) return emotion
+  return null
+}
+
+// 监听当前群组变化，获取情绪数据
+watch(() => currentGroup.value?.id, async (newId) => {
+  if (newId) {
+    activeTab.value = 'characters'
+    narrativeStore.fetchEmotions(newId)
+  }
 })
 
 // 获取非用户角色的数量
@@ -666,6 +704,34 @@ async function sendCommand(char) {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 8px;
+
+  button {
+    flex: 1;
+    padding: 8px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    color: #999;
+    cursor: pointer;
+
+    &.active {
+      color: #07c160;
+      border-bottom-color: #07c160;
+    }
+  }
+}
+
+.relationship-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-lg;
 }
 
 .panel-section {

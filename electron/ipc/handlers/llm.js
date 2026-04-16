@@ -104,7 +104,7 @@ function createLLMClient(config) {
   return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
 }
 
-export function setupLLMHandlers(dbManager, memoryManager = null) {
+export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngine = null) {
   // 获取所有 LLM 供应商
   ipcMain.handle('llm:getProviders', async () => {
     try {
@@ -260,7 +260,11 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         // 并行模式：同时调用所有角色（每个角色独立创建客户端）
         const promises = characters.map(character => {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-          return generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
+          // 构建叙事上下文
+          const narrativeContext = narrativeEngine
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            : []
+          return generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1, narrativeContext)
         })
         const results = await Promise.all(promises)
         responses.push(...results)
@@ -276,7 +280,11 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         }
         for (const character of characters) {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1)
+          // 构建叙事上下文
+          const narrativeContext = narrativeEngine
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            : []
+          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1, narrativeContext)
           responses.push(response)
 
           // 将上一个角色的回复添加到历史上下文
@@ -298,6 +306,22 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
         success: responses.filter(r => r.success).length,
         failed: responses.filter(r => !r.success).length
       })
+
+      // 所有角色回复完成后，生成余波
+      let aftermathMessages = []
+      if (narrativeEngine) {
+        try {
+          aftermathMessages = await narrativeEngine.generateAftermath(
+            db, groupId, userContent, responses, allCharacters,
+            createClientForCharacter, group, llmProfiles, apiKey
+          )
+          for (const msg of aftermathMessages) {
+            event.sender.send('narrative:aftermath', msg)
+          }
+        } catch (err) {
+          console.error('[Narrative] 余波编排失败:', err.message)
+        }
+      }
 
       return { success: true, data: responses }
     } catch (error) {
@@ -610,7 +634,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null) {
 /**
  * 为单个角色生成回复（支持流式输出）
  */
-async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = [], memoryManager = null, autoMemoryExtract = false) {
+async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = [], memoryManager = null, autoMemoryExtract = false, narrativeContext = []) {
   try {
     console.log(`[LLM] 开始为角色 ${character.name} 生成回复`)
 
@@ -628,7 +652,7 @@ async function generateCharacterResponse(client, character, history, userContent
     }
 
     // 构建消息上下文
-    const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters, memories)
+    const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters, memories, narrativeContext)
     console.log(`[LLM] ${character.name} - 消息上下文构建完成`, {
       messageCount: messages.length,
       hasBackground: !!background,
@@ -829,7 +853,7 @@ async function extractMemoriesAsync(client, character, userContent, assistantCon
 /**
  * 构建对话上下文消息
  */
-function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = [], memories = []) {
+function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = [], memories = [], narrativeContext = []) {
   const messages = []
 
   // 1. 添加系统提示词（最高优先级，如果存在）
@@ -858,6 +882,11 @@ function buildContextMessages(character, history, userContent, background = null
       role: 'system',
       content: `【群成员介绍】\n${membersIntro}`
     })
+  }
+
+  // 3.5 注入叙事上下文（情绪、关系、事件）
+  if (narrativeContext.length > 0) {
+    messages.push(...narrativeContext)
   }
 
   // 4.5 注入角色全局记忆（如果有）

@@ -2,11 +2,34 @@
 
 [根目录](../CLAUDE.md) > **electron**
 
-> 最后更新：2026-03-29
+> 最后更新：2026-04-17
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-17
+- **新增**：AI 快速建群接口 `llm:generateGroup`（根据描述生成群名称、背景、多个角色）
+- **新增**：快速建群配置管理（`quickGroupConfig` get/save/reset 接口）
+- **新增**：角色独立 LLM 配置支持（`custom_llm_profile_id` 字段、`createClientForCharacter` 函数）
+- **新增**：角色库同步接口（`syncToGroup`、`syncToAllGroups`、`existsInLibrary`）
+- **新增**：JSON 提取工具 `json-extractor.js`（支持 markdown 代码块、截断 JSON 修复）
+- **新增**：消息模型记录（`messages.model` 字段）
+- **新增**：LLM Profile 更新时自动同步关联群组配置（`syncGroupsProfile` 函数）
+- **新增**：供应商：智谱AI Coding（`zhipu-coding`，专用 Coding 端点）
+- **优化**：供应商模型列表更新（OpenAI gpt-5.4 系列、通义千问 qwen3/qwen3.5、智谱 glm-5/5.1、MiniMax M2.7 系列）
+- **优化**：角色导入群组时使用角色库原始 ID（便于追溯来源和同步）
+- **优化**：角色 Handler 支持更新 `customLlmProfileId` 字段
+- **删除**：`database/migrations/add_user_character.js`（迁移已内联到 manager.js）
+- **新增**：叙事引擎模块 `narrative/`（engine.js、emotion-manager.js、relationship-manager.js、event-trigger.js、prompt-builder.js）
+- **新增**：叙事系统 IPC 处理器 `narrative.js`（13 个接口：情绪/关系/事件管理）
+- **新增**：角色情绪系统（关键词匹配 + LLM 推断混合模式，8 种内置情绪，情绪衰减机制）
+- **新增**：角色关系系统（7 种预设关系类型，双向动态好感度 -100~100，互动关键词驱动更新）
+- **新增**：事件触发系统（4 场景 16 预设事件，推荐算法去重，对话平淡检测）
+- **新增**：角色间余波编排（条件触发：高情绪/角色提及/紧张关系/随机，LLM 生成 1-3 条追评）
+- **新增**：叙事上下文注入到 LLM prompt（情绪状态 + 角色关系 + 当前事件）
+- **新增**：数据库迁移（character_emotions、character_relationships、narrative_events 三张表 + groups 表三个新字段）
+- **优化**：LLM Handler 集成叙事引擎（preGenerate + postCharacterResponse + generateAftermath）
 
 ### 2026-03-29
 - **新增**：全局角色库管理器 `GlobalCharacterManager`（角色 CRUD、标签管理、搜索筛选、导入到群组）
@@ -31,7 +54,6 @@
 - **更新**：数据库管理器添加内联 Schema，支持自动迁移
 - **更新**：LLM Handler 支持群背景设定和思考模式
 - **更新**：角色 Handler 支持用户角色（`is_user` 字段）
-- **新增**：数据库迁移脚本 `migrations/add_user_character.js`
 - **优化**：改进上下文构建逻辑，添加群背景支持
 
 ### 2026-03-20
@@ -46,12 +68,13 @@ Electron 主进程是应用的核心后端，负责：
 1. **窗口管理**：创建和管理应用窗口
 2. **IPC 通信**：处理渲染进程的请求并返回结果
 3. **数据库管理**：管理三套独立数据库系统
-4. **LLM 集成**：调用各种 LLM 供应商的 API 进行对话生成
-5. **配置管理**：管理全局 LLM、Profile、代理、系统提示词模板、抽卡配置
-6. **全局角色库**：跨群组的角色模板管理和标签系统
+4. **LLM 集成**：调用各种 LLM 供应商的 API 进行对话生成、角色抽卡、快速建群
+5. **配置管理**：管理全局 LLM、Profile、代理、系统提示词模板、抽卡配置、快速建群配置
+6. **全局角色库**：跨群组的角色模板管理、标签系统、同步更新
 7. **角色记忆**：跨群组的角色记忆管理（手动/自动）
 8. **全局搜索**：跨群组搜索消息和角色
 9. **数据迁移**：自动执行数据库结构升级
+10. **Profile 同步**：LLM Profile 更新时自动同步关联群组配置
 
 ---
 
@@ -118,7 +141,7 @@ memoryManager.close()
 |------|------|--------|------|
 | `create(data)` | `{ groupId, name, systemPrompt }` | `{ success, data: Character }` | 创建角色 |
 | `getByGroupId(groupId)` | 群组 ID | `{ success, data: Character[] }` | 获取群组的所有角色 |
-| `update(id, data)` | 角色 ID, 更新数据 | `{ success, data: Character }` | 更新角色 |
+| `update(id, data)` | 角色 ID, 更新数据（支持 `customLlmProfileId`） | `{ success, data: Character }` | 更新角色 |
 | `delete(id)` | 角色 ID | `{ success }` | 删除角色 |
 | `toggle(id, enabled)` | 角色 ID, 是否启用 | `{ success, data: Character }` | 启用/禁用角色 |
 | `reorder(id, direction)` | 角色 ID, 方向 | `{ success }` | 角色排序 |
@@ -157,6 +180,7 @@ memoryManager.close()
 | `generate(groupId, content)` | 群组 ID, 用户消息 | 流式事件 | 生成 AI 回复（流式） |
 | `generateCharacterCommand(...)` | 群组/角色/指令 | 流式事件 | 单角色指令回复 |
 | `generateCharacter(hint)` | 提示词 | `{ success, data }` | AI 角色抽卡 |
+| `generateGroup(description, profileId)` | 描述, Profile ID | `{ success, data }` | AI 快速建群 |
 | `onProgress(callback)` | 回调函数 | 清理函数 | 监听生成进度 |
 
 **Handler 实现**：`electron/ipc/handlers/llm.js`
@@ -174,7 +198,7 @@ memoryManager.close()
 |------|------|--------|------|
 | `getAll()` | 无 | `{ success, data: LLMProfile[] }` | 获取所有 LLM 配置 |
 | `add(profile)` | LLM 配置 | `{ success, data: LLMProfile }` | 添加 LLM 配置 |
-| `update(id, data)` | 配置 ID, 更新数据 | `{ success, data: LLMProfile }` | 更新 LLM 配置 |
+| `update(id, data)` | 配置 ID, 更新数据 | `{ success, data, syncedGroups }` | 更新 LLM 配置（自动同步关联群组） |
 | `delete(id)` | 配置 ID | `{ success }` | 删除 LLM 配置 |
 
 #### 7. 系统提示词模板（`window.electronAPI.config.systemPrompt`）
@@ -192,19 +216,29 @@ memoryManager.close()
 | `save(config)` | 配置 | `{ success }` | 保存抽卡配置 |
 | `reset()` | 无 | `{ success }` | 重置为默认配置 |
 
-#### 9. 全局角色库（`window.electronAPI.globalCharacter`）
+#### 9. 快速建群配置（`window.electronAPI.config.quickGroupConfig`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `get()` | 无 | `{ success, data }` | 获取快速建群提示词配置 |
+| `save(config)` | 配置 | `{ success }` | 保存快速建群提示词配置 |
+| `reset()` | 无 | `{ success }` | 重置为默认配置 |
+
+#### 10. 全局角色库（`window.electronAPI.globalCharacter`）
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
 | `getAll/getById/create/update/delete` | 标准 CRUD | `{ success, data }` | 角色 CRUD |
 | `search(keyword)` | 关键词 | `{ success, data }` | 搜索角色 |
-| `importToGroup(characterId, groupId)` | 角色/群组 ID | `{ success, data }` | 导入角色到群组 |
+| `importToGroup(characterId, groupId)` | 角色/群组 ID | `{ success, data }` | 导入角色到群组（使用原始 ID） |
+| `syncToGroup(characterId, groupId)` | 角色/群组 ID | `{ success, data }` | 同步角色设定到群组 |
+| `syncToAllGroups(characterId)` | 角色 ID | `{ success, data }` | 同步角色设定到所有关联群组 |
+| `existsInLibrary(characterId)` | 角色 ID | `{ success, data: boolean }` | 检查角色是否存在于角色库 |
 | `getAllTags/createTag/updateTag/deleteTag` | 标签 CRUD | `{ success, data }` | 标签管理 |
 | `getCharacterTags/setCharacterTags` | 角色 ID | `{ success, data }` | 角色标签关联 |
 | `getByTags/getAllWithTags/searchWithTags` | 筛选参数 | `{ success, data }` | 带标签查询 |
 
 **Handler 实现**：`electron/ipc/handlers/global-character.js`
 
-#### 10. 角色记忆（`window.electronAPI.memory`）
+#### 11. 角色记忆（`window.electronAPI.memory`）
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
 | `getByName(characterName)` | 角色名称 | `{ success, data }` | 获取角色记忆列表 |
@@ -215,12 +249,34 @@ memoryManager.close()
 
 **Handler 实现**：`electron/ipc/handlers/memory.js`
 
-#### 11. 全局搜索（`window.electronAPI.search`）
+#### 12. 全局搜索（`window.electronAPI.search`）
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
 | `global(keyword)` | 搜索关键词 | `{ success, data }` | 跨群组搜索消息和角色 |
 
 **Handler 实现**：`electron/ipc/handlers/search.js`
+
+#### 13. 叙事系统（`window.electronAPI.narrative`）
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `getEmotions(groupId)` | 群组 ID | `{ success, data }` | 获取群组所有角色情绪 |
+| `getRelationships(groupId)` | 群组 ID | `{ success, data }` | 获取群组角色关系 |
+| `getEvents(groupId)` | 群组 ID | `{ success, data }` | 获取群组叙事事件 |
+| `getStaleness(groupId)` | 群组 ID | `{ success, data }` | 获取群组对话平淡度 |
+| `setRelationship(fromId, toId, type, value)` | 角色ID, 角色ID, 关系类型, 好感度 | `{ success }` | 设置角色关系 |
+| `triggerEvent(groupId, eventId)` | 群组 ID, 事件 ID | `{ success }` | 手动触发事件 |
+| `clearEvent(groupId, eventId)` | 群组 ID, 事件 ID | `{ success }` | 清除事件 |
+| `setGroupNarrative(groupId, config)` | 群组 ID, 叙事配置 | `{ success }` | 设置群组叙事配置 |
+| `getGroupNarrative(groupId)` | 群组 ID | `{ success, data }` | 获取群组叙事配置 |
+
+**事件推送**：
+- `narrative:aftermath:start`：余波编排开始
+- `narrative:aftermath:chunk`：余波单条追评（流式）
+- `narrative:aftermath:end`：余波编排完成
+- `narrative:emotion:updated`：情绪更新通知
+- `narrative:event:triggered`：事件触发通知
+
+**Handler 实现**：`electron/ipc/handlers/narrative.js`
 
 ---
 
@@ -231,7 +287,7 @@ memoryManager.close()
 - **better-sqlite3**：同步 SQLite 数据库操作
 - **axios**：HTTP 客户端（用于 LLM API 调用）
 - **archiver**：聊天记录导出 ZIP
-- **uuid**：生成唯一 ID
+- **uuid**：生成唯一 ID（通过 `electron/utils/uuid.js` 内置实现）
 
 ### 配置文件
 1. **electron.vite.config.js**：构建配置
@@ -245,13 +301,16 @@ memoryManager.close()
    - 包含触发器自动更新 `updated_at`
 
 3. **LLM 供应商配置**：`electron/llm/providers/index.js`
-   - 预定义了 OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、百川、Ollama、ModelScope、MiniMax、自定义供应商
+   - 预定义了 12 个供应商（OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、智谱AI Coding、百川、Ollama、ModelScope、MiniMax、自定义）
 
 ### 数据存储位置
 - **群组数据库**：`%APPDATA%/chat-simulator/data/groups/`（Windows）
 - **全局角色库**：`%APPDATA%/chat-simulator/data/global/character-library.sqlite`
 - **角色记忆**：`%APPDATA%/chat-simulator/data/global/character-memories.sqlite`
 - **配置文件**：`%APPDATA%/chat-simulator/config/`
+  - `llm-config.json`：全局 LLM 配置
+  - `gacha-config.json`：抽卡提示词配置
+  - `quick-group-config.json`：快速建群提示词配置
 
 ---
 
@@ -267,6 +326,7 @@ memoryManager.close()
 - 支持自定义 baseURL、代理配置
 - 提供 token 用量统计
 - 错误处理和连接测试
+- 支持 JSON 结构化输出（`responseFormat: { type: 'json_object' }`）
 
 ### Ollama 原生客户端
 **路径**：`electron/llm/ollama-client.js`
@@ -278,20 +338,26 @@ memoryManager.close()
 ### LLM 供应商配置
 **路径**：`electron/llm/providers/index.js`
 
-**支持的供应商**（11 个）：
-- **OpenAI**：gpt-5.4 系列
-- **DeepSeek**：deepseek-chat/coder
-- **通义千问**：qwen-plus/turbo/max
-- **Moonshot AI (Kimi)**：moonshot-v1 系列
-- **智谱AI**：glm-5/4.7/4.6v 系列
-- **百川智能**：Baichuan2 系列
-- **Ollama (本地)**：动态获取模型列表
-- **ModelScope 魔塔**：Qwen3.5 系列
-- **MiniMax**：MiniMax-M2 系列
+**支持的供应商**（12 个）：
+- **OpenAI**：gpt-5.4 / gpt-5.4-pro / gpt-5.4-mini / gpt-5.4-nano / gpt-5 系列
+- **DeepSeek**：deepseek-chat / deepseek-coder
+- **通义千问**：qwen-plus / qwen3-max / qwen3.5-flash / qwen3.5-plus
+- **Moonshot AI (Kimi)**：moonshot-v1-8k / moonshot-v1-32k
+- **智谱AI**：glm-4.5-air / glm-4.7-flash / glm-4.7 / glm-5 / glm-5-turbo / glm-5.1
+- **智谱AI(Coding)**：glm-4.5-air / glm-4.7-flash / glm-4.7 / glm-5 系列（Coding 专用端点）
+- **百川智能**：Baichuan2-Turbo / Baichuan2-53B
+- **Ollama (本地)**：动态获取模型列表，支持原生 API
+- **ModelScope 魔塔**：Qwen/Qwen3.5-27B / Qwen3.5-35B-A3B / Qwen3.5-122B-A10B
+- **MiniMax**：MiniMax-M2.7 / M2.7-highspeed / M2.5 / M2.5-highspeed / M2.1 / M2.1-highspeed / M2
 - **自定义**：用户自行配置
 
 ### 多角色对话逻辑
 **路径**：`electron/ipc/handlers/llm.js`
+
+**角色级 LLM 配置**：
+- 每个角色可通过 `custom_llm_profile_id` 使用独立 LLM 配置
+- `createClientForCharacter()` 函数优先使用角色级配置，未设置则回退到群组配置
+- 独立配置包含完整的 provider、apiKey、baseURL、model、proxy 设置
 
 **上下文构建**（增强版）：
 1. 群组系统提示词（最高优先级）
@@ -306,12 +372,30 @@ memoryManager.close()
 **流式输出**：
 - `message:stream:start`：开始生成
 - `message:stream:chunk`：推送片段（reasoning/content 类型）
-- `message:stream:end`：生成完成，含完整消息和 token 统计
+- `message:stream:end`：生成完成，含完整消息、token 统计和实际模型名
 - `message:stream:error`：生成失败
 
 **自动记忆提取**：
 - 开启 `auto_memory_extract` 后，每次对话异步提取角色关键信息
+- 使用 `json-extractor.js` 解析 LLM 返回的 JSON
 - 自动去重，避免重复提取已有记忆
+
+**AI 快速建群**：
+- `llm:generateGroup` 接口，接收群组描述和 Profile ID
+- 使用可配置的系统提示词和用户提示模板
+- 启用 JSON 结构化输出确保返回合法 JSON
+- 返回群名称、背景设定和角色列表
+
+### JSON 提取工具
+**路径**：`electron/utils/json-extractor.js`
+
+**核心功能**：
+- 从 LLM 响应中提取 JSON（支持多种格式）
+- 策略 1：提取 markdown 代码块（` ```json ``` `）
+- 策略 2：直接解析
+- 策略 3：移除未闭合的 markdown 标记
+- 策略 4：提取第一个 `{` 到最后一个 `}` 之间的内容
+- 策略 5：修复被 max_tokens 截断的 JSON（自动闭合括号/方括号/字符串）
 
 ---
 
@@ -327,6 +411,7 @@ memoryManager.close()
    - `database/global-character-manager.js`：全局角色库
    - `database/memory-manager.js`：角色记忆
    - `llm/client.js`：LLM 客户端
+   - `utils/json-extractor.js`：JSON 提取（含截断修复）
    - `config/manager.js`：配置管理
    - `config/llm-profiles.js`：Profile 管理
    - `config/system-prompts.js`：模板管理
@@ -335,6 +420,8 @@ memoryManager.close()
    - 模拟渲染进程调用 IPC
    - 验证数据库操作和 LLM 调用
    - 测试迁移脚本是否正确执行
+   - 测试角色独立 LLM 配置切换
+   - 测试 Profile 更新群组同步
 
 3. **E2E 测试**：使用 Spectron 或 Playwright
    - 测试完整的用户流程
@@ -373,8 +460,8 @@ memoryManager.close()
 
 ### 6. 全局角色库如何工作？
 - 独立的 SQLite 数据库存储角色和标签
-- 角色通过名称在群组间关联（不是 ID）
-- 导入到群组时创建副本（独立 system_prompt）
+- 导入到群组时使用角色库原始 ID（非副本），便于追溯和同步
+- 支持从角色库同步更新到单个群组（`syncToGroup`）或所有关联群组（`syncToAllGroups`）
 - 标签系统支持 10 个默认标签 + 自定义标签
 - 支持按标签和关键词组合筛选
 
@@ -389,7 +476,20 @@ memoryManager.close()
 - LLM 客户端使用 SSE 解析流式响应
 - 每个 chunk 通过 IPC 事件推送到渲染进程
 - 渲染进程监听事件实时更新 UI
-- 最终保存完整消息到数据库（含 token 统计）
+- 最终保存完整消息到数据库（含 token 统计和实际模型名）
+
+### 9. 角色独立 LLM 配置如何工作？
+- 角色表有 `custom_llm_profile_id` 字段
+- LLM 生成回复时，`createClientForCharacter()` 检查角色是否有独立配置
+- 有独立配置：使用角色的 provider、model、apiKey、baseURL、proxy
+- 无独立配置：回退到群组配置
+- 在角色面板中可通过开关启用/关闭独立配置
+
+### 10. LLM Profile 更新如何同步群组？
+- 更新 Profile 时，`config.js` 的 `syncGroupsProfile()` 自动遍历所有群组
+- 匹配条件：provider + model + apiKey + baseURL 完全一致
+- 匹配的群组自动更新为新配置
+- 返回结果中包含 `syncedGroups` 字段表示同步的群组数量
 
 ---
 
@@ -401,38 +501,46 @@ memoryManager.close()
 - `electron.vite.config.js`：构建配置
 
 ### 数据库
-- `electron/database/manager.js`：群组数据库管理器
+- `electron/database/manager.js`：群组数据库管理器（含内联迁移）
 - `electron/database/schema.sql`：数据库结构
 - `electron/database/global-character-manager.js`：全局角色库管理器
 - `electron/database/memory-manager.js`：角色记忆管理器
-- `electron/database/migrations/add_user_character.js`：用户角色迁移脚本
 
 ### LLM 服务
 - `electron/llm/client.js`：OpenAI 兼容 LLM 客户端
 - `electron/llm/ollama-client.js`：Ollama 原生客户端
-- `electron/llm/providers/index.js`：供应商配置（11 个）
+- `electron/llm/providers/index.js`：供应商配置（12 个）
 - `electron/llm/proxy.js`：代理配置
 
 ### IPC Handlers
 - `electron/ipc/channels.js`：IPC 通道常量
 - `electron/ipc/handlers/group.js`：群组操作
-- `electron/ipc/handlers/character.js`：角色操作
+- `electron/ipc/handlers/character.js`：角色操作（含独立 LLM 配置）
 - `electron/ipc/handlers/message.js`：消息操作
-- `electron/ipc/handlers/llm.js`：LLM 操作
-- `electron/ipc/handlers/config.js`：配置操作
-- `electron/ipc/handlers/global-character.js`：全局角色库操作
+- `electron/ipc/handlers/llm.js`：LLM 操作（含快速建群、角色独立配置）
+- `electron/ipc/handlers/config.js`：配置操作（含快速建群配置、Profile 同步）
+- `electron/ipc/handlers/global-character.js`：全局角色库操作（含同步）
 - `electron/ipc/handlers/memory.js`：角色记忆操作
 - `electron/ipc/handlers/search.js`：全局搜索
+- `electron/ipc/handlers/narrative.js`：叙事系统（情绪/关系/事件管理）
+
+### 叙事引擎
+- `electron/narrative/engine.js`：叙事引擎主控（编排情绪/关系/事件/余波）
+- `electron/narrative/emotion-manager.js`：情绪状态机（关键词匹配 + LLM 推断，情绪衰减）
+- `electron/narrative/relationship-manager.js`：关系图谱管理（双向好感度，互动关键词驱动）
+- `electron/narrative/event-trigger.js`：事件触发系统（推荐算法，平淡检测）
+- `electron/narrative/prompt-builder.js`：叙事上下文构建（情绪+关系+事件注入 prompt）
 
 ### 配置管理
-- `electron/config/manager.js`：全局配置管理
+- `electron/config/manager.js`：全局配置管理（含快速建群配置）
 - `electron/config/llm-profiles.js`：LLM Profile 管理
 - `electron/config/system-prompts.js`：系统提示词模板
 
 ### 工具
 - `electron/utils/uuid.js`：UUID 生成工具
+- `electron/utils/json-extractor.js`：LLM 响应 JSON 提取工具
 
 ---
 
-**文档版本**：2.0.0
+**文档版本**：2.1.0
 **维护者**：AI 架构师（自适应版）

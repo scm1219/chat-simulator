@@ -113,6 +113,37 @@
           </small>
         </div>
 
+        <div class="form-section">
+          <h4>叙事引擎</h4>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                v-model="form.narrativeEnabled"
+                type="checkbox"
+              />
+              <span>启用叙事引擎（情绪、关系、事件系统）</span>
+            </label>
+          </div>
+          <div class="form-group" v-if="form.narrativeEnabled">
+            <label class="checkbox-label">
+              <input
+                v-model="form.aftermathEnabled"
+                type="checkbox"
+              />
+              <span>启用角色间余波互动</span>
+            </label>
+          </div>
+          <div class="form-group" v-if="form.narrativeEnabled">
+            <label>事件场景类型</label>
+            <select v-model="form.eventSceneType" class="input">
+              <option value="general">通用</option>
+              <option value="office">办公室</option>
+              <option value="home">家庭</option>
+              <option value="school">校园</option>
+            </select>
+          </div>
+        </div>
+
         <div class="info-section">
           <div class="info-item">
             <span class="label">LLM 供应商：</span>
@@ -167,7 +198,10 @@ const form = ref({
   responseMode: 'sequential',
   thinkingEnabled: false,
   randomOrder: false,
-  autoMemoryExtract: false
+  autoMemoryExtract: false,
+  narrativeEnabled: true,
+  aftermathEnabled: true,
+  eventSceneType: 'general'
 })
 
 const hasChanges = computed(() => {
@@ -181,6 +215,9 @@ const hasChanges = computed(() => {
     form.value.thinkingEnabled !== (group.value.thinking_enabled === 1) ||
     form.value.randomOrder !== (group.value.random_order === 1)
     || form.value.autoMemoryExtract !== (group.value.auto_memory_extract === 1)
+    || form.value.narrativeEnabled !== (group.value.narrative_enabled === 1)
+    || form.value.aftermathEnabled !== (group.value.aftermath_enabled === 1)
+    || (form.value.eventSceneType || 'general') !== (group.value.event_scene_type || 'general')
   )
 })
 
@@ -194,7 +231,10 @@ onMounted(() => {
       responseMode: group.value.response_mode,
       thinkingEnabled: group.value.thinking_enabled === 1,
       randomOrder: group.value.random_order === 1,
-      autoMemoryExtract: group.value.auto_memory_extract === 1
+      autoMemoryExtract: group.value.auto_memory_extract === 1,
+      narrativeEnabled: group.value.narrative_enabled === 1,
+      aftermathEnabled: group.value.aftermath_enabled === 1,
+      eventSceneType: group.value.event_scene_type || 'general'
     }
   }
 })
@@ -216,7 +256,10 @@ async function handleSave() {
       responseMode: form.value.responseMode,
       thinkingEnabled: form.value.thinkingEnabled,
       randomOrder: form.value.randomOrder,
-      autoMemoryExtract: form.value.autoMemoryExtract
+      autoMemoryExtract: form.value.autoMemoryExtract,
+      narrativeEnabled: form.value.narrativeEnabled,
+      aftermathEnabled: form.value.aftermathEnabled,
+      eventSceneType: form.value.eventSceneType || 'general'
     })
     emit('saved')
     emit('close')
@@ -399,6 +442,18 @@ async function handleSave() {
   font-size: $font-size-xs;
   color: $text-secondary;
   line-height: 1.4;
+}
+
+.form-section {
+  margin-bottom: $spacing-lg;
+
+  h4 {
+    font-size: 14px;
+    color: #333;
+    margin: 0 0 $spacing-md;
+    padding-bottom: $spacing-xs;
+    border-bottom: 1px solid #eee;
+  }
 }
 
 .info-section {

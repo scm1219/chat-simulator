@@ -159,6 +159,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCount: (characterName) => ipcRenderer.invoke('memory:getCount', characterName)
   },
 
+  // ============ 叙事系统 ============
+  narrative: {
+    getEmotions: (groupId) => ipcRenderer.invoke('narrative:getEmotions', groupId),
+    getEmotion: (groupId, characterId) => ipcRenderer.invoke('narrative:getEmotion', groupId, characterId),
+    setEmotion: (groupId, characterId, emotion, intensity) => ipcRenderer.invoke('narrative:setEmotion', groupId, characterId, emotion, intensity),
+    getRelationships: (groupId) => ipcRenderer.invoke('narrative:getRelationships', groupId),
+    getRelationship: (groupId, fromId, toId) => ipcRenderer.invoke('narrative:getRelationship', groupId, fromId, toId),
+    setRelationship: (groupId, fromId, toId, type, description) => ipcRenderer.invoke('narrative:setRelationship', groupId, fromId, toId, type, description),
+    removeRelationship: (groupId, fromId, toId) => ipcRenderer.invoke('narrative:removeRelationship', groupId, fromId, toId),
+    getRelationshipTypes: () => ipcRenderer.invoke('narrative:getRelationshipTypes'),
+    getEventPool: (sceneType) => ipcRenderer.invoke('narrative:getEventPool', sceneType),
+    triggerEvent: (groupId, eventKey, content, impact) => ipcRenderer.invoke('narrative:triggerEvent', groupId, eventKey, content, impact),
+    getRecentEvents: (groupId, limit) => ipcRenderer.invoke('narrative:getRecentEvents', groupId, limit),
+    getEventSuggestions: (groupId, sceneType, count) => ipcRenderer.invoke('narrative:getEventSuggestions', groupId, sceneType, count),
+    checkStaleness: (groupId) => ipcRenderer.invoke('narrative:checkStaleness', groupId),
+    onAftermath: (callback) => {
+      const listener = (event, data) => callback(data)
+      ipcRenderer.on('narrative:aftermath', listener)
+      return () => ipcRenderer.removeListener('narrative:aftermath', listener)
+    }
+  },
+
   // ============ 全局搜索 ============
   search: {
     global: (keyword) => ipcRenderer.invoke('search:global', keyword)

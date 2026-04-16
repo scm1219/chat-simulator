@@ -1,10 +1,34 @@
 # Chat - LLM 角色扮演聊天模拟器
 
-> 最后更新：2026-03-29
+> 最后更新：2026-04-17
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-17
+- **新增**：AI 快速建群功能（`QuickGroupDialog.vue`、`llm:generateGroup` IPC 接口）
+- **新增**：快速建群配置管理（`quickGroupConfig`、可配置提示词模板）
+- **新增**：角色级独立 LLM 配置（`custom_llm_profile_id` 字段，每个角色可使用不同模型）
+- **新增**：角色库同步功能（`syncToGroup`、`syncToAllGroups`、`existsInLibrary` 接口）
+- **新增**：JSON 提取工具（`electron/utils/json-extractor.js`，支持 markdown 代码块、截断修复）
+- **新增**：消息模型记录（`messages.model` 字段，记录实际使用的 LLM 模型）
+- **新增**：LLM Profile 更新时自动同步关联群组配置
+- **新增**：供应商：智谱AI Coding（`zhipu-coding`，专用 Coding 端点）
+- **优化**：供应商模型列表更新（OpenAI gpt-5.4 系列、通义千问 qwen3/qwen3.5、智谱 glm-5/5.1、MiniMax M2.7 系列）
+- **优化**：角色导入群组时使用角色库原始 ID（便于追溯和同步）
+- **删除**：`docs/` 目录（设计文档已归档）
+- **删除**：`electron/database/migrations/add_user_character.js`（迁移已内联到 manager.js）
+- **修正**：全局角色库导入机制从"创建副本"改为"使用原始 ID"
+- **新增**：叙事引擎系统（`narrative/` 模块，包含情绪状态机、角色关系图谱、事件触发系统、余波编排）
+- **新增**：角色情绪系统（关键词匹配 + LLM 推断混合模式，8 种内置情绪）
+- **新增**：角色关系系统（7 种预设关系类型，双向动态好感度 -100~100）
+- **新增**：事件触发系统（4 场景 16 预设事件，推荐算法 + 平淡检测）
+- **新增**：角色间余波编排（自动生成角色间追评互动）
+- **新增**：前端叙事组件（EmotionTag、RelationshipPanel、EventPanel、StalenessTip）
+- **新增**：叙事系统 IPC 接口（13 个通道 + aftermath 事件推送）
+- **新增**：群设置叙事配置（叙事引擎开关、余波开关、事件场景类型）
+- **优化**：LLM 对话流程集成叙事上下文注入（情绪+关系+事件）
 
 ### 2026-03-29
 - **新增**：全局角色库系统（`global-character-manager.js`、`GlobalCharacterDialog.vue`、`CharacterLibrary.vue`）
@@ -26,7 +50,6 @@
 - **优化**：数据库 Schema 新增字段：`random_order`、`system_prompt`、`position`、`thinking_enabled`（角色级）、`reasoning_content`、`prompt_tokens`、`completion_tokens`、`auto_memory_extract`
 - **优化**：Preload API 大幅扩展（消息 CRUD、流式事件、角色抽卡、全局角色库、记忆管理、全局搜索、系统提示词模板、抽卡配置等）
 - **优化**：`App.vue` 添加全局 Toast 组件
-- **新增**：`docs/superpowers/` 目录，含角色全局记忆设计文档
 
 ### 2026-03-27
 - **新增**：Ollama 原生 API 支持（双模式：OpenAI 兼容 / 原生 API）
@@ -40,7 +63,6 @@
 - **更新**：添加用户角色支持（`is_user` 字段）
 - **新增**：LLM 配置管理系统（Profile 管理）
 - **新增**：群设置对话框（`GroupSettingsDialog.vue`）
-- **新增**：数据库迁移脚本（`migrations/add_user_character.js`）
 - **优化**：改进角色面板 UI，用户角色显示特殊样式
 
 ### 2026-03-20
@@ -56,11 +78,13 @@
 
 ### 核心特性
 - **多角色对话**：一个聊天群中可添加多个 AI 角色，每个角色独立设定
-- **全局角色库**：跨群组的角色库，支持标签分类、搜索、一键导入到群组
+- **AI 快速建群**：输入群组描述，AI 自动生成群名称、背景设定和多个角色
+- **角色级 LLM 配置**：每个角色可独立配置不同的 LLM Profile 和模型
+- **全局角色库**：跨群组的角色库，支持标签分类、搜索、一键导入到群组，支持同步更新
 - **AI 角色抽卡**：使用 LLM 随机生成角色信息（姓名、性别、年龄、人设）
 - **角色记忆系统**：为角色手动或自动添加记忆，AI 对话时参考记忆内容
-- **多 LLM 支持**：支持 OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、MiniMax、ModelScope、Ollama 等供应商
-- **灵活配置**：支持全局和群组独立的 API Key 配置，LLM 配置 Profile 管理
+- **多 LLM 支持**：支持 OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、MiniMax、ModelScope、Ollama 等 12 个供应商
+- **灵活配置**：支持全局和群组独立的 API Key 配置，LLM 配置 Profile 管理，Profile 更新自动同步群组
 - **代理支持**：支持 HTTP/HTTPS/SOCKS5 代理，可按 Profile 独立配置
 - **本地存储**：每个聊天群使用独立的 SQLite 数据库存储，全局角色库独立存储
 - **微信风格 UI**：简洁优雅的微信绿色主题界面，三栏（可隐藏右侧栏）
@@ -73,19 +97,20 @@
 - **系统提示词模板**：内置 8 个多角色对话模板，支持自定义
 - **角色排序**：支持拖拽排序 AI 角色发言顺序，支持随机发言
 - **消息管理**：支持消息编辑、删除、从某条开始删除、清空、导出 ZIP
+- **叙事引擎**：情绪状态机（关键词+LLM混合）、双向角色关系（好感度系统）、事件触发（推荐+平淡检测）、角色间余波互动
 
 ---
 
 ## 架构总览
 
 ### 技术栈
-- **桌面框架**：Electron 41.0.3
-- **前端框架**：Vue 3.5.30 (Composition API)
-- **构建工具**：electron-vite 5.0.0 + Vite 8.0.1
+- **桌面框架**：Electron 41.2.0
+- **前端框架**：Vue 3.5.32 (Composition API)
+- **构建工具**：electron-vite 5.0.0 + Vite 8.0.8
 - **状态管理**：Pinia 3.0.4
 - **数据库**：better-sqlite3 12.8.0
-- **HTTP 客户端**：axios 1.13.6
-- **样式**：SCSS (Sass 1.98.0)
+- **HTTP 客户端**：axios 1.15.0
+- **样式**：SCSS (Sass 1.99.0)
 - **语言**：JavaScript (ES Modules)
 
 ### 架构模式
@@ -113,7 +138,6 @@
 graph TD
     Root["(根) chat-simulator"] --> Electron["electron (主进程)"];
     Root --> Src["src (渲染进程)"];
-    Root --> Docs["docs (设计文档)"];
 
     Electron --> DB["database (数据层)"];
     Electron --> IPC["ipc (通信层)"];
@@ -146,6 +170,17 @@ graph TD
     Config --> LLMProfiles["llm-profiles.js<br/>LLM 配置文件"];
     Config --> SystemPrompts["system-prompts.js<br/>提示词模板"];
 
+    Utils --> UUID["uuid.js<br/>UUID 生成"];
+    Utils --> JSONExtractor["json-extractor.js<br/>JSON 提取"];
+
+    Electron --> Narrative["narrative (叙事引擎)"];
+
+    Narrative --> Engine["engine.js<br/>叙事引擎主控"];
+    Narrative --> EmotionMgr["emotion-manager.js<br/>情绪状态机"];
+    Narrative --> RelMgr["relationship-manager.js<br/>关系图谱管理"];
+    Narrative --> EventTrig["event-trigger.js<br/>事件触发系统"];
+    Narrative --> PromptBld["prompt-builder.js<br/>叙事上下文构建"];
+
     Src --> Components["components (组件)"];
     Src --> Stores["stores (状态管理)"];
     Src --> Styles["styles (样式)"];
@@ -168,6 +203,7 @@ graph TD
     Chat --> CharacterPanel["CharacterPanel.vue"];
 
     ConfigC --> CreateGroup["CreateGroupDialog.vue"];
+    ConfigC --> QuickGroup["QuickGroupDialog.vue"];
     ConfigC --> CreateCharacter["CreateCharacterDialog.vue"];
     ConfigC --> EditCharacter["EditCharacterDialog.vue"];
     ConfigC --> GlobalCharDialog["GlobalCharacterDialog.vue"];
@@ -193,10 +229,6 @@ graph TD
 
     Composables --> UseDialog["useDialog.js"];
 
-    Docs --> Superpowers["superpowers/"];
-    Superpowers --> Specs["specs/ (规格文档)"];
-    Superpowers --> Plans["plans/ (计划文档)"];
-
     Styles --> Variables["variables.scss"];
     Styles --> Global["global.scss"];
 
@@ -210,9 +242,9 @@ graph TD
 
 | 模块名称 | 路径 | 类型 | 职责 | 文档 |
 |---------|------|------|------|------|
-| **electron** | `electron/` | Electron 主进程 | 窗口管理、IPC 通信、数据库、LLM 调用 | [CLAUDE.md](./electron/CLAUDE.md) |
+| **electron** | `electron/` | Electron 主进程 | 窗口管理、IPC 通信、数据库、LLM 调用、快速建群、角色同步 | [CLAUDE.md](./electron/CLAUDE.md) |
 | **src** | `src/` | Vue 渲染进程 | UI 组件、状态管理、样式 | [CLAUDE.md](./src/CLAUDE.md) |
-| **docs** | `docs/` | 设计文档 | 角色全局记忆设计与计划 | -- |
+| **narrative** | `electron/narrative/` | 叙事引擎 | 情绪、关系、事件、余波编排、Prompt 构建 | |
 
 ---
 
@@ -220,14 +252,14 @@ graph TD
 
 ### 前置要求
 - Node.js >= 18
-- npm >= 9
+- npm >= 9（或 pnpm）
 
 ### 开发模式
 ```bash
 # 安装依赖
 npm install
 
-# 启动开发模式
+# 启动开发模式（自动设置控制台 UTF-8 编码）
 npm run dev
 ```
 
@@ -282,6 +314,7 @@ npm run build:linux
 - `is_user`: 是否为用户角色（0/1）
 - `position`: 发言排序位置（整数，AI 角色排序）
 - `thinking_enabled`: 角色级思考模式开关（0/1）
+- `custom_llm_profile_id`: 角色独立 LLM Profile ID（可选，指向 llm-profiles 中的配置）
 - `created_at`: 创建时间
 
 ##### messages（消息表）
@@ -293,6 +326,7 @@ npm run build:linux
 - `reasoning_content`: 推理过程内容（思考模式）
 - `prompt_tokens`: 输入 token 数
 - `completion_tokens`: 输出 token 数
+- `model`: 实际使用的 LLM 模型名称（可选）
 - `timestamp`: 时间戳
 
 #### 2. 全局角色库数据库（`data/global/character-library.sqlite`）
@@ -330,12 +364,13 @@ npm run build:linux
 项目使用内联迁移机制，在 `DatabaseManager.runMigrations()` 中自动执行：
 
 1. **添加 reasoning_content 字段**：消息表添加推理过程内容
-2. **添加 position 字段**：角色表添加排序位置
+2. **添加 position 字段**：角色表添加排序位置（含规范化已有数据）
 3. **添加 thinking_enabled 字段（角色级）**：角色级思考模式开关
 4. **添加 random_order 字段**：群组随机发言顺序
 5. **添加 prompt_tokens/completion_tokens 字段**：消息 token 统计
-6. **添加 auto_memory_extract 字段**：自动记忆提取开关
-7. **添加 system_prompt 字段**：群组系统提示词
+6. **添加 custom_llm_profile_id 字段**：角色独立 LLM Profile
+7. **添加 model 字段**：消息实际使用的模型
+8. **添加 auto_memory_extract 字段**：自动记忆提取开关
 
 ---
 
@@ -346,7 +381,7 @@ npm run build:linux
 - **手动测试**：通过开发模式手动验证功能
 
 ### 推荐测试方案
-1. **单元测试**：使用 Vitest 测试 LLM 客户端、数据库管理器、全局角色管理器
+1. **单元测试**：使用 Vitest 测试 LLM 客户端、数据库管理器、全局角色管理器、JSON 提取器
 2. **集成测试**：使用 Playwright 测试 Electron 主进程 IPC 调用
 3. **E2E 测试**：使用 Spectron 或 Playwright 测试完整用户流程
 
@@ -392,14 +427,16 @@ npm run build:linux
 ### 关键注意事项
 1. **IPC 通信**：所有渲染进程对主进程的调用必须通过 `window.electronAPI`
 2. **数据库操作**：群组数据库由 `DatabaseManager` 统一管理，全局角色库由 `GlobalCharacterManager` 管理，记忆由 `MemoryManager` 管理
-3. **LLM 调用**：必须先检查群组是否配置了 API Key
+3. **LLM 调用**：必须先检查群组或 Profile 是否配置了 API Key
 4. **状态管理**：修改数据后应同步更新 Pinia Store，确保 UI 响应
 5. **异步处理**：所有 IPC 调用都是异步的，使用 `async/await`
 6. **用户角色**：用户角色（`is_user = 1`）不会参与 LLM 对话生成
-7. **全局角色库**：角色库中的角色可以导入到任意群组，导入时创建副本
-8. **角色记忆**：记忆按角色名称关联（不按 ID），跨群组共享
-9. **流式输出**：LLM 回复使用流式推送，前端通过事件监听实时更新
-10. **Token 统计**：消息保存时记录 token 用量，可用于成本分析
+7. **全局角色库**：角色库中的角色可以导入到群组，导入时使用角色库原始 ID（非副本），支持同步更新
+8. **角色独立 LLM**：角色可通过 `custom_llm_profile_id` 使用独立 LLM 配置，优先于群组配置
+9. **角色记忆**：记忆按角色名称关联（不按 ID），跨群组共享
+10. **流式输出**：LLM 回复使用流式推送，前端通过事件监听实时更新
+11. **Token 统计**：消息保存时记录 token 用量和实际模型，可用于成本分析
+12. **JSON 提取**：LLM 返回的 JSON 使用 `json-extractor.js` 提取，支持 markdown 代码块和截断修复
 
 ### 常见任务模式
 
@@ -444,9 +481,10 @@ npm run build:linux
 
 ### 4. 全局角色库和群组角色有什么关系？
 - 全局角色库是跨群组的角色模板库
-- 导入到群组时创建副本，独立于原角色
+- 导入到群组时使用角色库原始 ID（非副本），便于同步
 - 支持标签分类、搜索筛选
 - 支持 AI 抽卡自动生成角色
+- 支持从角色库同步更新到单个或所有关联群组
 
 ### 5. 什么是角色记忆？
 - 角色记忆是跨群组的持久化信息
@@ -465,6 +503,17 @@ npm run build:linux
 - 搜索范围包括所有群组的消息内容和角色名称
 - 点击搜索结果可跳转到对应群组
 
+### 8. 什么是 AI 快速建群？
+- 在群组列表点击"AI 建群"按钮
+- 输入群组描述（如"办公室白领聊天群，3个女性，1个男性"）
+- 选择 LLM 配置，AI 自动生成群名称、背景设定和多个角色
+- 可编辑预览后确认创建，支持同时保存角色到全局角色库
+
+### 9. 什么是角色独立 LLM 配置？
+- 每个角色可配置独立的 LLM Profile（`custom_llm_profile_id`）
+- 角色发言时优先使用角色级配置，未设置则回退到群组配置
+- 在角色面板中开启/关闭独立配置开关
+
 ---
 
 ## 相关资源
@@ -477,6 +526,6 @@ npm run build:linux
 
 ---
 
-**文档版本**：2.0.0
+**文档版本**：2.1.0
 **维护者**：AI 架构师（自适应版）
 **项目状态**：活跃开发中

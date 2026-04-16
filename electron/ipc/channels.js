@@ -32,5 +32,20 @@ export const IPC_CHANNELS = {
   CONFIG_GET_LLM: 'config:getLLMConfig',
   CONFIG_SAVE_LLM: 'config:saveLLMConfig',
   CONFIG_GET_PROXY: 'config:getProxyConfig',
-  CONFIG_SAVE_PROXY: 'config:saveProxyConfig'
+  CONFIG_SAVE_PROXY: 'config:saveProxyConfig',
+
+  // 叙事系统
+  NARRATIVE_GET_EMOTIONS: 'narrative:getEmotions',
+  NARRATIVE_GET_EMOTION: 'narrative:getEmotion',
+  NARRATIVE_SET_EMOTION: 'narrative:setEmotion',
+  NARRATIVE_GET_RELATIONSHIPS: 'narrative:getRelationships',
+  NARRATIVE_GET_RELATIONSHIP: 'narrative:getRelationship',
+  NARRATIVE_SET_RELATIONSHIP: 'narrative:setRelationship',
+  NARRATIVE_REMOVE_RELATIONSHIP: 'narrative:removeRelationship',
+  NARRATIVE_GET_RELATIONSHIP_TYPES: 'narrative:getRelationshipTypes',
+  NARRATIVE_GET_EVENT_POOL: 'narrative:getEventPool',
+  NARRATIVE_TRIGGER_EVENT: 'narrative:triggerEvent',
+  NARRATIVE_GET_RECENT_EVENTS: 'narrative:getRecentEvents',
+  NARRATIVE_GET_EVENT_SUGGESTIONS: 'narrative:getEventSuggestions',
+  NARRATIVE_CHECK_STALENESS: 'narrative:checkStaleness'
 }
