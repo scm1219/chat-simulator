@@ -4,6 +4,7 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
+import { ensureConfigDir } from '../utils/config-dir.js'
 
 const LLM_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'llm-config.json')
 const GACHA_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'gacha-config.json')
@@ -17,16 +18,6 @@ const DEFAULT_LLM_CONFIG = {
   apiKey: '',
   model: 'gpt-3.5-turbo',
   baseURL: ''
-}
-
-/**
- * 确保配置目录存在
- */
-function ensureConfigDir() {
-  const configDir = path.dirname(LLM_CONFIG_FILE)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
 }
 
 /**
@@ -49,7 +40,7 @@ export function getGlobalLLMConfig() {
  */
 export function saveGlobalLLMConfig(config) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(LLM_CONFIG_FILE)
     fs.writeFileSync(LLM_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
@@ -115,7 +106,7 @@ export function getGachaConfig() {
  */
 export function saveGachaConfig(config) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(GACHA_CONFIG_FILE)
     fs.writeFileSync(GACHA_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
@@ -193,7 +184,7 @@ export function getQuickGroupConfig() {
  */
 export function saveQuickGroupConfig(config) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(QUICK_GROUP_CONFIG_FILE)
     fs.writeFileSync(QUICK_GROUP_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {

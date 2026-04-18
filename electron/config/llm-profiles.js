@@ -7,18 +7,9 @@ import path from 'path'
 import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
+import { ensureConfigDir } from '../utils/config-dir.js'
 
 const LLM_PROFILES_FILE = path.join(app.getPath('userData'), 'config', 'llm-profiles.json')
-
-/**
- * 确保配置目录存在
- */
-function ensureConfigDir() {
-  const configDir = path.dirname(LLM_PROFILES_FILE)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-}
 
 /**
  * 获取所有 LLM 配置
@@ -67,7 +58,7 @@ export function getLLMProfiles() {
  */
 function saveLLMProfiles(profiles) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(LLM_PROFILES_FILE)
     fs.writeFileSync(LLM_PROFILES_FILE, JSON.stringify(profiles, null, 2))
     return true
   } catch (error) {
@@ -163,18 +154,5 @@ export function deleteLLMProfile(id) {
   } catch (error) {
     console.error('Failed to delete LLM profile:', error)
     return { success: false, error: error.message }
-  }
-}
-
-/**
- * 根据 ID 获取 LLM 配置
- */
-export function getLLMProfileById(id) {
-  try {
-    const profiles = getLLMProfiles()
-    return profiles.find(p => p.id === id) || null
-  } catch (error) {
-    console.error('Failed to get LLM profile by id:', error)
-    return null
   }
 }

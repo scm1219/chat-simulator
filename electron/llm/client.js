@@ -326,10 +326,3 @@ export class LLMClient {
     }
   }
 }
-
-/**
- * 创建 LLM 客户端实例
- */
-export function createLLMClient(config) {
-  return new LLMClient(config)
-}

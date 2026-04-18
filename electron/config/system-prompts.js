@@ -4,12 +4,12 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
+import { ensureConfigDir } from '../utils/config-dir.js'
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'system-prompts.json')
 
 /**
  * 默认系统提示词模板
- */
 const DEFAULT_TEMPLATES = [
   {
     id: 'multi-role-basic',
@@ -62,16 +62,6 @@ const DEFAULT_TEMPLATES = [
 ]
 
 /**
- * 确保配置目录存在
- */
-function ensureConfigDir() {
-  const configDir = path.dirname(CONFIG_FILE)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-}
-
-/**
  * 获取所有系统提示词模板
  * @returns {Array} 模板列表
  */
@@ -99,7 +89,7 @@ export function getSystemPromptTemplates() {
  */
 export function saveSystemPromptTemplates(templates) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(CONFIG_FILE)
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({ templates }, null, 2))
     return true
   } catch (error) {
@@ -183,12 +173,4 @@ export function deleteSystemPromptTemplate(id) {
     console.error('[SystemPrompts] 删除模板失败', error)
     return false
   }
-}
-
-/**
- * 获取默认模板列表（用于前端展示）
- * @returns {Array} 默认模板列表
- */
-export function getDefaultTemplates() {
-  return DEFAULT_TEMPLATES
 }

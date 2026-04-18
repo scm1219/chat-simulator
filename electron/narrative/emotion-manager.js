@@ -18,7 +18,7 @@ export class EmotionManager {
       for (const word of config.words) {
         if (content.includes(word)) {
           const count = (content.match(new RegExp(escapeRegExp(word), 'g')) || []).length
-          const score = config.intensity * Math.min(count, 3) / 1
+          const score = config.intensity * Math.min(count, 3)
           if (score > bestScore) {
             bestScore = score
             bestMatch = { emotion, intensity: Math.min(score, 1.0) }

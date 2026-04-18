@@ -254,6 +254,15 @@ export class GlobalCharacterManager {
   }
 
   /**
+   * 根据 ID 获取标签
+   * @param {string} id - 标签 ID
+   * @returns {Object|null} 标签对象
+   */
+  getTagById(id) {
+    return this.db.prepare('SELECT * FROM tags WHERE id = ?').get(id) || null
+  }
+
+  /**
    * 更新标签
    * @param {string} id - 标签 ID
    * @param {Object} data - 更新数据
@@ -352,12 +361,7 @@ export class GlobalCharacterManager {
    */
   getAllWithTags() {
     const characters = this.getAll()
-
-    // 为每个角色获取标签
-    for (const character of characters) {
-      character.tags = this.getCharacterTags(character.id)
-    }
-
+    this._attachTags(characters)
     return characters
   }
 
@@ -386,12 +390,39 @@ export class GlobalCharacterManager {
       )
     }
 
-    // 为每个角色获取标签
-    for (const character of characters) {
-      character.tags = this.getCharacterTags(character.id)
-    }
-
+    this._attachTags(characters)
     return characters
+  }
+
+  /**
+   * 批量附加标签到角色列表（单次查询替代 N+1）
+   * @param {Array} characters - 角色列表
+   */
+  _attachTags(characters) {
+    if (characters.length === 0) return
+    const ids = characters.map(c => c.id)
+    const placeholders = ids.map(() => '?').join(',')
+    const rows = this.db.prepare(`
+      SELECT ct.character_id, t.* FROM character_tags ct
+      INNER JOIN tags t ON ct.tag_id = t.id
+      WHERE ct.character_id IN (${placeholders})
+      ORDER BY t.name ASC
+    `).all(...ids)
+
+    // 初始化空标签数组
+    const tagMap = new Map()
+    for (const char of characters) {
+      tagMap.set(char.id, [])
+    }
+    // 填充标签
+    for (const row of rows) {
+      const { character_id, ...tag } = row
+      tagMap.get(character_id)?.push(tag)
+    }
+    // 赋值
+    for (const char of characters) {
+      char.tags = tagMap.get(char.id) || []
+    }
   }
 
   /**

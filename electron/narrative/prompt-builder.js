@@ -78,20 +78,6 @@ ${triggerChar.name}的追评：`
     return `【角色关系】\n${lines.join('\n')}`
   }
 
-  _buildRelationshipSectionForAll(db, allCharacters) {
-    const relationships = db.prepare('SELECT * FROM character_relationships').all()
-    if (relationships.length === 0) return ''
-    const characterMap = new Map(allCharacters.map(c => [c.id, c.name]))
-    const lines = relationships.map(r => {
-      const fromName = characterMap.get(r.from_id) || '未知'
-      const toName = characterMap.get(r.to_id) || '未知'
-      const level = getFavorabilityLevel(r.favorability)
-      const typeConfig = getRelationshipType(r.type)
-      return `- ${fromName} → ${toName}：${typeConfig.label}（好感度 ${r.favorability}，${level.label}）`
-    })
-    return `【角色关系】\n${lines.join('\n')}`
-  }
-
   _buildEventSection(db, groupId) {
     const events = db.prepare(`
       SELECT * FROM narrative_events WHERE group_id = ?

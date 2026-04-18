@@ -245,7 +245,7 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
 
   // 更新标签
   ipcMain.handle('globalCharacter:updateTag', createHandler(async (event, id, data) => {
-    const tag = globalCharManager.db.prepare('SELECT * FROM tags WHERE id = ?').get(id)
+    const tag = globalCharManager.getTagById(id)
     if (!tag) {
       return { success: false, error: '标签不存在' }
     }

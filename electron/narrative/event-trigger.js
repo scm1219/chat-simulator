@@ -134,10 +134,6 @@ export class EventTrigger {
     return Object.values(allEvents)
   }
 
-  getAvailableScenes() {
-    return Object.keys(this.eventPool)
-  }
-
   triggerEvent(db, groupId, eventKey, content, impact, triggeredBy = 'user') {
     const id = generateUUID()
     // 手动触发事件使用 event_key + 时间戳后缀，避免与预设事件 key 冲突导致去重误判

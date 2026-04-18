@@ -65,8 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     generateCharacterCommand: (groupId, characterId, instruction) =>
       ipcRenderer.invoke('llm:generateCharacterCommand', groupId, characterId, instruction),
     generateCharacter: (hint) => ipcRenderer.invoke('llm:generateCharacter', hint),
-    generateGroup: (description, profileId) => ipcRenderer.invoke('llm:generateGroup', description, profileId),
-    onProgress: createEventListener('llm:progress')
+    generateGroup: (description, profileId) => ipcRenderer.invoke('llm:generateGroup', description, profileId)
   },
 
   // ============ 配置操作 ============

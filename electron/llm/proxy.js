@@ -4,6 +4,7 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
+import { ensureConfigDir } from '../utils/config-dir.js'
 
 const PROXY_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'proxy-config.json')
 
@@ -17,16 +18,6 @@ const DEFAULT_PROXY_CONFIG = {
   port: 8080,
   username: '',
   password: ''
-}
-
-/**
- * 确保配置目录存在
- */
-function ensureConfigDir() {
-  const configDir = path.dirname(PROXY_CONFIG_FILE)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
 }
 
 /**
@@ -49,7 +40,7 @@ export function getProxyConfig() {
  */
 export function saveProxyConfig(config) {
   try {
-    ensureConfigDir()
+    ensureConfigDir(PROXY_CONFIG_FILE)
     fs.writeFileSync(PROXY_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {

@@ -990,28 +990,6 @@ async function sendCommand(char) {
   font-size: $font-size-md;
 }
 
-.character-prompt-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid $border-color;
-  border-radius: $border-radius-md;
-  font-size: $font-size-sm;
-  min-height: 80px;
-  margin-bottom: $spacing-sm;
-  resize: vertical;
-  font-family: inherit;
-  transition: border-color 0.2s;
-
-  &:focus {
-    outline: none;
-    border-color: $color-primary;
-  }
-
-  &::placeholder {
-    color: $text-placeholder;
-  }
-}
-
 .character-prompt-collapsed {
   margin-bottom: $spacing-sm;
 

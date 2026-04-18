@@ -21,8 +21,13 @@ CREATE TABLE IF NOT EXISTS groups (
   response_mode TEXT DEFAULT 'sequential',
   use_global_api_key INTEGER DEFAULT 1,
   thinking_enabled INTEGER DEFAULT 0,
+  random_order INTEGER DEFAULT 0,
   background TEXT,
   system_prompt TEXT,
+  auto_memory_extract INTEGER DEFAULT 0,
+  narrative_enabled INTEGER NOT NULL DEFAULT 1,
+  aftermath_enabled INTEGER NOT NULL DEFAULT 1,
+  event_scene_type TEXT DEFAULT 'general',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,6 +66,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
 CREATE INDEX IF NOT EXISTS idx_messages_group_id ON messages(group_id);
 CREATE INDEX IF NOT EXISTS idx_characters_group_id ON characters(group_id);
+CREATE INDEX IF NOT EXISTS idx_narrative_events_group_id ON narrative_events(group_id);
 
 -- ============ 触发器：自动更新 updated_at ============
 CREATE TRIGGER IF NOT EXISTS update_groups_timestamp
