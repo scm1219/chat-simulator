@@ -4,7 +4,7 @@
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
 
-export function setupCharacterHandlers(dbManager) {
+export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
   // 创建角色
   ipcMain.handle('character:create', async (event, data) => {
     try {
@@ -106,6 +106,15 @@ export function setupCharacterHandlers(dbManager) {
           }
 
           const result = db.prepare('DELETE FROM characters WHERE id = ?').run(id)
+
+          // 清理角色相关的叙事数据（情绪记录 + 双向关系记录）
+          if (result.changes > 0 && narrativeEngine) {
+            try {
+              narrativeEngine.removeCharacter(db, id)
+            } catch (err) {
+              console.error('[character:delete] 清理叙事数据失败:', err.message)
+            }
+          }
 
           if (result.changes > 0) {
             return { success: true }

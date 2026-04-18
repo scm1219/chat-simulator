@@ -2,6 +2,7 @@
  * 叙事系统 IPC 处理器
  */
 import { ipcMain } from 'electron'
+import { SCENE_LABELS, SCENE_OPTIONS, EMOTION_KEYWORDS } from '../../narrative/constants.js'
 
 export function setupNarrativeHandlers(narrativeEngine) {
   ipcMain.handle('narrative:getEmotions', async (event, groupId) => {
@@ -82,6 +83,14 @@ export function setupNarrativeHandlers(narrativeEngine) {
     }
   })
 
+  ipcMain.handle('narrative:getSceneLabels', async () => {
+    return { success: true, data: SCENE_LABELS }
+  })
+
+  ipcMain.handle('narrative:getEmotionList', async () => {
+    return { success: true, data: Object.keys(EMOTION_KEYWORDS) }
+  })
+
   ipcMain.handle('narrative:getEventPool', async (event, sceneType) => {
     try {
       const events = narrativeEngine.eventTrigger.getEventPool(sceneType || 'general')
@@ -105,6 +114,10 @@ export function setupNarrativeHandlers(narrativeEngine) {
     try {
       const db = narrativeEngine._getGroupDB(groupId)
       const events = narrativeEngine.eventTrigger.getRecentEvents(db, groupId, limit || 10)
+      // 为每个事件附加场景标签
+      for (const evt of events) {
+        evt.scene_label = narrativeEngine.eventTrigger.getEventSceneLabel(evt.event_key)
+      }
       return { success: true, data: events }
     } catch (error) {
       return { success: false, error: error.message }

@@ -136,13 +136,7 @@
           <div class="form-group" v-if="form.narrativeEnabled">
             <label>事件场景类型</label>
             <select v-model="form.eventSceneType" class="input">
-              <option value="general">通用</option>
-              <option value="office">办公室</option>
-              <option value="home">家庭</option>
-              <option value="school">校园</option>
-              <option value="restaurant">餐厅</option>
-              <option value="travel">旅行</option>
-              <option value="party">聚会</option>
+              <option v-for="opt in sceneOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </div>
         </div>
@@ -192,6 +186,7 @@ const groupsStore = useGroupsStore()
 const toast = useToastStore()
 
 const group = computed(() => groupsStore.groups.find(g => g.id === props.groupId))
+const sceneOptions = ref([{ value: 'general', label: '通用' }])
 
 const form = ref({
   name: '',
@@ -224,7 +219,12 @@ const hasChanges = computed(() => {
   )
 })
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载场景标签
+  const labelResult = await window.electronAPI.narrative.getSceneLabels()
+  if (labelResult.success) {
+    sceneOptions.value = Object.entries(labelResult.data).map(([value, label]) => ({ value, label }))
+  }
   if (group.value) {
     form.value = {
       name: group.value.name,

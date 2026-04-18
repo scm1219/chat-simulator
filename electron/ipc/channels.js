@@ -47,5 +47,7 @@ export const IPC_CHANNELS = {
   NARRATIVE_TRIGGER_EVENT: 'narrative:triggerEvent',
   NARRATIVE_GET_RECENT_EVENTS: 'narrative:getRecentEvents',
   NARRATIVE_GET_EVENT_SUGGESTIONS: 'narrative:getEventSuggestions',
-  NARRATIVE_CHECK_STALENESS: 'narrative:checkStaleness'
+  NARRATIVE_CHECK_STALENESS: 'narrative:checkStaleness',
+  NARRATIVE_GET_SCENE_LABELS: 'narrative:getSceneLabels',
+  NARRATIVE_GET_EMOTION_LIST: 'narrative:getEmotionList'
 }

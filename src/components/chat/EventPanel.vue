@@ -2,6 +2,7 @@
   <div class="event-panel">
     <div class="panel-header">
       <h4>推荐事件</h4>
+      <span class="current-scene">{{ sceneLabel }}</span>
       <button class="btn-refresh" @click="refresh" title="换一批">换一批</button>
     </div>
 
@@ -18,6 +19,8 @@
       <h5>最近事件</h5>
       <div v-for="evt in recentEvents" :key="evt.id" class="recent-event">
         <span class="event-type-badge">{{ evt.event_type === 'user_triggered' ? '手动' : '自动' }}</span>
+        <span class="event-scene-badge">{{ evt.scene_label || '未知' }}</span>
+        <span class="event-time">{{ formatTime(evt.created_at) }}</span>
         <span class="event-text">{{ evt.content }}</span>
         <button class="btn-delete-event" @click.stop="handleDeleteEvent(evt.id)" title="删除">x</button>
       </div>
@@ -26,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useNarrativeStore } from '../../stores/narrative.js'
 
 const props = defineProps({
@@ -36,11 +39,19 @@ const props = defineProps({
 
 const emit = defineEmits(['eventTriggered', 'eventDeleted'])
 
+const sceneLabels = ref({})
+const sceneLabel = computed(() => sceneLabels.value[props.sceneType] || props.sceneType)
+
+async function loadSceneLabels() {
+  const result = await window.electronAPI.narrative.getSceneLabels()
+  if (result.success) sceneLabels.value = result.data
+}
+
 const narrativeStore = useNarrativeStore()
 const suggestions = ref([])
 const recentEvents = ref([])
 
-onMounted(() => { refresh() })
+onMounted(() => { loadSceneLabels(); refresh() })
 
 watch(() => props.groupId, () => { refresh() })
 
@@ -68,11 +79,26 @@ async function handleDeleteEvent(eventId) {
     }
   }
 }
+
+function formatTime(datetime) {
+  if (!datetime) return ''
+  const d = new Date(datetime.replace(' ', 'T'))
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+
+  // 同一天只显示时分
+  if (d.toDateString() === now.toDateString()) {
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  // 不同天显示月/日 时:分
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 </script>
 
 <style lang="scss" scoped>
 .event-panel { padding: 8px; }
-.panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; h4 { margin: 0; font-size: 13px; } }
+.panel-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; h4 { margin: 0; font-size: 13px; } .btn-refresh { margin-left: auto; } }
+.current-scene { font-size: 10px; background: #e3f2fd; border-radius: 4px; padding: 1px 6px; color: #1976d2; flex-shrink: 0; }
 .btn-refresh { background: none; border: 1px solid #ddd; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; color: #666; &:hover { border-color: #07c160; color: #07c160; } }
 .empty-tip { color: #999; font-size: 12px; text-align: center; padding: 12px; }
 .event-card { display: flex; align-items: center; gap: 6px; padding: 8px; background: #f8f8f8; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: background 0.2s; &:hover { background: #e8f5e9; } }
@@ -81,6 +107,8 @@ async function handleDeleteEvent(eventId) {
 .recent-events { margin-top: 12px; h5 { margin: 0 0 6px; font-size: 12px; color: #666; } }
 .recent-event { font-size: 11px; color: #888; padding: 4px 0; display: flex; align-items: center; gap: 4px; }
 .event-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-time { font-size: 10px; color: #aaa; flex-shrink: 0; }
+.event-scene-badge { font-size: 10px; background: #e3f2fd; border-radius: 4px; padding: 0 4px; color: #1976d2; flex-shrink: 0; }
 .event-type-badge { font-size: 10px; background: #e0e0e0; border-radius: 4px; padding: 0 4px; color: #666; flex-shrink: 0; }
 .btn-delete-event { background: none; border: none; font-size: 11px; color: #bbb; cursor: pointer; padding: 0 2px; flex-shrink: 0; &:hover { color: #e74c3c; } }
 </style>

@@ -169,6 +169,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setRelationship: (groupId, fromId, toId, type, description) => ipcRenderer.invoke('narrative:setRelationship', groupId, fromId, toId, type, description),
     removeRelationship: (groupId, fromId, toId) => ipcRenderer.invoke('narrative:removeRelationship', groupId, fromId, toId),
     getRelationshipTypes: () => ipcRenderer.invoke('narrative:getRelationshipTypes'),
+    getSceneLabels: () => ipcRenderer.invoke('narrative:getSceneLabels'),
+    getEmotionList: () => ipcRenderer.invoke('narrative:getEmotionList'),
     getEventPool: (sceneType) => ipcRenderer.invoke('narrative:getEventPool', sceneType),
     triggerEvent: (groupId, eventKey, content, impact) => ipcRenderer.invoke('narrative:triggerEvent', groupId, eventKey, content, impact),
     getRecentEvents: (groupId, limit) => ipcRenderer.invoke('narrative:getRecentEvents', groupId, limit),

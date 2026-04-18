@@ -3,35 +3,11 @@
  * 双向动态关系 + 好感度系统
  */
 
-const DEFAULT_RELATIONSHIP_TYPES = {
-  friend:    { label: '朋友',   defaultFavor: 30,  promptHint: '友好、亲近、会开玩笑' },
-  lover:     { label: '恋人',   defaultFavor: 70,  promptHint: '亲密、温柔、关心对方' },
-  rival:     { label: '对手',   defaultFavor: -20, promptHint: '竞争、不服气、暗中较劲' },
-  mentor:    { label: '师徒',   defaultFavor: 40,  promptHint: '尊重但保持距离、偶尔严厉' },
-  colleague: { label: '同事',   defaultFavor: 10,  promptHint: '礼貌、合作、有分寸' },
-  family:    { label: '家人',   defaultFavor: 50,  promptHint: '随意、亲密、说话不加修饰' },
-  stranger:  { label: '陌生人', defaultFavor: 0,   promptHint: '客气、试探、保持距离' }
-}
-
-const FAVORABILITY_LEVELS = [
-  { min: 70,  max: 100, label: '深厚', hint: '无条件信任，会为对方出头' },
-  { min: 40,  max: 69,  label: '亲密', hint: '主动分享，会维护对方' },
-  { min: 10,  max: 39,  label: '友好', hint: '正常交流，偶尔关心' },
-  { min: -10, max: 9,   label: '中立', hint: '礼貌但疏远' },
-  { min: -50, max: -11, label: '不满', hint: '带有负面情绪，说话带刺' },
-  { min: -100, max: -51, label: '敌对', hint: '极度厌恶，言辞尖锐，可能拒绝交流' }
-]
-
-const INTERACTION_PATTERNS = [
-  { type: 'praise',    words: ['你说得对', '谢谢你', '厉害', '不错', '真棒', '佩服'], range: [3, 8] },
-  { type: 'criticize', words: ['你错了', '别说了', '无聊', '差劲', '胡说'], range: [-8, -3] },
-  { type: 'share',     words: ['我觉得', '我之前', '告诉你', '其实我'], range: [2, 5] },
-  { type: 'empathy',   words: ['我也', '同感', '理解', '我也是'], range: [2, 5] }
-]
+import { RELATIONSHIP_TYPES, FAVORABILITY_LEVELS, INTERACTION_PATTERNS, getFavorabilityLevel } from './constants.js'
 
 export class RelationshipManager {
   constructor() {
-    this.types = { ...DEFAULT_RELATIONSHIP_TYPES }
+    this.types = { ...RELATIONSHIP_TYPES }
   }
 
   getRelationshipTypes() {
@@ -39,7 +15,7 @@ export class RelationshipManager {
   }
 
   getFavorabilityLevel(favorability) {
-    return FAVORABILITY_LEVELS.find(l => favorability >= l.min && favorability <= l.max) || FAVORABILITY_LEVELS[3]
+    return getFavorabilityLevel(favorability)
   }
 
   setRelationship(db, fromId, toId, type, description = '') {
@@ -67,57 +43,104 @@ export class RelationshipManager {
     db.prepare('DELETE FROM character_relationships WHERE from_id = ? AND to_id = ?').run(fromId, toId)
   }
 
-  updateFavorability(db, senderId, receiverId, content, receiverEmotion = null) {
+  /**
+   * 根据消息内容更新好感度（支持双向更新、@角色名解析、多模式匹配）
+   * @param {Database} db 群组数据库
+   * @param {string} senderId 发送者角色 ID
+   * @param {string} receiverId 接收者角色 ID
+   * @param {string} content 消息内容
+   * @param {Object|null} receiverEmotion 接收者当前情绪
+   * @param {Map<string, string>|null} characterNameMap 角色名→ID映射（用于@解析）
+   * @returns {{ favorability: number, change: number, reason: string, reverseChange: number }}
+   */
+  updateFavorability(db, senderId, receiverId, content, receiverEmotion = null, characterNameMap = null) {
     let totalChange = 0
-    let reason = ''
+    let reasons = []
+
+    // 匹配所有互动模式（不再 break，累计多种匹配）
     for (const pattern of INTERACTION_PATTERNS) {
       for (const word of pattern.words) {
         if (content.includes(word)) {
           let [minChange, maxChange] = pattern.range
           const change = minChange + Math.floor(Math.random() * (maxChange - minChange + 1))
+          let adjustedChange = change
+
           if (receiverEmotion) {
             if (pattern.type === 'praise' && receiverEmotion.emotion === '愤怒') {
-              reason = `${receiverEmotion.emotion}状态下被夸赞，效果减半`
-              totalChange += Math.floor(change * 0.5)
+              reasons.push(`${receiverEmotion.emotion}状态下被夸赞，效果减半`)
+              adjustedChange = Math.floor(change * 0.5)
             } else if (pattern.type === 'criticize' && receiverEmotion.emotion === '开心') {
-              reason = `${receiverEmotion.emotion}状态下被批评，效果加倍`
-              totalChange += change * 2
-            } else {
-              totalChange += change
+              reasons.push(`${receiverEmotion.emotion}状态下被批评，效果加倍`)
+              adjustedChange = change * 2
             }
-          } else {
-            totalChange += change
           }
-          reason = reason || `消息中包含"${word}"`
+
+          totalChange += adjustedChange
+          reasons.push(`消息中包含"${word}"`)
+          break // 同一模式内只匹配一次
+        }
+      }
+    }
+
+    // @角色名提及：解析具体角色名，只影响被@的角色
+    if (totalChange === 0 && characterNameMap) {
+      const atPattern = /@([^\s\u3000]+)/g
+      let match
+      while ((match = atPattern.exec(content)) !== null) {
+        const mentionedName = match[1]
+        const mentionedId = characterNameMap.get(mentionedName)
+        if (mentionedId === receiverId) {
+          totalChange = 1 + Math.floor(Math.random() * 3)
+          reasons.push(`被@提及(${mentionedName})`)
           break
         }
       }
-      if (totalChange !== 0) break
     }
-    if (totalChange === 0) {
-      const atMatch = content.match(new RegExp(`@[^\\s\\u3000]+`))
-      if (atMatch) {
-        totalChange = 1 + Math.floor(Math.random() * 3)
-        reason = '被点名互动'
-      }
-    }
-    if (totalChange === 0) return { favorability: 0, change: 0, reason: '' }
+
+    if (totalChange === 0) return { favorability: 0, change: 0, reason: '', reverseChange: 0 }
+
+    // 正向更新：sender → receiver
     const existing = this.getRelationship(db, senderId, receiverId)
     const currentFavor = existing ? existing.favorability : 0
     const newFavor = Math.max(-100, Math.min(100, currentFavor + totalChange))
+    this._updateFavorabilityValue(db, senderId, receiverId, existing, newFavor)
+
+    // 反向更新：receiver → sender（被动感受，幅度减半）
+    let reverseChange = 0
+    if (totalChange !== 0) {
+      const reverseExisting = this.getRelationship(db, receiverId, senderId)
+      const reverseCurrentFavor = reverseExisting ? reverseExisting.favorability : 0
+      reverseChange = Math.floor(totalChange * 0.5)
+      if (reverseChange !== 0) {
+        const reverseNewFavor = Math.max(-100, Math.min(100, reverseCurrentFavor + reverseChange))
+        this._updateFavorabilityValue(db, receiverId, senderId, reverseExisting, reverseNewFavor)
+      }
+    }
+
+    return {
+      favorability: newFavor,
+      change: totalChange,
+      reason: reasons.join('；'),
+      reverseChange
+    }
+  }
+
+  /**
+   * 更新或创建好感度值
+   */
+  _updateFavorabilityValue(db, fromId, toId, existing, newFavor) {
     if (existing) {
       db.prepare(`
         UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
         WHERE from_id = ? AND to_id = ?
-      `).run(newFavor, senderId, receiverId)
+      `).run(newFavor, fromId, toId)
     } else {
-      this.setRelationship(db, senderId, receiverId, 'stranger', '')
+      this.setRelationship(db, fromId, toId, 'stranger', '')
       db.prepare(`
         UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
         WHERE from_id = ? AND to_id = ?
-      `).run(newFavor, senderId, receiverId)
+      `).run(newFavor, fromId, toId)
     }
-    return { favorability: newFavor, change: totalChange, reason }
   }
 
   decayInactive(db, characterId, activeCharacterIds) {

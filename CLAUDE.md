@@ -7,13 +7,24 @@
 ## 变更记录 (Changelog)
 
 ### 2026-04-18
+- **重构**：叙事引擎提取共享常量到 `constants.js`（统一情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示）
+- **修复**：情绪衰减改为每次调用时执行；事件 impact 通过 `EVENT_EMOTION_MAP` 映射到标准情绪词；情绪查询限定群组角色范围
+- **修复**：好感度双向更新（A→B 更新时 B→A 同步变化，幅度减半）；`@角色名` 精确解析具体角色名；互动模式支持多模式匹配
+- **修复**：余波字符上限统一 50 字；触发者改为情绪强度加权选择；`_shouldTriggerAftermath` 空数组保护
+- **修复**：手动触发事件 key 追加时间戳后缀避免去重误判；推荐去重使用基础 key 匹配
+- **修复**：角色删除时自动清理叙事数据（`removeCharacter` 方法，清理情绪+双向关系）；`setupCharacterHandlers` 新增 `narrativeEngine` 参数
+- **新增**：`narrative/constants.js` 共享常量文件
+- **删除**：`engine.js` 中 `_parseAftermath` 死代码；`prompt-builder.js` 中重复的内联实现
+- **补充**：7 种情绪新增关键词（紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）
+- **优化**：情绪更新先执行内存匹配，无匹配且无活跃情绪时跳过数据库操作
+- **优化**：余波 Prompt 只注入触发者自身情绪，减少 token 消耗
 - **更新**：全面架构扫描，校准叙事引擎模块文档
 - **更新**：数据模型新增叙事引擎相关字段和表（`narrative_enabled`、`aftermath_enabled`、`event_scene_type`、`is_aftermath`、`message_type`）
 - **更新**：叙事系统 IPC 接口从 13 个扩充为 14 个（新增 `narrative:deleteEvent`、`narrative:setEmotion`、`narrative:getEmotion`、`narrative:removeRelationship`、`narrative:getRelationshipTypes`、`narrative:getEventPool`）
-- **更新**：情绪词典扩展至 15 种情绪关键词（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）
+- **更新**：情绪词典扩展至 15 种情绪关键词（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌，每种均有基础关键词）
 - **更新**：事件场景从 4 场景 16 事件扩展为 7 场景约 85 事件（新增 home、school、restaurant、travel、party）
 - **更新**：余波编排从多人模式改为单角色模式（`_parseSingleAftermath`），余波消息携带 `message_type`、`is_aftermath`、`model`、`prompt_tokens`、`completion_tokens`
-- **更新**：好感度系统支持 6 级等级（深厚/亲密/友好/中立/不满/敌对）和 4 类互动模式（praise/criticize/share/empathy）
+- **更新**：好感度系统支持 6 级等级（深厚/亲密/友好/中立/不满/敌对）和 4 类互动模式（praise/criticize/share/empathy），双向更新，@角色名精确解析
 - **更新**：数据库迁移新增叙事引擎相关字段（`narrative_enabled`、`aftermath_enabled`、`event_scene_type`、`is_aftermath`、`message_type`）
 - **新增**：`narrative` 模块级 CLAUDE.md 文档
 - **新增**：叙事引擎模块在模块索引中添加独立文档链接
@@ -112,7 +123,7 @@
 - **系统提示词模板**：内置 8 个多角色对话模板，支持自定义
 - **角色排序**：支持拖拽排序 AI 角色发言顺序，支持随机发言
 - **消息管理**：支持消息编辑、删除、从某条开始删除、清空、导出 ZIP
-- **叙事引擎**：15 种情绪状态机（关键词+LLM混合推断）、7 种预设关系类型与 6 级好感度、7 场景约 85 个预设事件、单角色余波互动、对话平淡检测
+- **叙事引擎**：15 种情绪状态机（关键词+LLM混合推断，每次调用衰减）、7 种预设关系类型与 6 级好感度（双向更新）、7 场景约 85 个预设事件（含事件-情绪映射）、单角色余波互动（情绪加权选择）、对话平淡检测、角色删除自动清理
 
 ---
 
@@ -190,6 +201,7 @@ graph TD
     Utils --> UUID["uuid.js<br/>UUID 生成"];
     Utils --> JSONExtractor["json-extractor.js<br/>JSON 提取"];
 
+    Narrative --> Constants["constants.js<br/>共享常量"];
     Narrative --> Engine["engine.js<br/>叙事引擎主控"];
     Narrative --> EmotionMgr["emotion-manager.js<br/>情绪状态机"];
     Narrative --> RelMgr["relationship-manager.js<br/>关系图谱管理"];
@@ -494,8 +506,11 @@ npm run build:linux
 11. **Token 统计**：消息保存时记录 token 用量和实际模型，可用于成本分析
 12. **JSON 提取**：LLM 返回的 JSON 使用 `json-extractor.js` 提取，支持 markdown 代码块和截断修复
 13. **叙事引擎**：叙事系统通过 `NarrativeEngine` 编排情绪/关系/事件三个子系统，集成到 LLM 对话流程的 `preGenerate` -> `postCharacterResponse` -> `generateAftermath` 三个阶段
-14. **叙事上下文注入**：叙事引擎在 LLM 调用前注入情绪状态、角色关系、当前事件作为 system prompt
-15. **余波消息**：余波消息存储时标记 `is_aftermath=1`、`message_type='aftermath'`，并记录实际使用的模型和 token 用量
+14. **叙事上下文注入**：叙事引擎在 LLM 调用前注入情绪状态、角色关系、当前事件作为 system prompt（情绪查询限定当前群组角色范围）
+15. **余波消息**：余波消息存储时标记 `is_aftermath=1`、`message_type='aftermath'`，并记录实际使用的模型和 token 用量（上限 50 字，触发者按情绪强度加权选择）
+16. **共享常量**：叙事引擎所有模块共享 `constants.js` 中的情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示
+17. **好感度双向更新**：A→B 更新时 B→A 同步变化（幅度减半）；`@角色名` 精确解析具体角色名；互动模式支持多模式匹配
+18. **角色删除清理**：角色删除时自动清理 `character_emotions` 和 `character_relationships`（双向）中的相关记录
 
 ### 常见任务模式
 
@@ -581,10 +596,12 @@ npm run build:linux
 
 ### 10. 什么是叙事引擎？
 - 叙事引擎为角色对话增加动态情绪、关系和事件系统
-- 情绪系统：关键词匹配 + LLM 关键节点推断混合模式，15 种内置情绪
-- 关系系统：7 种预设关系类型，双向动态好感度（-100~100），6 级好感度等级
-- 事件系统：7 个场景约 85 个预设事件，推荐算法 + 平淡检测
-- 余波编排：对话后角色自动生成追评互动
+- 情绪系统：关键词匹配（15 种，每种均有基础关键词）+ LLM 关键节点推断混合模式，每次调用都执行情绪衰减
+- 关系系统：7 种预设关系类型，双向动态好感度（-100~100），6 级好感度等级，@角色名精确解析，多模式匹配
+- 事件系统：7 个场景约 85 个预设事件，推荐算法 + 平淡检测，事件 impact 通过映射表转换为标准情绪
+- 余波编排：对话后角色自动生成追评互动（情绪加权选择触发者，上限 50 字）
+- 角色删除自动清理：删除角色时自动清理情绪和双向关系数据
+- 共享常量：所有模块通过 `constants.js` 共享配置
 - 可通过群设置中的叙事配置开关控制
 
 ---

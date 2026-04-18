@@ -4,6 +4,7 @@
  */
 
 import { generateUUID } from '../utils/uuid.js'
+import { SCENE_LABELS } from './constants.js'
 
 const DEFAULT_EVENT_POOL = {
   office: [
@@ -139,20 +140,23 @@ export class EventTrigger {
 
   triggerEvent(db, groupId, eventKey, content, impact, triggeredBy = 'user') {
     const id = generateUUID()
+    // 手动触发事件使用 event_key + 时间戳后缀，避免与预设事件 key 冲突导致去重误判
+    const actualKey = triggeredBy === 'user' ? `${eventKey}_${Date.now()}` : eventKey
     db.prepare(`
       INSERT INTO narrative_events (id, group_id, event_key, content, impact, event_type, triggered_by, created_at)
       VALUES (?, ?, ?, ?, ?, 'user_triggered', ?, datetime('now', 'localtime'))
-    `).run(id, groupId, eventKey, content, impact, triggeredBy)
-    return { id, eventKey, content, impact, eventType: 'user_triggered', triggeredBy }
+    `).run(id, groupId, actualKey, content, impact, triggeredBy)
+    return { id, eventKey: actualKey, content, impact, eventType: 'user_triggered', triggeredBy }
   }
 
   getEventSuggestions(db, groupId, sceneType, count = 3) {
     const allEvents = this.getEventPool(sceneType)
     const recentEvents = db.prepare(`
-      SELECT event_key FROM narrative_events WHERE group_id = ? ORDER BY created_at DESC LIMIT 10
+      SELECT event_key, content FROM narrative_events WHERE group_id = ? ORDER BY created_at DESC LIMIT 10
     `).all(groupId)
-    const recentKeys = new Set(recentEvents.map(e => e.event_key))
-    const available = allEvents.filter(e => !recentKeys.has(e.key))
+    // 去重：提取基础 key（去掉手动触发的时间戳后缀）进行匹配
+    const recentBaseKeys = new Set(recentEvents.map(e => e.event_key.replace(/_\d+$/, '')))
+    const available = allEvents.filter(e => !recentBaseKeys.has(e.key))
     const shuffled = available.sort(() => Math.random() - 0.5)
     return shuffled.slice(0, count)
   }
@@ -184,5 +188,20 @@ export class EventTrigger {
   deleteEvent(db, eventId) {
     const result = db.prepare('DELETE FROM narrative_events WHERE id = ?').run(eventId)
     return result.changes > 0
+  }
+
+  /**
+   * 根据 event_key 查找所属场景标签
+   * @param {string} eventKey 事件 key（可能含手动触发的时间戳后缀）
+   * @returns {string} 场景中文标签
+   */
+  getEventSceneLabel(eventKey) {
+    const baseKey = eventKey.replace(/_\d+$/, '')
+    for (const [scene, events] of Object.entries(this.eventPool)) {
+      if (events.some(e => e.key === baseKey)) {
+        return SCENE_LABELS[scene] || scene
+      }
+    }
+    return '自定义'
   }
 }

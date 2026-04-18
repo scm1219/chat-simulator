@@ -107,7 +107,7 @@ app.whenReady().then(async () => {
 
   // 设置 IPC 处理器（必须在创建窗口之前完成）
   setupGroupHandlers(dbManager)
-  setupCharacterHandlers(dbManager)
+  setupCharacterHandlers(dbManager, narrativeEngine)
   setupMessageHandlers(dbManager)
   setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
   setupConfigHandlers(dbManager)

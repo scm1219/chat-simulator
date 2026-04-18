@@ -3,21 +3,11 @@
  * 混合模式：关键词规则快速判断 + LLM 关键节点推断
  */
 
-// 内置情绪词典
-const DEFAULT_EMOTION_KEYWORDS = {
-  '开心':   { words: ['哈哈', '嘿嘿', '太好了', '棒', '开心', '喜欢', '爱你'], intensity: 0.6 },
-  '愤怒':   { words: ['闭嘴', '烦死', '滚', '笨蛋', '混蛋', '气死', '废物'], intensity: 0.8 },
-  '尴尬':   { words: ['那个...', '咳', '不是', '误会', '其实不是'], intensity: 0.5 },
-  '感动':   { words: ['谢谢', '谢谢你', '太感动', '没想到', '你真好'], intensity: 0.7 },
-  '悲伤':   { words: ['难过', '伤心', '不想说', '算了', '无所谓了'], intensity: 0.6 },
-  '惊讶':   { words: ['啊？', '什么？', '不会吧', '真的假的', '不可能'], intensity: 0.7 },
-  '嫉妒':   { words: ['凭什么', '羡慕', '不公平', '为什么不是我'], intensity: 0.6 },
-  '疲惫':   { words: ['累了', '困', '无聊', '不想聊了', '打哈欠'], intensity: 0.4 }
-}
+import { EMOTION_KEYWORDS, mapEventImpactToEmotion } from './constants.js'
 
 export class EmotionManager {
   constructor() {
-    this.keywords = { ...DEFAULT_EMOTION_KEYWORDS }
+    this.keywords = { ...EMOTION_KEYWORDS }
   }
 
   matchFromContent(content) {
@@ -40,31 +30,47 @@ export class EmotionManager {
   }
 
   updateFromMessage(db, characterId, content) {
-    const current = this.getEmotion(db, characterId)
     const match = this.matchFromContent(content)
+
+    // 优化：无匹配且无活跃情绪时跳过数据库操作
     if (!match.emotion) {
-      if (current.intensity > 0) {
-        const newIntensity = Math.max(0, current.intensity - (current.decay_rate || 0.1))
-        if (newIntensity < 0.1) {
-          this._saveEmotion(db, characterId, '平静', 0, 'keyword')
-          return { emotion: '平静', intensity: 0, changed: true }
-        }
-        this._saveEmotion(db, characterId, current.emotion, newIntensity, current.source)
-        return { emotion: current.emotion, intensity: newIntensity, changed: true }
+      const current = this.getEmotion(db, characterId)
+      if (current.intensity <= 0) {
+        return { emotion: '平静', intensity: 0, changed: false }
       }
-      return { ...current, changed: false }
+      // 有活跃情绪，执行衰减
+      const newIntensity = Math.max(0, current.intensity - (current.decay_rate || 0.1))
+      if (newIntensity < 0.1) {
+        this._saveEmotion(db, characterId, '平静', 0, 'keyword')
+        return { emotion: '平静', intensity: 0, changed: true }
+      }
+      this._saveEmotion(db, characterId, current.emotion, newIntensity, current.source)
+      return { emotion: current.emotion, intensity: newIntensity, changed: true }
     }
+
+    // 有匹配：先读取当前状态
+    const current = this.getEmotion(db, characterId)
+
+    // 先对当前情绪执行衰减
+    const decayedIntensity = Math.max(0, current.intensity - (current.decay_rate || 0.1))
+
     if (match.emotion === current.emotion) {
-      const newIntensity = Math.min(1.0, current.intensity + match.intensity * 0.5)
+      // 同种情绪：在衰减后的强度上累积
+      const newIntensity = Math.min(1.0, decayedIntensity + match.intensity * 0.5)
       this._saveEmotion(db, characterId, match.emotion, newIntensity, 'keyword')
       return { emotion: match.emotion, intensity: newIntensity, changed: true }
     } else {
-      const decayedIntensity = Math.max(0, current.intensity - (current.decay_rate || 0.1))
+      // 不同情绪：新情绪强度需超过衰减后的旧情绪才替换
       if (match.intensity > decayedIntensity) {
         this._saveEmotion(db, characterId, match.emotion, match.intensity, 'keyword')
         return { emotion: match.emotion, intensity: match.intensity, changed: true }
       }
-      return { ...current, changed: false }
+      // 新情绪不够强，保留衰减后的旧情绪
+      if (decayedIntensity !== current.intensity && decayedIntensity >= 0.1) {
+        this._saveEmotion(db, characterId, current.emotion, decayedIntensity, current.source)
+        return { emotion: current.emotion, intensity: decayedIntensity, changed: true }
+      }
+      return { emotion: current.emotion, intensity: decayedIntensity, changed: false }
     }
   }
 
@@ -75,9 +81,11 @@ export class EmotionManager {
 
   updateFromEvent(db, characterId, impact) {
     if (!impact) return
-    const config = this.keywords[impact]
+    // 将非标准情绪映射到标准情绪词
+    const standardEmotion = mapEventImpactToEmotion(impact)
+    const config = this.keywords[standardEmotion]
     const intensity = config ? config.intensity * 0.8 : 0.6
-    this._saveEmotion(db, characterId, impact, intensity, 'event')
+    this._saveEmotion(db, characterId, standardEmotion, intensity, 'event')
   }
 
   getEmotion(db, characterId) {

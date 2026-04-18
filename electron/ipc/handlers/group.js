@@ -182,6 +182,18 @@ export function setupGroupHandlers(dbManager) {
         updates.push('auto_memory_extract = ?')
         values.push(data.autoMemoryExtract ? 1 : 0)
       }
+      if (data.narrativeEnabled !== undefined) {
+        updates.push('narrative_enabled = ?')
+        values.push(data.narrativeEnabled ? 1 : 0)
+      }
+      if (data.aftermathEnabled !== undefined) {
+        updates.push('aftermath_enabled = ?')
+        values.push(data.aftermathEnabled ? 1 : 0)
+      }
+      if (data.eventSceneType !== undefined) {
+        updates.push('event_scene_type = ?')
+        values.push(data.eventSceneType)
+      }
 
       if (updates.length === 0) {
         return { success: false, error: '没有要更新的字段' }

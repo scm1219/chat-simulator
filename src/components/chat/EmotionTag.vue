@@ -14,7 +14,7 @@
           v-for="opt in emotionOptions"
           :key="opt"
           class="picker-option"
-          :class="[emotionColorMap[opt] || 'emotion-neutral', { active: emotion === opt }]"
+          :class="[EMOTION_CSS_MAP[opt] || 'emotion-neutral', { active: emotion === opt }]"
           @click="selectEmotion(opt)"
         >{{ opt }}</span>
       </div>
@@ -47,52 +47,37 @@ const showPicker = ref(false)
 const tempEmotion = ref('')
 const tempIntensity = ref(0.5)
 
-const emotionOptions = [
-  '平静', '开心', '愤怒', '尴尬', '感动',
-  '悲伤', '惊讶', '嫉妒', '疲惫', '紧张',
-  '惊慌', '好奇', '无奈', '沮丧', '焦虑'
-]
+// 情绪 → CSS 类名映射（统一数据源，消除重复）
+const EMOTION_CSS_MAP = {
+  '平静': 'emotion-neutral',
+  '开心': 'emotion-happy',
+  '愤怒': 'emotion-angry',
+  '尴尬': 'emotion-awkward',
+  '感动': 'emotion-moved',
+  '悲伤': 'emotion-sad',
+  '惊讶': 'emotion-surprised',
+  '嫉妒': 'emotion-jealous',
+  '疲惫': 'emotion-tired',
+  '紧张': 'emotion-nervous',
+  '惊慌': 'emotion-panic',
+  '恐慌': 'emotion-terror',
+  '好奇': 'emotion-curious',
+  '无奈': 'emotion-helpless',
+  '沮丧': 'emotion-depressed',
+  '焦虑': 'emotion-anxious'
+}
 
-const emotionClass = computed(() => {
-  const map = {
-    '开心': 'emotion-happy',
-    '愤怒': 'emotion-angry',
-    '尴尬': 'emotion-awkward',
-    '感动': 'emotion-moved',
-    '悲伤': 'emotion-sad',
-    '惊讶': 'emotion-surprised',
-    '嫉妒': 'emotion-jealous',
-    '疲惫': 'emotion-tired',
-    '紧张': 'emotion-nervous',
-    '惊慌': 'emotion-panic',
-    '恐慌': 'emotion-terror',
-    '好奇': 'emotion-curious',
-    '无奈': 'emotion-helpless',
-    '沮丧': 'emotion-depressed',
-    '焦虑': 'emotion-anxious'
-  }
-  return map[props.emotion] || 'emotion-neutral'
-})
+const emotionOptions = ref(['平静'])
 
-const emotionColorMap = computed(() => {
-  return {
-    '平静': 'emotion-neutral',
-    '开心': 'emotion-happy',
-    '愤怒': 'emotion-angry',
-    '尴尬': 'emotion-awkward',
-    '感动': 'emotion-moved',
-    '悲伤': 'emotion-sad',
-    '惊讶': 'emotion-surprised',
-    '嫉妒': 'emotion-jealous',
-    '疲惫': 'emotion-tired',
-    '紧张': 'emotion-nervous',
-    '惊慌': 'emotion-panic',
-    '恐慌': 'emotion-terror',
-    '好奇': 'emotion-curious',
-    '无奈': 'emotion-helpless',
-    '沮丧': 'emotion-depressed',
-    '焦虑': 'emotion-anxious'
+const emotionClass = computed(() => EMOTION_CSS_MAP[props.emotion] || 'emotion-neutral')
+
+onMounted(async () => {
+  // 从后端获取情绪列表，保持与 constants.js 同步
+  const result = await window.electronAPI.narrative.getEmotionList()
+  if (result.success) {
+    emotionOptions.value = ['平静', ...result.data]
   }
+  document.addEventListener('click', handleClickOutside)
 })
 
 function selectEmotion(opt) {
@@ -122,7 +107,6 @@ function clear() {
 function handleClickOutside(e) {
   if (showPicker.value) showPicker.value = false
 }
-onMounted(() => document.addEventListener('click', handleClickOutside))
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>
 

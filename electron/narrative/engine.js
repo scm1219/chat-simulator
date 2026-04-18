@@ -26,23 +26,32 @@ export class NarrativeEngine {
     return this._dbManager.getGroupDB(groupId)
   }
 
+  /**
+   * 对话前处理：更新所有角色情绪 + 构建叙事上下文
+   * 所有角色（含发言角色）都会通过关键词快速更新情绪
+   * 发言角色后续在 postCharacterResponse 中还会进行 LLM 深度推断
+   */
   preGenerate(db, characterId, groupId, userContent, senderCharacterId, allCharacters) {
-    // 关键词快速判断情绪更新（针对所有角色）
+    // 关键词快速判断情绪更新（所有角色）
     for (const char of allCharacters) {
-      if (char.id === characterId) continue
       this.emotion.updateFromMessage(db, char.id, userContent)
     }
     return this.promptBuilder.buildNarrativeContext(db, characterId, groupId, allCharacters)
   }
 
   async postCharacterResponse(db, characterId, groupId, userContent, responseContent, allCharacters, createClientForCharacter, group, llmProfiles, apiKey) {
-    // 好感度更新
+    // 构建角色名→ID映射（用于@提及解析）
+    const characterNameMap = new Map(allCharacters.map(c => [c.name, c.id]))
+
+    // 好感度更新（双向 + @解析 + 多模式匹配）
     for (const char of allCharacters) {
       if (char.id === characterId) continue
       const emotion = this.emotion.getEmotion(db, char.id)
-      const result = this.relationship.updateFavorability(db, characterId, char.id, responseContent, emotion)
+      const result = this.relationship.updateFavorability(
+        db, characterId, char.id, responseContent, emotion, characterNameMap
+      )
       if (result.change !== 0) {
-        console.log(`[Narrative] 好感度变化: ${characterId} → ${char.id} (${result.reason}) ${result.change > 0 ? '+' : ''}${result.change}`)
+        console.log(`[Narrative] 好感度变化: ${characterId} → ${char.id} (${result.reason}) ${result.change > 0 ? '+' : ''}${result.change}${result.reverseChange ? ` (反向${result.reverseChange > 0 ? '+' : ''}${result.reverseChange})` : ''}`)
       }
     }
 
@@ -55,7 +64,7 @@ export class NarrativeEngine {
         const inferMessages = [
           {
             role: 'system',
-            content: '根据以下对话片段，判断角色当前的情绪。返回 JSON：{"emotion":"情绪词","intensity":0.0-1.0}。只返回 JSON，不要其他内容。'
+            content: '根据以下对话片段，判断角色当前的情绪。返回 JSON：{"emotion":"情绪词","intensity":0.0-1.0}。只返回 JSON，不要其他内容。可选情绪：开心、愤怒、尴尬、感动、悲伤、惊讶、嫉妒、疲惫、紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌、平静。'
           },
           {
             role: 'user',
@@ -87,10 +96,10 @@ export class NarrativeEngine {
     if (!this._shouldTriggerAftermath(allResponses, allCharacters, db, groupId)) return []
 
     try {
-      // 随机选择一个非用户角色作为余波触发者
+      // 加权选择触发者：优先选择情绪强度最高的角色
       const eligibleChars = allCharacters.filter(c => !c.is_user)
       if (eligibleChars.length === 0) return []
-      const triggerChar = eligibleChars[Math.floor(Math.random() * eligibleChars.length)]
+      const triggerChar = this._selectAftermathTrigger(db, eligibleChars)
       console.log(`[Narrative] 余波触发角色: ${triggerChar.name}`)
 
       const { client } = createClientForCharacter(triggerChar, group, llmProfiles, apiKey)
@@ -132,6 +141,42 @@ export class NarrativeEngine {
     return this.eventTrigger.deleteEvent(db, eventId)
   }
 
+  /**
+   * 清理角色相关的所有叙事数据
+   * 在角色删除时调用，清理情绪记录和双向关系记录
+   */
+  removeCharacter(db, characterId) {
+    // 清理情绪记录
+    db.prepare('DELETE FROM character_emotions WHERE character_id = ?').run(characterId)
+    // 清理关系记录（双向：作为 from_id 和 to_id 的记录都要删除）
+    db.prepare('DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
+    db.prepare('DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
+    console.log(`[Narrative] 已清理角色 ${characterId} 的叙事数据`)
+  }
+
+  /**
+   * 选择余波触发者
+   * 策略：优先选择情绪强度最高的角色，情绪都低时随机选择
+   */
+  _selectAftermathTrigger(db, eligibleChars) {
+    let bestChar = null
+    let bestIntensity = 0
+
+    for (const char of eligibleChars) {
+      const emotion = this.emotion.getEmotion(db, char.id)
+      if (emotion.intensity > bestIntensity) {
+        bestIntensity = emotion.intensity
+        bestChar = char
+      }
+    }
+
+    // 情绪强度 >= 0.5 时选择情绪最高的角色，否则随机
+    if (bestChar && bestIntensity >= 0.5) {
+      return bestChar
+    }
+    return eligibleChars[Math.floor(Math.random() * eligibleChars.length)]
+  }
+
   _shouldTriggerAftermath(responses, allCharacters, db, groupId) {
     // 高情绪必定触发
     const highEmotions = db.prepare(
@@ -146,44 +191,16 @@ export class NarrativeEngine {
         if (resp.content.includes(name) && resp.characterName !== name) return true
       }
     }
-    // 紧张关系必定触发
+    // 紧张关系必定触发（空数组保护）
     const activeIds = responses.filter(r => r.success).map(r => r.characterId)
-    if (activeIds.length > 0) {
-      const tenseRels = db.prepare(`
-        SELECT COUNT(*) as count FROM character_relationships
-        WHERE favorability < -20 AND from_id IN (${activeIds.map(() => '?').join(',')})
-      `).get(...activeIds)
-      if (tenseRels.count > 0) return true
-    }
+    if (activeIds.length === 0) return false
+    const tenseRels = db.prepare(`
+      SELECT COUNT(*) as count FROM character_relationships
+      WHERE favorability < -20 AND from_id IN (${activeIds.map(() => '?').join(',')})
+    `).get(...activeIds)
+    if (tenseRels.count > 0) return true
     // 默认 60% 随机触发
     return Math.random() < 0.6
-  }
-
-  _parseAftermath(content, allCharacters, db, groupId) {
-    const characterMap = new Map(allCharacters.map(c => [c.name, c.id]))
-    const messages = []
-    const lines = content.split('\n').filter(l => l.trim())
-    for (const line of lines) {
-      const match = line.match(/^([^:：]+)[：:](.+)$/)
-      if (!match) continue
-      const name = match[1].trim()
-      const text = match[2].trim()
-      if (text.length > 50) continue
-      const characterId = characterMap.get(name)
-      if (!characterId) continue
-      const msgId = generateUUID()
-      db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content)
-        VALUES (?, ?, ?, 'assistant', ?)
-      `).run(msgId, groupId, characterId, text)
-      messages.push({
-        id: msgId, groupId, characterId, characterName: name,
-        role: 'assistant', content: text, isAftermath: true,
-        timestamp: new Date().toISOString()
-      })
-      this.emotion.updateFromMessage(db, characterId, text)
-    }
-    return messages
   }
 
   _parseSingleAftermath(content, triggerChar, db, groupId, tokenInfo = {}) {
@@ -192,10 +209,11 @@ export class NarrativeEngine {
     const prefixPattern = new RegExp(`^${triggerChar.name}[：:，,]\\s*`)
     text = text.replace(prefixPattern, '').trim()
     // 去除引号包裹
-    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith('"') && text.endsWith('"'))) {
+    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith('\u201C') && text.endsWith('\u201D'))) {
       text = text.slice(1, -1)
     }
-    if (!text || text.length > 80) return []
+    // 统一上限 50 字，与 Prompt 要求一致
+    if (!text || text.length > 50) return []
 
     const msgId = generateUUID()
     db.prepare(`

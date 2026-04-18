@@ -9,16 +9,21 @@
 ## 变更记录 (Changelog)
 
 ### 2026-04-18
+- **重构**：叙事引擎提取共享常量到 `constants.js`（情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示）
+- **修复**：情绪衰减改为每次调用时执行；事件 impact 映射到标准情绪词；好感度双向更新；@角色名精确解析；互动模式多匹配
+- **修复**：余波字符上限统一 50 字；触发者情绪加权选择；空数组保护；手动事件 key 时间戳后缀；情绪查询范围限定
+- **修复**：角色删除时自动清理叙事数据（`removeCharacter` 方法）；`setupCharacterHandlers` 新增 `narrativeEngine` 参数
+- **新增**：`narrative/constants.js` 共享常量文件
 - **更新**：叙事系统 IPC 接口从 13 个扩充为 14 个（新增 `narrative:deleteEvent`、`narrative:setEmotion`、`narrative:getEmotion`、`narrative:removeRelationship`、`narrative:getRelationshipTypes`、`narrative:getEventPool`）
 - **更新**：IPC 通道常量 `channels.js` 新增叙事相关常量（`NARRATIVE_SET_EMOTION`、`NARRATIVE_GET_EMOTION`、`NARRATIVE_REMOVE_RELATIONSHIP`、`NARRATIVE_GET_RELATIONSHIP_TYPES`、`NARRATIVE_GET_EVENT_POOL`、`NARRATIVE_DELETE_EVENT`）
-- **更新**：情绪词典扩展至 15 种情绪（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）
+- **更新**：情绪词典扩展至 15 种情绪（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌，每种均有基础关键词）
 - **更新**：事件场景从 4 场景扩展为 7 场景（新增 home、school、restaurant、travel、party），事件总数约 85 个
 - **更新**：余波编排改为单角色模式（`_parseSingleAftermath`），余波消息携带 `message_type`、`is_aftermath`、`model`、`prompt_tokens`、`completion_tokens`
-- **更新**：好感度系统支持 6 级等级和 4 类互动模式
+- **更新**：好感度系统支持 6 级等级和 4 类互动模式，双向更新，@角色名精确解析
 - **更新**：数据库迁移新增 `narrative_enabled`、`aftermath_enabled`、`event_scene_type`（groups 表）和 `is_aftermath`、`message_type`（messages 表）
 - **更新**：内联 Schema（`SCHEMA_SQL`）新增 `character_emotions`、`character_relationships`、`narrative_events` 三张表
 - **更新**：叙事引擎通过 `narrative.js` Handler 暴露 14 个 IPC 接口
-- **更新**：`main.js` 启动流程新增叙事引擎初始化和 `setupNarrativeHandlers` 注册
+- **更新**：`main.js` 启动流程新增叙事引擎初始化和 `setupNarrativeHandlers` 注册，`setupCharacterHandlers` 传入 `narrativeEngine`
 - **更新**：`llm.js` Handler 新增第三个参数 `narrativeEngine`，集成叙事引擎到对话流程
 
 ### 2026-04-17
@@ -578,11 +583,12 @@ memoryManager.close()
 - `electron/ipc/handlers/narrative.js`：叙事系统（14 个接口）
 
 ### 叙事引擎
-- `electron/narrative/engine.js`：叙事引擎主控（编排情绪/关系/事件/余波）
-- `electron/narrative/emotion-manager.js`：情绪状态机（15 种情绪关键词 + LLM 推断，情绪衰减）
-- `electron/narrative/relationship-manager.js`：关系图谱管理（7 种关系类型，6 级好感度，4 类互动模式）
-- `electron/narrative/event-trigger.js`：事件触发系统（7 场景约 85 事件，推荐算法，平淡检测）
-- `electron/narrative/prompt-builder.js`：叙事上下文构建（情绪+关系+事件注入 prompt）
+- `electron/narrative/constants.js`：**共享常量**（情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示）
+- `electron/narrative/engine.js`：叙事引擎主控（编排情绪/关系/事件/余波 + removeCharacter 清理）
+- `electron/narrative/emotion-manager.js`：情绪状态机（15 种情绪关键词 + LLM 推断，每次调用衰减，事件情绪映射）
+- `electron/narrative/relationship-manager.js`：关系图谱管理（7 种关系类型，6 级好感度，4 类互动，双向更新，@解析）
+- `electron/narrative/event-trigger.js`：事件触发系统（7 场景约 85 事件，推荐算法，手动触发时间戳后缀）
+- `electron/narrative/prompt-builder.js`：叙事上下文构建（情绪+关系+事件注入 prompt，范围限定）
 
 ### 配置管理
 - `electron/config/manager.js`：全局配置管理（含快速建群配置）
@@ -595,5 +601,5 @@ memoryManager.close()
 
 ---
 
-**文档版本**：2.2.0
+**文档版本**：2.3.0
 **维护者**：AI 架构师（自适应版）
