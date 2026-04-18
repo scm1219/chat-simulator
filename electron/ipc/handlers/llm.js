@@ -23,6 +23,89 @@ function resolveClientProxy(profile, baseURL) {
 }
 
 /**
+ * 创建 LLM 客户端（根据配置自动选择 OpenAI 兼容或原生客户端）
+ */
+function createLLMClient(config) {
+  const { provider, useNativeApi, baseURL, proxy, bypassRules, ...rest } = config
+
+  // 如果是 Ollama 且启用原生 API，使用原生客户端
+  if (provider === 'ollama' && useNativeApi) {
+    const providerConfig = getProviderConfig('ollama')
+    console.log('[LLM] 使用 Ollama 原生 API 客户端')
+    return new OllamaNativeClient({
+      ...rest,
+      baseURL: baseURL || providerConfig.nativeBaseURL || 'http://localhost:11434',
+      proxy,
+      bypassRules
+    })
+  }
+
+  // 其他情况使用 OpenAI 兼容客户端
+  console.log('[LLM] 使用 OpenAI 兼容 API 客户端')
+  return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
+}
+
+/**
+ * 通用 LLM JSON 调用：获取 Profile → 创建 Client → 调用 LLM（JSON 模式）→ 解析 JSON
+ * 用于角色抽卡、快速建群等需要 LLM 返回 JSON 的场景
+ * @param {object} options
+ * @param {string} [options.profileId] - 指定 Profile ID，不指定则使用第一个
+ * @param {Array} options.messages - LLM 消息列表
+ * @param {number} [options.temperature=0.9] - 温度
+ * @param {number} [options.maxTokens=1000] - 最大 token
+ * @returns {Promise<{ success: boolean, data?: object, error?: string }>}
+ */
+async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxTokens = 1000 }) {
+  const llmProfiles = getLLMProfiles()
+  if (llmProfiles.length === 0) {
+    return { success: false, error: '请先在 LLM 配置管理中添加配置' }
+  }
+
+  const profile = profileId
+    ? llmProfiles.find(p => p.id === profileId) || llmProfiles[0]
+    : llmProfiles[0]
+  console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
+
+  const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
+  const client = createLLMClient({
+    provider: profile.provider,
+    apiKey: profile.apiKey,
+    baseURL: profile.baseURL,
+    model: profile.model,
+    proxy: resolvedProxy,
+    bypassRules,
+    streamEnabled: false,
+    useNativeApi: profile.useNativeApi === true
+  })
+
+  const result = await client.chat(messages, {
+    temperature,
+    maxTokens,
+    thinkingEnabled: false,
+    responseFormat: { type: 'json_object' }
+  })
+
+  if (!result.success) {
+    console.error('[LLM] LLM 调用失败', result.error)
+    return { success: false, error: result.error }
+  }
+
+  if (!result.content || result.content.trim().length === 0) {
+    return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
+  }
+
+  console.log('[LLM] 原始响应内容（前 200 字符）:', result.content.substring(0, 200))
+  const jsonResult = extractJSON(result.content)
+  if (!jsonResult.success) {
+    console.error('[LLM] 解析 JSON 失败', jsonResult.error)
+    console.error('[LLM] 原始响应', result.content)
+    return { success: false, error: 'LLM 返回的格式不正确，请重试' }
+  }
+
+  return { success: true, data: jsonResult.data }
+}
+
+/**
  * 为角色创建 LLM 客户端
  * 如果角色有独立 LLM Profile 配置，使用角色级配置；否则回退到群组配置
  * @param {object} character - 角色对象（含 custom_llm_profile_id）
@@ -79,29 +162,6 @@ function createClientForCharacter(character, group, llmProfiles, apiKey) {
   })
 
   return { client, profileId: null }
-}
-
-/**
- * 创建 LLM 客户端（根据配置自动选择 OpenAI 兼容或原生客户端）
- */
-function createLLMClient(config) {
-  const { provider, useNativeApi, baseURL, proxy, bypassRules, ...rest } = config
-
-  // 如果是 Ollama 且启用原生 API，使用原生客户端
-  if (provider === 'ollama' && useNativeApi) {
-    const providerConfig = getProviderConfig('ollama')
-    console.log('[LLM] 使用 Ollama 原生 API 客户端')
-    return new OllamaNativeClient({
-      ...rest,
-      baseURL: baseURL || providerConfig.nativeBaseURL || 'http://localhost:11434',
-      proxy,
-      bypassRules
-    })
-  }
-
-  // 其他情况使用 OpenAI 兼容客户端
-  console.log('[LLM] 使用 OpenAI 兼容 API 客户端')
-  return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
 }
 
 export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngine = null) {
@@ -480,85 +540,32 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     console.log('[LLM] 开始生成角色信息', { hint })
 
     try {
-      // 1. 获取 LLM 配置文件列表
-      const llmProfiles = getLLMProfiles()
-
-      if (llmProfiles.length === 0) {
-        return { success: false, error: '请先在 LLM 配置管理中添加配置' }
-      }
-
-      // 2. 使用第一个配置文件
-      const profile = llmProfiles[0]
-      console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
-
-      // 3. 创建 LLM 客户端
-      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
-      const client = createLLMClient({
-        provider: profile.provider,
-        apiKey: profile.apiKey,
-        baseURL: profile.baseURL,
-        model: profile.model,
-        proxy: resolvedProxy,
-        bypassRules,
-        streamEnabled: false, // 抽卡功能强制禁用流式输出，确保获取完整 JSON
-        useNativeApi: profile.useNativeApi === true
-      })
-
-      // 4. 构建生成角色的提示词（使用可配置提示词）
       const gachaConfig = getGachaConfig()
       const systemPrompt = gachaConfig.systemPrompt
       const userPrompt = hint
         ? gachaConfig.userPromptTemplate.replace('{hint}', hint)
         : gachaConfig.defaultUserPrompt
 
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-
-      // 5. 调用 LLM（禁用思考模式，启用 JSON 结构化输出）
-      const result = await client.chat(messages, {
-        temperature: 0.9, // 提高创造性
-        maxTokens: 1000,
-        thinkingEnabled: false, // 明确禁用思考模式
-        responseFormat: { type: 'json_object' } // 结构化输出，强制返回合法 JSON
+      const jsonResult = await callLLMForJSON({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        maxTokens: 1000
       })
 
-      console.log('[LLM] LLM 响应', {
-        success: result.success,
-        hasContent: !!result.content,
-        contentLength: result.content?.length,
-        error: result.error
-      })
-
-      if (!result.success) {
-        console.error('[LLM] 生成角色信息失败', result.error)
-        return { success: false, error: result.error }
-      }
-
-      if (!result.content || result.content.trim().length === 0) {
-        console.error('[LLM] LLM 返回了空响应')
-        return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
-      }
-
-      // 6. 解析 JSON 响应
-      console.log('[LLM] 原始响应内容（前 200 字符）:', result.content.substring(0, 200))
-
-      const jsonResult = extractJSON(result.content)
       if (!jsonResult.success) {
-        console.error('[LLM] 解析 JSON 失败', jsonResult.error)
-        console.error('[LLM] 原始响应', result.content)
-        return { success: false, error: 'LLM 返回的格式不正确，请重试' }
+        return { success: false, error: jsonResult.error }
       }
+
       const characterData = jsonResult.data
 
-      // 7. 验证数据
+      // 验证数据
       if (!characterData.name || !characterData.systemPrompt) {
         return { success: false, error: '角色信息不完整，请重试' }
       }
 
       console.log('[LLM] 角色信息生成成功', characterData)
-
       return { success: true, data: characterData }
     } catch (error) {
       console.error('[LLM] 生成角色信息失败', error)
@@ -571,73 +578,28 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     console.log('[LLM] 开始生成群组信息', { description, profileId })
 
     try {
-      // 1. 获取 LLM 配置文件列表
-      const llmProfiles = getLLMProfiles()
-
-      if (llmProfiles.length === 0) {
-        return { success: false, error: '请先在 LLM 配置管理中添加配置' }
-      }
-
-      // 2. 使用指定或第一个配置文件
-      const profile = profileId
-        ? llmProfiles.find(p => p.id === profileId) || llmProfiles[0]
-        : llmProfiles[0]
-      console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
-
-      // 3. 创建 LLM 客户端
-      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
-      const client = createLLMClient({
-        provider: profile.provider,
-        apiKey: profile.apiKey,
-        baseURL: profile.baseURL,
-        model: profile.model,
-        proxy: resolvedProxy,
-        bypassRules,
-        streamEnabled: false,
-        useNativeApi: profile.useNativeApi === true
-      })
-
-      // 4. 构建提示词
       const quickGroupConfig = getQuickGroupConfig()
       const systemPrompt = quickGroupConfig.systemPrompt
       const userPrompt = description
         ? quickGroupConfig.userPromptTemplate.replace('{description}', description)
         : quickGroupConfig.defaultUserPrompt
 
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-
-      // 5. 调用 LLM（启用 JSON 结构化输出）
-      const result = await client.chat(messages, {
-        temperature: 0.9,
-        maxTokens: 3000,
-        thinkingEnabled: false,
-        responseFormat: { type: 'json_object' } // 结构化输出，强制返回合法 JSON
+      const jsonResult = await callLLMForJSON({
+        profileId: profileId || undefined,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        maxTokens: 3000
       })
 
-      if (!result.success) {
-        console.error('[LLM] 生成群组信息失败', result.error)
-        return { success: false, error: result.error }
+      if (!jsonResult.success) {
+        return { success: false, error: jsonResult.error }
       }
 
-      if (!result.content || result.content.trim().length === 0) {
-        return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
-      }
+      const groupData = jsonResult.data
 
-      // 6. 解析 JSON 响应
-      console.log('[LLM] 群组信息原始响应（前 200 字符）:', result.content.substring(0, 200))
-
-      const groupJsonResult = extractJSON(result.content)
-      if (!groupJsonResult.success) {
-        console.error('[LLM] 解析群组 JSON 失败', groupJsonResult.error)
-        console.error('[LLM] 原始响应', result.content)
-        return { success: false, error: 'LLM 返回的格式不正确，请重试' }
-      }
-      const groupData = groupJsonResult.data
-
-      // 7. 验证数据
+      // 验证数据
       if (!groupData.name || !Array.isArray(groupData.characters) || groupData.characters.length === 0) {
         return { success: false, error: '群组信息不完整（缺少群名称或角色），请重试' }
       }

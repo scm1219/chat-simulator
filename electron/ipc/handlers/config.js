@@ -19,6 +19,47 @@ import {
   deleteSystemPromptTemplate
 } from '../../config/system-prompts.js'
 
+/**
+ * 注册 get/save/reset 三件套配置 Handler
+ * @param {string} prefix - IPC 通道前缀（如 'gachaConfig'）
+ * @param {object} fns - 配置操作函数
+ * @param {() => object} fns.get - 获取配置
+ * @param {(config: object) => boolean} fns.save - 保存配置
+ * @param {() => object} fns.getDefault - 获取默认配置
+ */
+function registerConfigCRUD(prefix, { get, save, getDefault }) {
+  ipcMain.handle(`${prefix}:get`, async () => {
+    try {
+      const config = get()
+      return { success: true, data: config }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle(`${prefix}:save`, async (event, config) => {
+    try {
+      const result = save(config)
+      return { success: result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle(`${prefix}:reset`, async () => {
+    try {
+      const defaultConfig = getDefault()
+      const result = save(defaultConfig)
+      if (result) {
+        return { success: true, data: defaultConfig }
+      }
+      return { success: false, error: '重置失败' }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+}
+
 export function setupConfigHandlers(dbManager) {
   // 获取全局 LLM 配置
   ipcMain.handle('config:getLLMConfig', async () => {
@@ -180,76 +221,18 @@ export function setupConfigHandlers(dbManager) {
     }
   })
 
-  // ============ 抽卡配置 ============
+  // ============ 抽卡配置 & 快速建群配置（使用工厂函数） ============
 
-  // 获取抽卡配置
-  ipcMain.handle('gachaConfig:get', async () => {
-    try {
-      const config = getGachaConfig()
-      return { success: true, data: config }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
+  registerConfigCRUD('gachaConfig', {
+    get: getGachaConfig,
+    save: saveGachaConfig,
+    getDefault: getDefaultGachaConfig
   })
 
-  // 保存抽卡配置
-  ipcMain.handle('gachaConfig:save', async (event, config) => {
-    try {
-      const result = saveGachaConfig(config)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  // 重置抽卡配置为默认值
-  ipcMain.handle('gachaConfig:reset', async () => {
-    try {
-      const defaultConfig = getDefaultGachaConfig()
-      const result = saveGachaConfig(defaultConfig)
-      if (result) {
-        return { success: true, data: defaultConfig }
-      }
-      return { success: false, error: '重置失败' }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  // ============ 快速建群配置 ============
-
-  // 获取快速建群配置
-  ipcMain.handle('quickGroupConfig:get', async () => {
-    try {
-      const config = getQuickGroupConfig()
-      return { success: true, data: config }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  // 保存快速建群配置
-  ipcMain.handle('quickGroupConfig:save', async (event, config) => {
-    try {
-      const result = saveQuickGroupConfig(config)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  // 重置快速建群配置为默认值
-  ipcMain.handle('quickGroupConfig:reset', async () => {
-    try {
-      const defaultConfig = getDefaultQuickGroupConfig()
-      const result = saveQuickGroupConfig(defaultConfig)
-      if (result) {
-        return { success: true, data: defaultConfig }
-      }
-      return { success: false, error: '重置失败' }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
+  registerConfigCRUD('quickGroupConfig', {
+    get: getQuickGroupConfig,
+    save: saveQuickGroupConfig,
+    getDefault: getDefaultQuickGroupConfig
   })
 }
 

@@ -51,11 +51,6 @@ export const useMessagesStore = defineStore('messages', () => {
     sending.value = true
 
     try {
-      // 找到用户角色
-      const userCharacter = charactersStore.characters.find(c => c.is_user === 1)
-      const userCharacterId = userCharacter?.id || null
-      const userCharacterName = userCharacter?.name || '用户'
-
       // 调用 LLM 生成回复（流式输出）
       // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generate(groupId, content, options)
@@ -89,11 +84,6 @@ export const useMessagesStore = defineStore('messages', () => {
     sending.value = true
 
     try {
-      // 找到用户角色
-      const userCharacter = charactersStore.characters.find(c => c.is_user === 1)
-      const userCharacterId = userCharacter?.id || null
-      const userCharacterName = userCharacter?.name || '用户'
-
       // 调用 LLM 生成回复（单角色指令）
       // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generateCharacterCommand(groupId, characterId, instruction)
@@ -218,19 +208,6 @@ export const useMessagesStore = defineStore('messages', () => {
       streamEndListener?.()
       streamErrorListener?.()
     }
-  }
-
-  function setupMessageListener(callback) {
-    // 安全检查：确保 electronAPI 存在
-    if (!window.electronAPI?.message) {
-      console.warn('[Messages] electronAPI.message not available')
-      return
-    }
-
-    if (messageListener) {
-      window.electronAPI.message.onNewMessage(() => {})()
-    }
-    messageListener = window.electronAPI.message.onNewMessage(callback)
   }
 
   async function clearMessages(groupId) {

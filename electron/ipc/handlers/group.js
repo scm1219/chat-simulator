@@ -268,26 +268,29 @@ export function setupGroupHandlers(dbManager) {
         sourceGroup.system_prompt
       )
 
-      // 复制所有角色，并建立旧ID到新ID的映射
+      // 复制所有角色（含完整字段），并建立旧ID到新ID的映射
       const characterIdMap = {} // 旧角色ID -> 新角色ID
       for (const character of sourceCharacters) {
         const newCharacterId = generateUUID()
         characterIdMap[character.id] = newCharacterId
 
         newDb.prepare(`
-          INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO characters (id, group_id, name, system_prompt, enabled, is_user, position, thinking_enabled, custom_llm_profile_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           newCharacterId,
           newId,
           character.name,
           character.system_prompt,
           character.enabled,
-          character.is_user || 0
+          character.is_user || 0,
+          character.position || 0,
+          character.thinking_enabled || 0,
+          character.custom_llm_profile_id || null
         )
       }
 
-      // 复制所有消息
+      // 复制所有消息（含完整字段）
       const sourceMessages = sourceDb.prepare('SELECT * FROM messages WHERE group_id = ? ORDER BY timestamp').all(sourceId)
       for (const message of sourceMessages) {
         const newMessageId = generateUUID()
@@ -295,14 +298,21 @@ export function setupGroupHandlers(dbManager) {
         const newCharacterId = message.character_id ? characterIdMap[message.character_id] : null
 
         newDb.prepare(`
-          INSERT INTO messages (id, group_id, character_id, role, content, timestamp)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model, is_aftermath, message_type, event_impact, timestamp)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           newMessageId,
           newId,
           newCharacterId,
           message.role,
           message.content,
+          message.reasoning_content || null,
+          message.prompt_tokens || null,
+          message.completion_tokens || null,
+          message.model || null,
+          message.is_aftermath || 0,
+          message.message_type || 'normal',
+          message.event_impact || null,
           message.timestamp
         )
       }
