@@ -78,6 +78,30 @@
               </div>
             </div>
 
+            <!-- 用户角色设定 -->
+            <div class="preview-section">
+              <h4 class="section-title">用户角色</h4>
+              <div class="user-card">
+                <div class="card-body">
+                  <div class="card-row">
+                    <div class="card-field card-field-name">
+                      <label class="field-label">姓名</label>
+                      <input v-model="preview.user.name" class="input input-sm" placeholder="用户名称" />
+                    </div>
+                  </div>
+                  <div class="card-field card-field-full">
+                    <label class="field-label">身份设定</label>
+                    <textarea
+                      v-model="preview.user.systemPrompt"
+                      class="input textarea textarea-sm"
+                      rows="2"
+                      placeholder="用户在群中的身份设定..."
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- 角色列表 -->
             <div class="preview-section">
               <div class="section-header">
@@ -273,6 +297,7 @@ const saveToLibrary = ref(false)
 const preview = reactive({
   name: '',
   background: '',
+  user: { name: '', systemPrompt: '' },
   characters: []
 })
 
@@ -358,6 +383,10 @@ async function handleGenerate() {
     if (result.success) {
       preview.name = result.data.name || ''
       preview.background = result.data.background || ''
+      preview.user = {
+        name: result.data.user?.name || '用户',
+        systemPrompt: result.data.user?.systemPrompt || '你是用户，正在参与群聊对话。'
+      }
       preview.characters = (result.data.characters || []).map(c => ({
         name: c.name || '',
         gender: c.gender || 'other',
@@ -407,7 +436,21 @@ async function handleConfirm() {
 
     const group = await groupsStore.createGroup(groupData)
 
-    // 2. 批量创建角色（逐个容错）
+    // 2. 更新默认用户角色的名称和设定
+    try {
+      await charactersStore.loadCharacters(group.id)
+      const userChar = charactersStore.characters.find(c => c.is_user === 1)
+      if (userChar && (preview.user.name.trim() || preview.user.systemPrompt.trim())) {
+        await charactersStore.updateCharacter(userChar.id, {
+          name: preview.user.name.trim() || userChar.name,
+          systemPrompt: preview.user.systemPrompt.trim() || userChar.systemPrompt
+        })
+      }
+    } catch (err) {
+      console.warn('[QuickGroup] 更新用户角色失败', err)
+    }
+
+    // 3. 批量创建AI角色（逐个容错）
     let failedChars = 0
     for (const char of preview.characters) {
       try {
@@ -684,6 +727,25 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: $spacing-md;
+}
+
+// 用户角色卡片
+.user-card {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  overflow: hidden;
+
+  .card-body {
+    padding: $spacing-md;
+  }
+
+  .card-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-sm;
+  }
 }
 
 // 角色列表
