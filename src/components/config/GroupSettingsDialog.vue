@@ -140,6 +140,9 @@
               <option value="office">办公室</option>
               <option value="home">家庭</option>
               <option value="school">校园</option>
+              <option value="restaurant">餐厅</option>
+              <option value="travel">旅行</option>
+              <option value="party">聚会</option>
             </select>
           </div>
         </div>

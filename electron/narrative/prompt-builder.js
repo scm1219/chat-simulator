@@ -22,25 +22,26 @@ export class NarrativePromptBuilder {
     return contextMessages
   }
 
-  buildAftermathPrompt(db, groupId, allCharacters, recentMessages) {
+  buildAftermathPrompt(db, groupId, triggerChar, allCharacters, recentMessages) {
     const emotionSection = this._buildEmotionSection(db, allCharacters)
-    const relationshipSection = this._buildRelationshipSectionForAll(db, allCharacters)
+    const relationshipSection = this._buildRelationshipSection(db, triggerChar.id, allCharacters)
     const recentChat = recentMessages.slice(-10).map(m => {
       const prefix = m.role === 'assistant' ? (m.character_name || '角色') : '用户'
       return `${prefix}：${m.content}`
     }).join('\n')
 
-    return `基于以上对话，请生成 1-3 条角色间的简短追评或互动。
+    return `你是${triggerChar.name}，刚看完上面的对话，想说一句简短的追评或反应。
 要求：
-- 只写角色之间的互动，不要回应用户
-- 每条不超过 50 字
-- 角色语气需符合当前情绪和关系
-- 不是每个角色都要发言，只写自然会有反应的角色
-- 输出格式：角色名：内容
+- 直接输出你说的话，不要加角色名前缀
+- 不超过 50 字
+- 符合你当前的情绪和与其他角色的关系
+- 不要重复对话中已经说过的话
 
 ${emotionSection ? emotionSection + '\n' : ''}${relationshipSection ? relationshipSection + '\n' : ''}
 最近对话：
-${recentChat}`
+${recentChat}
+
+${triggerChar.name}的追评：`
   }
 
   _buildEmotionSection(db, allCharacters) {

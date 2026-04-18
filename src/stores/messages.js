@@ -37,7 +37,7 @@ export const useMessagesStore = defineStore('messages', () => {
     }
   }
 
-  async function sendMessage(content) {
+  async function sendMessage(content, options = {}) {
     const groupsStore = useGroupsStore()
     const charactersStore = useCharactersStore()
     const groupId = groupsStore.currentGroupId
@@ -47,7 +47,7 @@ export const useMessagesStore = defineStore('messages', () => {
       throw new Error('No group selected')
     }
 
-    console.log('[Messages] 发送消息', { groupId, content })
+    console.log('[Messages] 发送消息', { groupId, content, options })
     sending.value = true
 
     try {
@@ -58,7 +58,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
       // 调用 LLM 生成回复（流式输出）
       // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
-      const result = await window.electronAPI.llm.generate(groupId, content)
+      const result = await window.electronAPI.llm.generate(groupId, content, options)
       console.log('[Messages] LLM 返回结果', result)
 
       if (!result.success) {

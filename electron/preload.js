@@ -70,8 +70,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getProviders: () => ipcRenderer.invoke('llm:getProviders'),
     getModels: (provider) => ipcRenderer.invoke('llm:getModels', provider),
     testConnection: (config) => ipcRenderer.invoke('llm:testConnection', config),
-    generate: (groupId, content, characterId) =>
-      ipcRenderer.invoke('llm:generate', groupId, content, characterId),
+    generate: (groupId, content, options) =>
+      ipcRenderer.invoke('llm:generate', groupId, content, options),
     generateCharacterCommand: (groupId, characterId, instruction) =>
       ipcRenderer.invoke('llm:generateCharacterCommand', groupId, characterId, instruction),
     generateCharacter: (hint) => ipcRenderer.invoke('llm:generateCharacter', hint),
@@ -174,6 +174,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getRecentEvents: (groupId, limit) => ipcRenderer.invoke('narrative:getRecentEvents', groupId, limit),
     getEventSuggestions: (groupId, sceneType, count) => ipcRenderer.invoke('narrative:getEventSuggestions', groupId, sceneType, count),
     checkStaleness: (groupId) => ipcRenderer.invoke('narrative:checkStaleness', groupId),
+    deleteEvent: (groupId, eventId) => ipcRenderer.invoke('narrative:deleteEvent', groupId, eventId),
     onAftermath: (callback) => {
       const listener = (event, data) => callback(data)
       ipcRenderer.on('narrative:aftermath', listener)

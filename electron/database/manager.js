@@ -315,6 +315,27 @@ export class DatabaseManager {
       console.log(`[Database][${groupId}] 迁移完成: event_scene_type 字段已添加`)
     }
 
+    // --- messages 表迁移 ---
+
+    // 添加 is_aftermath 字段（标记余波消息）
+    const messagesTableInfo = db.pragma('table_info(messages)')
+    const hasIsAftermath = messagesTableInfo.some(col => col.name === 'is_aftermath')
+    if (!hasIsAftermath) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.is_aftermath 字段`)
+      db.exec('ALTER TABLE messages ADD COLUMN is_aftermath INTEGER NOT NULL DEFAULT 0')
+      console.log(`[Database][${groupId}] 迁移完成: is_aftermath 字段已添加`)
+    }
+
+    // 添加 message_type 字段（区分 normal/event/aftermath）
+    const hasMessageType = messagesTableInfo.some(col => col.name === 'message_type')
+    if (!hasMessageType) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.message_type 字段`)
+      db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'normal'")
+      // 回填已有余波消息的类型
+      db.exec("UPDATE messages SET message_type = 'aftermath' WHERE is_aftermath = 1")
+      console.log(`[Database][${groupId}] 迁移完成: message_type 字段已添加`)
+    }
+
     console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
   }
 

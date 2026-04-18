@@ -132,9 +132,11 @@
             </div>
             <span class="character-name">{{ char.name }}</span>
             <EmotionTag
-              v-if="getCharEmotion(char.id)"
-              :emotion="getCharEmotion(char.id).emotion"
-              :intensity="getCharEmotion(char.id).intensity"
+              :emotion="getCharEmotion(char.id)?.emotion || '平静'"
+              :intensity="getCharEmotion(char.id)?.intensity || 0"
+              :character-id="char.id"
+              :editable="char.is_user !== 1 && !!currentGroup?.narrative_enabled"
+              @update="(e) => updateEmotion(char.id, e)"
             />
               <button
                 v-if="char.is_user !== 1"
@@ -431,6 +433,14 @@ function getCharEmotion(characterId) {
   const emotion = narrativeStore.emotions.find(e => e.character_id === characterId)
   if (emotion && emotion.emotion !== '平静' && emotion.intensity > 0.1) return emotion
   return null
+}
+
+// 手动更新角色情绪
+async function updateEmotion(characterId, { emotion, intensity }) {
+  const groupId = currentGroup.value?.id
+  if (!groupId) return
+  await window.electronAPI.narrative.setEmotion(groupId, characterId, emotion, intensity)
+  await narrativeStore.fetchEmotions(groupId)
 }
 
 // 监听当前群组变化，获取情绪数据

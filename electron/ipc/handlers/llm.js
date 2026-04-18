@@ -132,8 +132,9 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
   })
 
   // 生成 AI 回复（多角色对话）
-  ipcMain.handle('llm:generate', async (event, groupId, userContent) => {
-    console.log('[LLM] 开始生成回复', { groupId, userContent })
+  ipcMain.handle('llm:generate', async (event, groupId, userContent, options = {}) => {
+    const messageType = options.messageType || 'normal'
+    console.log('[LLM] 开始生成回复', { groupId, userContent, messageType })
 
     try {
       const db = dbManager.getGroupDB(groupId)
@@ -148,10 +149,10 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       `).get(groupId)
 
       db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent)
-      console.log('[LLM] 用户消息已保存', { userMsgId })
+        INSERT INTO messages (id, group_id, character_id, role, content, message_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent, messageType)
+      console.log('[LLM] 用户消息已保存', { userMsgId, messageType })
 
       // 通知前端：用户消息已保存（包含真实 ID）
       event.sender.send('message:user:saved', {
@@ -162,6 +163,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         characterName: userCharacter?.name || '用户',
         role: 'user',
         content: userContent,
+        message_type: messageType,
         timestamp: new Date().toISOString()
       })
 
@@ -260,14 +262,29 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         // 并行模式：同时调用所有角色（每个角色独立创建客户端）
         const promises = characters.map(character => {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-          // 构建叙事上下文
-          const narrativeContext = narrativeEngine
+          // 构建叙事上下文（仅叙事引擎启用时注入）
+          const narrativeEnabled = group.narrative_enabled === 1
+          const narrativeContext = (narrativeEngine && narrativeEnabled)
             ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
             : []
           return generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1, narrativeContext)
         })
         const results = await Promise.all(promises)
         responses.push(...results)
+        // 叙事后处理：好感度更新 + LLM 情绪推断
+        if (narrativeEngine && group.narrative_enabled === 1) {
+          for (const resp of responses) {
+            if (!resp.success) continue
+            try {
+              await narrativeEngine.postCharacterResponse(
+                db, resp.characterId, groupId, userContent, resp.content,
+                allCharacters, createClientForCharacter, group, llmProfiles, apiKey
+              )
+            } catch (err) {
+              console.error(`[Narrative] postCharacterResponse 失败 (${resp.characterName}):`, err.message)
+            }
+          }
+        }
       } else {
         // 顺序模式：依次调用每个角色
         // 随机发言模式：打乱角色顺序
@@ -280,12 +297,24 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         }
         for (const character of characters) {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-          // 构建叙事上下文
-          const narrativeContext = narrativeEngine
+          // 构建叙事上下文（仅叙事引擎启用时注入）
+          const narrativeContext = (narrativeEngine && group.narrative_enabled === 1)
             ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
             : []
           const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled, group.background, group.system_prompt, allCharacters, memoryManager, group.auto_memory_extract === 1, narrativeContext)
           responses.push(response)
+
+          // 叙事后处理：好感度更新 + LLM 情绪推断
+          if (narrativeEngine && group.narrative_enabled === 1 && response.success) {
+            try {
+              await narrativeEngine.postCharacterResponse(
+                db, character.id, groupId, userContent, response.content,
+                allCharacters, createClientForCharacter, group, llmProfiles, apiKey
+              )
+            } catch (err) {
+              console.error(`[Narrative] postCharacterResponse 失败 (${character.name}):`, err.message)
+            }
+          }
 
           // 将上一个角色的回复添加到历史上下文
           if (response.success) {

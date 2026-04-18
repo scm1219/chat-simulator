@@ -130,4 +130,27 @@ export function setupNarrativeHandlers(narrativeEngine) {
       return { success: false, error: error.message }
     }
   })
+
+  ipcMain.handle('narrative:deleteEvent', async (event, groupId, eventId) => {
+    try {
+      const db = narrativeEngine._getGroupDB(groupId)
+      // 获取事件信息，用于匹配对应的聊天消息
+      const evt = db.prepare('SELECT * FROM narrative_events WHERE id = ?').get(eventId)
+      if (!evt) {
+        return { success: false, error: '事件不存在' }
+      }
+      // 删除事件记录
+      narrativeEngine.deleteEvent(db, eventId)
+      // 删除聊天中对应的用户消息及后续所有消息
+      const msg = db.prepare(
+        "SELECT * FROM messages WHERE group_id = ? AND role = 'user' AND content = ? ORDER BY timestamp DESC LIMIT 1"
+      ).get(groupId, evt.content)
+      if (msg) {
+        db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(groupId, msg.timestamp)
+      }
+      return { success: true, deletedMessages: !!msg }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
 }

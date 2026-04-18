@@ -83,22 +83,33 @@ export class NarrativeEngine {
 
   async generateAftermath(db, groupId, userContent, allResponses, allCharacters, createClientForCharacter, group, llmProfiles, apiKey) {
     if (!group || group.narrative_enabled !== 1 || group.aftermath_enabled !== 1) return []
+    // 默认随机触发（60% 概率），高情绪/角色提及/紧张关系时必定触发
     if (!this._shouldTriggerAftermath(allResponses, allCharacters, db, groupId)) return []
 
     try {
-      const { client } = createClientForCharacter(allCharacters[0], group, llmProfiles, apiKey)
+      // 随机选择一个非用户角色作为余波触发者
+      const eligibleChars = allCharacters.filter(c => !c.is_user)
+      if (eligibleChars.length === 0) return []
+      const triggerChar = eligibleChars[Math.floor(Math.random() * eligibleChars.length)]
+      console.log(`[Narrative] 余波触发角色: ${triggerChar.name}`)
+
+      const { client } = createClientForCharacter(triggerChar, group, llmProfiles, apiKey)
       const recentMessages = db.prepare(`
         SELECT * FROM messages WHERE group_id = ? ORDER BY timestamp DESC LIMIT 20
       `).all(groupId).reverse()
 
-      const prompt = this.promptBuilder.buildAftermathPrompt(db, groupId, allCharacters, recentMessages)
+      const prompt = this.promptBuilder.buildAftermathPrompt(db, groupId, triggerChar, allCharacters, recentMessages)
       const result = await client.chat(
         [{ role: 'user', content: prompt }],
-        { maxTokens: 300, thinkingEnabled: false }
+        { maxTokens: 150, thinkingEnabled: false }
       )
 
       if (!result.success || !result.content) return []
-      return this._parseAftermath(result.content, allCharacters, db, groupId)
+      return this._parseSingleAftermath(result.content, triggerChar, db, groupId, {
+        model: result.model || null,
+        promptTokens: result.usage?.prompt_tokens || 0,
+        completionTokens: result.usage?.completion_tokens || 0
+      })
     } catch (err) {
       console.error('[Narrative] 余波生成失败:', err.message)
       return []
@@ -117,12 +128,17 @@ export class NarrativeEngine {
     return this.eventTrigger.triggerEvent(db, groupId, eventKey, content, impact, triggeredBy)
   }
 
+  deleteEvent(db, eventId) {
+    return this.eventTrigger.deleteEvent(db, eventId)
+  }
+
   _shouldTriggerAftermath(responses, allCharacters, db, groupId) {
-    if (Math.random() < 0.2) return true
+    // 高情绪必定触发
     const highEmotions = db.prepare(
       'SELECT COUNT(*) as count FROM character_emotions WHERE intensity > 0.7'
     ).get()
     if (highEmotions.count > 0) return true
+    // 角色提及必定触发
     const characterNames = allCharacters.map(c => c.name)
     for (const resp of responses) {
       if (!resp.success || !resp.content) continue
@@ -130,6 +146,7 @@ export class NarrativeEngine {
         if (resp.content.includes(name) && resp.characterName !== name) return true
       }
     }
+    // 紧张关系必定触发
     const activeIds = responses.filter(r => r.success).map(r => r.characterId)
     if (activeIds.length > 0) {
       const tenseRels = db.prepare(`
@@ -138,7 +155,8 @@ export class NarrativeEngine {
       `).get(...activeIds)
       if (tenseRels.count > 0) return true
     }
-    return false
+    // 默认 60% 随机触发
+    return Math.random() < 0.6
   }
 
   _parseAftermath(content, allCharacters, db, groupId) {
@@ -166,5 +184,32 @@ export class NarrativeEngine {
       this.emotion.updateFromMessage(db, characterId, text)
     }
     return messages
+  }
+
+  _parseSingleAftermath(content, triggerChar, db, groupId, tokenInfo = {}) {
+    // 清理 LLM 输出中可能残留的角色名前缀
+    let text = content.trim()
+    const prefixPattern = new RegExp(`^${triggerChar.name}[：:，,]\\s*`)
+    text = text.replace(prefixPattern, '').trim()
+    // 去除引号包裹
+    if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith('"') && text.endsWith('"'))) {
+      text = text.slice(1, -1)
+    }
+    if (!text || text.length > 80) return []
+
+    const msgId = generateUUID()
+    db.prepare(`
+      INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens)
+      VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?)
+    `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0)
+    this.emotion.updateFromMessage(db, triggerChar.id, text)
+    return [{
+      id: msgId, groupId, characterId: triggerChar.id, characterName: triggerChar.name,
+      role: 'assistant', content: text, isAftermath: true,
+      model: tokenInfo.model || null,
+      prompt_tokens: tokenInfo.promptTokens || 0,
+      completion_tokens: tokenInfo.completionTokens || 0,
+      timestamp: new Date().toISOString()
+    }]
   }
 }

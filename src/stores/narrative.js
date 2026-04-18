@@ -52,6 +52,12 @@ export const useNarrativeStore = defineStore('narrative', () => {
     if (result.success) staleness.value = result.data
   }
 
+  async function deleteEvent(groupId, eventId) {
+    const result = await window.electronAPI.narrative.deleteEvent(groupId, eventId)
+    if (result.success) await fetchRecentEvents(groupId)
+    return result
+  }
+
   function setupAftermathListener() {
     return window.electronAPI.narrative.onAftermath((msg) => {
       aftermathMessages.value.push(msg)
@@ -66,7 +72,7 @@ export const useNarrativeStore = defineStore('narrative', () => {
     emotions, relationships, eventSuggestions, recentEvents,
     staleness, aftermathMessages,
     fetchEmotions, fetchRelationships, setRelationship, removeRelationship,
-    fetchEventSuggestions, fetchRecentEvents, triggerEvent,
+    fetchEventSuggestions, fetchRecentEvents, triggerEvent, deleteEvent,
     checkStaleness, setupAftermathListener, clearAftermath
   }
 })

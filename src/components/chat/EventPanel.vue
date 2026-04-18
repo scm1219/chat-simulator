@@ -18,7 +18,8 @@
       <h5>最近事件</h5>
       <div v-for="evt in recentEvents" :key="evt.id" class="recent-event">
         <span class="event-type-badge">{{ evt.event_type === 'user_triggered' ? '手动' : '自动' }}</span>
-        <span>{{ evt.content }}</span>
+        <span class="event-text">{{ evt.content }}</span>
+        <button class="btn-delete-event" @click.stop="handleDeleteEvent(evt.id)" title="删除">x</button>
       </div>
     </div>
   </div>
@@ -33,7 +34,7 @@ const props = defineProps({
   sceneType: { type: String, default: 'general' }
 })
 
-const emit = defineEmits(['eventTriggered'])
+const emit = defineEmits(['eventTriggered', 'eventDeleted'])
 
 const narrativeStore = useNarrativeStore()
 const suggestions = ref([])
@@ -51,9 +52,21 @@ async function refresh() {
 }
 
 async function handleTrigger(event) {
-  await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
-  emit('eventTriggered', event)
+  const result = await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
   await refresh()
+  if (result.success) {
+    emit('eventTriggered', event)
+  }
+}
+
+async function handleDeleteEvent(eventId) {
+  const result = await narrativeStore.deleteEvent(props.groupId, eventId)
+  if (result.success) {
+    recentEvents.value = narrativeStore.recentEvents
+    if (result.deletedMessages) {
+      emit('eventDeleted')
+    }
+  }
 }
 </script>
 
@@ -67,5 +80,7 @@ async function handleTrigger(event) {
 .event-content { font-size: 12px; color: #333; }
 .recent-events { margin-top: 12px; h5 { margin: 0 0 6px; font-size: 12px; color: #666; } }
 .recent-event { font-size: 11px; color: #888; padding: 4px 0; display: flex; align-items: center; gap: 4px; }
-.event-type-badge { font-size: 10px; background: #e0e0e0; border-radius: 4px; padding: 0 4px; color: #666; }
+.event-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-type-badge { font-size: 10px; background: #e0e0e0; border-radius: 4px; padding: 0 4px; color: #666; flex-shrink: 0; }
+.btn-delete-event { background: none; border: none; font-size: 11px; color: #bbb; cursor: pointer; padding: 0 2px; flex-shrink: 0; &:hover { color: #e74c3c; } }
 </style>

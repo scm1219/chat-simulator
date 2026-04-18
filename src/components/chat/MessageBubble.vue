@@ -1,7 +1,8 @@
 <template>
-  <div :class="['message-bubble', message.role, { highlighted: isHighlighted, aftermath: message.isAftermath }]" ref="messageContainer">
+  <div :class="['message-bubble', message.role, { highlighted: isHighlighted, aftermath: isAftermath, event: isEvent }]" ref="messageContainer">
     <div v-if="isUser" class="message-content-user">
       <div class="message-header">
+        <div v-if="isEvent" class="event-tag">事件</div>
         <div v-if="character || message.characterName" class="character-name">
           {{ character?.name || message.characterName || '用户' }}
         </div>
@@ -43,6 +44,7 @@
     </div>
     <div v-else class="message-content-assistant">
       <div class="message-header">
+        <div v-if="isAftermath" class="aftermath-tag">余波</div>
         <div v-if="character || message.characterName" class="character-name">
           {{ character?.name || message.characterName || '角色' }}
         </div>
@@ -134,6 +136,10 @@ const toast = useToastStore()
 const { confirm } = useDialog()
 
 const isUser = computed(() => props.message.role === 'user')
+
+const isAftermath = computed(() => !!props.message.isAftermath || props.message.is_aftermath === 1 || props.message.message_type === 'aftermath')
+
+const isEvent = computed(() => props.message.message_type === 'event')
 
 // 获取发送状态
 const sending = computed(() => messagesStore.sending)
@@ -517,14 +523,65 @@ async function handleResend() {
 
 // 余波消息样式
 .message-bubble.aftermath {
-  font-style: italic;
-  opacity: 0.85;
+  max-width: 60%;
+
+  .character-name {
+    color: #6a9a60;
+  }
 
   .bubble-content {
-    background: #f0f7f0;
+    background: #f4f9f4;
     color: #4a6741;
     border: 1px dashed #b8d4b0;
+    font-style: italic;
+    cursor: default;
   }
+
+  .message-time {
+    opacity: 0.6;
+  }
+}
+
+// 事件消息样式
+.message-bubble.event {
+  max-width: 65%;
+
+  .character-name {
+    color: #8a6d3b;
+  }
+
+  .bubble-content {
+    background: #fef9f0;
+    color: #6b5a3a;
+    border: 1px dashed #e0c89a;
+    font-style: italic;
+  }
+}
+
+.user.message-bubble.event .bubble-content {
+  background: #fef9f0;
+  color: #6b5a3a;
+  border: 1px dashed #e0c89a;
+}
+
+.aftermath-tag {
+  font-size: 10px;
+  background: #e8f5e9;
+  color: #43a047;
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 18px;
+  flex-shrink: 0;
+}
+
+.event-tag {
+  font-size: 10px;
+  background: #fff3e0;
+  color: #e65100;
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 18px;
+  flex-shrink: 0;
 }
 
 @keyframes highlight-pulse {

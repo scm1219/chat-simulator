@@ -77,6 +77,7 @@
         :group-id="currentGroup?.id"
         :scene-type="currentGroup?.event_scene_type || 'general'"
         @eventTriggered="handleEventTriggered"
+        @eventDeleted="handleEventDeleted"
       />
 
       <!-- 输入框 -->
@@ -260,10 +261,26 @@ async function handleExportMessages() {
   }
 }
 
-// 事件触发后的处理
-function handleEventTriggered() {
+// 事件触发后的处理：立即以事件内容发起一轮对话
+async function handleEventTriggered(event) {
   showEventPanel.value = false
   showStalenessTip.value = false
+  try {
+    await messagesStore.sendMessage(event.content, { messageType: 'event' })
+    if (groupsStore.currentGroupId) {
+      await narrativeStore.checkStaleness(groupsStore.currentGroupId)
+      showStalenessTip.value = narrativeStore.staleness.stale
+    }
+  } catch (error) {
+    toast.error('事件触发对话失败: ' + error.message)
+  }
+}
+
+// 事件删除后刷新聊天记录
+async function handleEventDeleted() {
+  if (groupsStore.currentGroupId) {
+    await messagesStore.loadMessages(groupsStore.currentGroupId)
+  }
 }
 
 // 滚动到底部（使用平滑滚动）
@@ -390,6 +407,9 @@ watch(() => narrativeStore.aftermathMessages.length, (newLen, oldLen) => {
       content: msg.content,
       reasoning_content: null,
       isAftermath: true,
+      model: msg.model || null,
+      prompt_tokens: msg.prompt_tokens || null,
+      completion_tokens: msg.completion_tokens || null,
       timestamp: msg.timestamp
     })
   }
