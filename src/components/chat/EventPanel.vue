@@ -84,14 +84,20 @@ function formatTime(datetime) {
   if (!datetime) return ''
   const d = new Date(datetime.replace(' ', 'T'))
   const now = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const hm = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
-  // 同一天只显示时分
-  if (d.toDateString() === now.toDateString()) {
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  if (msgDate.getTime() === today.getTime()) {
+    return hm
+  } else if (msgDate.getTime() === yesterday.getTime()) {
+    return `昨天 ${hm}`
+  } else if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
+  } else {
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
   }
-  // 不同天显示月/日 时:分
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 </script>
 

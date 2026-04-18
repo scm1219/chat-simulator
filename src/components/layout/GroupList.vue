@@ -31,6 +31,7 @@
           <div class="group-name">{{ group.name }}</div>
           <div class="group-info">{{ group.llm_model }}</div>
         </div>
+        <div v-if="group.last_message_time" class="group-time">{{ formatGroupTime(group.last_message_time) }}</div>
         <div
           v-show="hoveredGroupId === group.id || group.id === groupsStore.currentGroupId"
           class="group-actions"
@@ -105,6 +106,26 @@ const settingsGroupId = ref(null)
 
 function selectGroup(group) {
   groupsStore.selectGroup(group.id)
+}
+
+function formatGroupTime(timestamp) {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const hm = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+  if (msgDate.getTime() === today.getTime()) {
+    return hm
+  } else if (msgDate.getTime() === yesterday.getTime()) {
+    return '昨天'
+  } else if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日`
+  } else {
+    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
+  }
 }
 
 // 搜索结果：切换群组并高亮消息
@@ -254,6 +275,13 @@ async function handleDelete(group) {
 .group-content {
   flex: 1;
   min-width: 0;
+}
+
+.group-time {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .group-name {

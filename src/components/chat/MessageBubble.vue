@@ -149,10 +149,21 @@ const sending = computed(() => messagesStore.sending)
 
 const formattedTime = computed(() => {
   const date = new Date(props.message.timestamp)
-  return date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86400000)
+  const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const hm = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+  if (msgDate.getTime() === today.getTime()) {
+    return hm
+  } else if (msgDate.getTime() === yesterday.getTime()) {
+    return `昨天 ${hm}`
+  } else if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+  } else {
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+  }
 })
 
 // 思考过程相关状态
