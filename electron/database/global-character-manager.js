@@ -7,6 +7,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { generateUUID } from '../utils/uuid.js'
+import { buildDynamicUpdate } from '../ipc/handler-wrapper.js'
 
 // 数据库 Schema
 const GLOBAL_CHARACTER_SCHEMA = `
@@ -178,34 +179,12 @@ export class GlobalCharacterManager {
    * @returns {Object|null} 更新后的角色
    */
   update(id, data) {
-    const updates = []
-    const values = []
-
-    if (data.name !== undefined) {
-      updates.push('name = ?')
-      values.push(data.name)
-    }
-    if (data.gender !== undefined) {
-      updates.push('gender = ?')
-      values.push(data.gender)
-    }
-    if (data.age !== undefined) {
-      updates.push('age = ?')
-      values.push(data.age)
-    }
-    if (data.systemPrompt !== undefined) {
-      updates.push('system_prompt = ?')
-      values.push(data.systemPrompt)
-    }
-
-    if (updates.length > 0) {
-      values.push(id)
-      this.db.prepare(`
-        UPDATE global_characters
-        SET ${updates.join(', ')}
-        WHERE id = ?
-      `).run(...values)
-    }
+    buildDynamicUpdate(this.db, 'global_characters', data, [
+      ['name', 'name'],
+      ['gender', 'gender'],
+      ['age', 'age'],
+      ['systemPrompt', 'system_prompt']
+    ], id)
 
     return this.getById(id)
   }
@@ -281,24 +260,10 @@ export class GlobalCharacterManager {
    * @returns {Object|null} 更新后的标签
    */
   updateTag(id, data) {
-    const updates = []
-    const values = []
-
-    if (data.name !== undefined) {
-      updates.push('name = ?')
-      values.push(data.name.trim())
-    }
-    if (data.color !== undefined) {
-      updates.push('color = ?')
-      values.push(data.color)
-    }
-
-    if (updates.length > 0) {
-      values.push(id)
-      this.db.prepare(`
-        UPDATE tags SET ${updates.join(', ')} WHERE id = ?
-      `).run(...values)
-    }
+    buildDynamicUpdate(this.db, 'tags', data, [
+      ['name', 'name', (val) => val.trim()],
+      ['color', 'color']
+    ], id)
 
     return this.db.prepare('SELECT * FROM tags WHERE id = ?').get(id)
   }

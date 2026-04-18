@@ -39,7 +39,19 @@ export class NarrativeEngine {
     return this.promptBuilder.buildNarrativeContext(db, characterId, groupId, allCharacters)
   }
 
-  async postCharacterResponse(db, characterId, groupId, userContent, responseContent, allCharacters, createClientForCharacter, group, llmProfiles, apiKey) {
+  /**
+   * 对话后处理：好感度更新 + LLM 情绪推断
+   * @param {object} db - 数据库连接
+   * @param {string} characterId - 回复角色 ID
+   * @param {string} groupId - 群组 ID
+   * @param {string} userContent - 用户消息内容
+   * @param {string} responseContent - 角色回复内容
+   * @param {Array} allCharacters - 所有角色
+   * @param {object} clientCtx - LLM 客户端上下文 { createClientForCharacter, group, llmProfiles, apiKey }
+   */
+  async postCharacterResponse(db, characterId, groupId, userContent, responseContent, allCharacters, clientCtx) {
+    const { createClientForCharacter, group, llmProfiles, apiKey } = clientCtx
+
     // 构建角色名→ID映射（用于@提及解析）
     const characterNameMap = new Map(allCharacters.map(c => [c.name, c.id]))
 
@@ -90,7 +102,18 @@ export class NarrativeEngine {
     return { aftermath: null }
   }
 
-  async generateAftermath(db, groupId, userContent, allResponses, allCharacters, createClientForCharacter, group, llmProfiles, apiKey) {
+  /**
+   * 生成余波追评
+   * @param {object} db - 数据库连接
+   * @param {string} groupId - 群组 ID
+   * @param {string} userContent - 用户消息内容
+   * @param {Array} allResponses - 所有角色回复
+   * @param {Array} allCharacters - 所有角色
+   * @param {object} clientCtx - LLM 客户端上下文 { createClientForCharacter, group, llmProfiles, apiKey }
+   * @returns {Promise<Array>} 余波消息列表
+   */
+  async generateAftermath(db, groupId, userContent, allResponses, allCharacters, clientCtx) {
+    const { createClientForCharacter, group, llmProfiles, apiKey } = clientCtx
     if (!group || group.narrative_enabled !== 1 || group.aftermath_enabled !== 1) return []
     // 默认随机触发（60% 概率），高情绪/角色提及/紧张关系时必定触发
     if (!this._shouldTriggerAftermath(allResponses, allCharacters, db, groupId)) return []

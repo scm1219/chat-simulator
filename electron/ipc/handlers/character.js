@@ -3,7 +3,7 @@
  */
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
-import { createHandler } from '../handler-wrapper.js'
+import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
 
 /**
  * 通过索引缓存查找角色所属的群组数据库
@@ -61,30 +61,13 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
     if (!found) return { success: false, error: '角色不存在' }
 
     const { db } = found
-    const updates = []
-    const values = []
-
-    if (data.name !== undefined) {
-      updates.push('name = ?')
-      values.push(data.name)
-    }
-    if (data.systemPrompt !== undefined) {
-      updates.push('system_prompt = ?')
-      values.push(data.systemPrompt)
-    }
-    if (data.thinkingEnabled !== undefined) {
-      updates.push('thinking_enabled = ?')
-      values.push(data.thinkingEnabled ? 1 : 0)
-    }
-    if (data.customLlmProfileId !== undefined) {
-      updates.push('custom_llm_profile_id = ?')
-      values.push(data.customLlmProfileId || null)
-    }
-
-    if (updates.length > 0) {
-      values.push(id)
-      db.prepare(`UPDATE characters SET ${updates.join(', ')} WHERE id = ?`).run(...values)
-    }
+    const boolTransform = (val) => val ? 1 : 0
+    buildDynamicUpdate(db, 'characters', data, [
+      ['name', 'name'],
+      ['systemPrompt', 'system_prompt'],
+      ['thinkingEnabled', 'thinking_enabled', boolTransform],
+      ['customLlmProfileId', 'custom_llm_profile_id', (val) => val || null]
+    ], id)
 
     const updated = db.prepare('SELECT * FROM characters WHERE id = ?').get(id)
     return { success: true, data: updated }

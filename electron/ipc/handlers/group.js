@@ -3,7 +3,7 @@
  */
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
-import { createHandler } from '../handler-wrapper.js'
+import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
 
 // 群组 INSERT 列名和默认值常量（新增字段只需修改此处）
 const GROUP_COLUMNS = [
@@ -110,81 +110,29 @@ export function setupGroupHandlers(dbManager) {
   ipcMain.handle('group:update', createHandler(async (event, id, data) => {
     const db = dbManager.getGroupDB(id)
 
-    // 构建更新字段
-    const updates = []
-    const values = []
+    const boolTransform = (val) => val ? 1 : 0
+    const updated = buildDynamicUpdate(db, 'groups', data, [
+      ['name', 'name'],
+      ['llmProvider', 'llm_provider'],
+      ['llmModel', 'llm_model'],
+      ['llmApiKey', 'llm_api_key'],
+      ['llmBaseUrl', 'llm_base_url'],
+      ['maxHistory', 'max_history'],
+      ['responseMode', 'response_mode'],
+      ['useGlobalApiKey', 'use_global_api_key', boolTransform],
+      ['thinkingEnabled', 'thinking_enabled', boolTransform],
+      ['randomOrder', 'random_order', boolTransform],
+      ['background', 'background'],
+      ['systemPrompt', 'system_prompt'],
+      ['autoMemoryExtract', 'auto_memory_extract', boolTransform],
+      ['narrativeEnabled', 'narrative_enabled', boolTransform],
+      ['aftermathEnabled', 'aftermath_enabled', boolTransform],
+      ['eventSceneType', 'event_scene_type']
+    ], id)
 
-    if (data.name !== undefined) {
-      updates.push('name = ?')
-      values.push(data.name)
-    }
-    if (data.llmProvider !== undefined) {
-      updates.push('llm_provider = ?')
-      values.push(data.llmProvider)
-    }
-    if (data.llmModel !== undefined) {
-      updates.push('llm_model = ?')
-      values.push(data.llmModel)
-    }
-    if (data.llmApiKey !== undefined) {
-      updates.push('llm_api_key = ?')
-      values.push(data.llmApiKey)
-    }
-    if (data.llmBaseUrl !== undefined) {
-      updates.push('llm_base_url = ?')
-      values.push(data.llmBaseUrl)
-    }
-    if (data.maxHistory !== undefined) {
-      updates.push('max_history = ?')
-      values.push(data.maxHistory)
-    }
-    if (data.responseMode !== undefined) {
-      updates.push('response_mode = ?')
-      values.push(data.responseMode)
-    }
-    if (data.useGlobalApiKey !== undefined) {
-      updates.push('use_global_api_key = ?')
-      values.push(data.useGlobalApiKey ? 1 : 0)
-    }
-    if (data.thinkingEnabled !== undefined) {
-      updates.push('thinking_enabled = ?')
-      values.push(data.thinkingEnabled ? 1 : 0)
-    }
-    if (data.randomOrder !== undefined) {
-      updates.push('random_order = ?')
-      values.push(data.randomOrder ? 1 : 0)
-    }
-    if (data.background !== undefined) {
-      updates.push('background = ?')
-      values.push(data.background)
-    }
-    if (data.systemPrompt !== undefined) {
-      updates.push('system_prompt = ?')
-      values.push(data.systemPrompt)
-    }
-    if (data.autoMemoryExtract !== undefined) {
-      updates.push('auto_memory_extract = ?')
-      values.push(data.autoMemoryExtract ? 1 : 0)
-    }
-    if (data.narrativeEnabled !== undefined) {
-      updates.push('narrative_enabled = ?')
-      values.push(data.narrativeEnabled ? 1 : 0)
-    }
-    if (data.aftermathEnabled !== undefined) {
-      updates.push('aftermath_enabled = ?')
-      values.push(data.aftermathEnabled ? 1 : 0)
-    }
-    if (data.eventSceneType !== undefined) {
-      updates.push('event_scene_type = ?')
-      values.push(data.eventSceneType)
-    }
-
-    if (updates.length === 0) {
+    if (!updated) {
       return { success: false, error: '没有要更新的字段' }
     }
-
-    values.push(id)
-    db.prepare(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
     const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
     return { success: true, data: group }

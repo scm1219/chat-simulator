@@ -1,5 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/**
+ * 创建 IPC 事件监听器工厂
+ * 统一 on* 事件监听器的注册/清理模式
+ * @param {string} channel - IPC 通道名
+ * @returns {Function} (callback) => cleanupFunction
+ */
+function createEventListener(channel) {
+  return (callback) => {
+    const listener = (event, data) => callback(data)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  }
+}
+
 // 暴露安全的 API 到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
   // ============ 群组操作 ============
@@ -31,38 +45,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteFrom: (groupId, id) => ipcRenderer.invoke('message:deleteFrom', groupId, id),
     clearByGroupId: (groupId) => ipcRenderer.invoke('message:clearByGroupId', groupId),
     exportToZip: (groupId, groupName) => ipcRenderer.invoke('message:exportToZip', groupId, groupName),
-    onNewMessage: (callback) => {
-      const listener = (event, message) => callback(message)
-      ipcRenderer.on('message:new', listener)
-      return () => ipcRenderer.removeListener('message:new', listener)
-    },
+    onNewMessage: createEventListener('message:new'),
     // 流式消息事件
-    onStreamStart: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('message:stream:start', listener)
-      return () => ipcRenderer.removeListener('message:stream:start', listener)
-    },
-    onStreamChunk: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('message:stream:chunk', listener)
-      return () => ipcRenderer.removeListener('message:stream:chunk', listener)
-    },
-    onStreamEnd: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('message:stream:end', listener)
-      return () => ipcRenderer.removeListener('message:stream:end', listener)
-    },
-    onStreamError: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('message:stream:error', listener)
-      return () => ipcRenderer.removeListener('message:stream:error', listener)
-    },
+    onStreamStart: createEventListener('message:stream:start'),
+    onStreamChunk: createEventListener('message:stream:chunk'),
+    onStreamEnd: createEventListener('message:stream:end'),
+    onStreamError: createEventListener('message:stream:error'),
     // 用户消息保存事件（更新前端消息的真实 ID）
-    onUserMessageSaved: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('message:user:saved', listener)
-      return () => ipcRenderer.removeListener('message:user:saved', listener)
-    }
+    onUserMessageSaved: createEventListener('message:user:saved')
   },
 
   // ============ LLM 操作 ============
@@ -76,11 +66,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('llm:generateCharacterCommand', groupId, characterId, instruction),
     generateCharacter: (hint) => ipcRenderer.invoke('llm:generateCharacter', hint),
     generateGroup: (description, profileId) => ipcRenderer.invoke('llm:generateGroup', description, profileId),
-    onProgress: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('llm:progress', listener)
-      return () => ipcRenderer.removeListener('llm:progress', listener)
-    }
+    onProgress: createEventListener('llm:progress')
   },
 
   // ============ 配置操作 ============
@@ -177,11 +163,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getEventSuggestions: (groupId, sceneType, count) => ipcRenderer.invoke('narrative:getEventSuggestions', groupId, sceneType, count),
     checkStaleness: (groupId) => ipcRenderer.invoke('narrative:checkStaleness', groupId),
     deleteEvent: (groupId, eventId) => ipcRenderer.invoke('narrative:deleteEvent', groupId, eventId),
-    onAftermath: (callback) => {
-      const listener = (event, data) => callback(data)
-      ipcRenderer.on('narrative:aftermath', listener)
-      return () => ipcRenderer.removeListener('narrative:aftermath', listener)
-    }
+    onAftermath: createEventListener('narrative:aftermath')
   },
 
   // ============ 全局搜索 ============

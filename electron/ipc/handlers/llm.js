@@ -160,6 +160,9 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     const randomOrder = group.random_order === 1
     const responses = []
 
+    // 叙事引擎共享的 LLM 客户端上下文（避免重复传递 4 个参数）
+    const narrativeClientCtx = { createClientForCharacter, group, llmProfiles, apiKey }
+
     if (responseMode === 'parallel') {
       // 并行模式：同时调用所有角色
       const promises = characters.map(character => {
@@ -183,7 +186,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
           try {
             await narrativeEngine.postCharacterResponse(
               db, resp.characterId, groupId, userContent, resp.content,
-              allCharacters, createClientForCharacter, group, llmProfiles, apiKey
+              allCharacters, narrativeClientCtx
             )
           } catch (err) {
             console.error(`[Narrative] postCharacterResponse 失败 (${resp.characterName}):`, err.message)
@@ -216,7 +219,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
           try {
             await narrativeEngine.postCharacterResponse(
               db, character.id, groupId, userContent, response.content,
-              allCharacters, createClientForCharacter, group, llmProfiles, apiKey
+              allCharacters, narrativeClientCtx
             )
           } catch (err) {
             console.error(`[Narrative] postCharacterResponse 失败 (${character.name}):`, err.message)
@@ -240,8 +243,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     if (narrativeEngine) {
       try {
         const aftermathMessages = await narrativeEngine.generateAftermath(
-          db, groupId, userContent, responses, allCharacters,
-          createClientForCharacter, group, llmProfiles, apiKey
+          db, groupId, userContent, responses, allCharacters, narrativeClientCtx
         )
         for (const msg of aftermathMessages) {
           event.sender.send('narrative:aftermath', msg)

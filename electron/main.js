@@ -139,5 +139,3 @@ app.on('before-quit', () => {
     memoryManager.close()
   }
 })
-
-export { mainWindow }
