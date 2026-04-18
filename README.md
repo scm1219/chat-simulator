@@ -4,38 +4,61 @@
 
 ## 功能特性
 
+### 核心对话
+
 - 🎭 **多角色对话**：一个聊天群中可添加多个 AI 角色，每个角色独立设定人设
-- 🤖 **多 LLM 支持**：OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、MiniMax、ModelScope、Ollama 等
-- 🔧 **灵活配置**：全局和群组独立的 API Key 配置，LLM 配置 Profile 管理
-- 🌐 **代理支持**：HTTP/HTTPS/SOCKS5 代理，可按 Profile 独立配置
-- 💾 **本地存储**：每个聊天群使用独立 SQLite 数据库，全局角色库和记忆独立存储
-- 📱 **微信风格 UI**：简洁优雅的微信绿色主题界面，四栏布局（可隐藏侧栏）
 - ⚡ **两种回复模式**：顺序模式（剧情演绎）和并行模式（快速讨论）
-- 🎨 **群背景设定**：为每个群组设置背景场景，增强对话沉浸感
-- 🧠 **思考模式**：支持 LLM 思考模式（如 DeepSeek Reasoner），展示推理过程
-- 👤 **用户角色**：支持添加用户角色，区分用户和 AI 角色
-- 📚 **全局角色库**：跨群组角色库，支持标签分类、搜索、一键导入
-- 🎲 **AI 角色抽卡**：使用 LLM 随机生成角色（姓名、性别、年龄、人设）
-- 🧠 **角色记忆系统**：手动/自动记忆，AI 对话时参考角色记忆内容
-- 🔍 **全局搜索**：跨群组搜索消息内容和角色名称
-- 📋 **系统提示词模板**：内置 8 个多角色对话模板，支持自定义
-- 📊 **Token 统计**：消息记录 prompt/completion token 用量
 - 🔄 **流式输出**：SSE 流式消息推送，实时展示 AI 回复过程
+- 🧠 **思考模式**：支持 LLM 思考模式（如 DeepSeek Reasoner），展示推理过程
 - 📝 **消息管理**：编辑、删除、从某条开始删除、清空、导出 ZIP
 - 🔀 **角色排序**：支持拖拽排序发言顺序，支持随机发言
+- 📊 **Token 统计**：消息记录 prompt/completion token 用量和实际模型
+
+### AI 生成
+
+- ⚡ **AI 快速建群**：输入群组描述，AI 自动生成群名称、背景设定和多个角色
+- 🎲 **AI 角色抽卡**：使用 LLM 随机生成角色（姓名、性别、年龄、人设）
+
+### 角色管理
+
+- 📚 **全局角色库**：跨群组角色库，支持标签分类、搜索、一键导入与同步更新
+- 🧠 **角色记忆系统**：手动/自动记忆，AI 对话时参考角色记忆内容
+- 👤 **用户角色**：支持添加用户角色，区分用户和 AI 角色
+- 🔧 **角色级 LLM 配置**：每个角色可独立使用不同的 LLM Profile 和模型
+
+### 叙事引擎
+
+- 😊 **情绪系统**：15 种情绪状态机（关键词匹配 + LLM 混合推断）
+- 💕 **关系图谱**：7 种预设关系类型，6 级好感度（深厚/亲密/友好/中立/不满/敌对）
+- 🎪 **事件触发**：7 场景约 85 个预设事件，推荐算法 + 对话平淡检测
+- 💬 **余波互动**：角色间自动追评互动，增强对话自然感
+
+### LLM 支持
+
+- 🤖 **多 LLM 支持**：OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、MiniMax、ModelScope、Ollama 等 12 个供应商
+- 🔧 **灵活配置**：LLM 配置 Profile 管理，Profile 更新自动同步关联群组
+- 🌐 **代理支持**：HTTP/HTTPS/SOCKS5 代理，可按 Profile 独立配置
+
+### 其他
+
+- 💾 **本地存储**：每个聊天群使用独立 SQLite 数据库，全局角色库和记忆独立存储
+- 📱 **微信风格 UI**：简洁优雅的微信绿色主题界面，四栏布局（可隐藏侧栏）
+- 🎨 **群背景设定**：为每个群组设置背景场景，增强对话沉浸感
+- 🔍 **全局搜索**：跨群组搜索消息内容和角色名称
+- 📋 **系统提示词模板**：内置 8 个多角色对话模板，支持自定义
 
 ## 技术栈
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| **前端框架** | Vue | 3.5.30 |
-| **构建工具** | Vite | 8.0.1 |
-| **桌面框架** | Electron | 41.0.3 |
+| **前端框架** | Vue | 3.5.32 |
+| **构建工具** | Vite | 8.0.8 |
+| **桌面框架** | Electron | 41.2.0 |
 | **构建工具** | electron-vite | 5.0.0 |
 | **状态管理** | Pinia | 3.0.4 |
 | **数据库** | better-sqlite3 | 12.8.0 |
-| **HTTP 客户端** | axios | 1.13.6 |
-| **样式** | SCSS (Sass) | 1.98.0 |
+| **HTTP 客户端** | axios | 1.15.0 |
+| **样式** | SCSS (Sass) | 1.99.0 |
 | **语言** | JavaScript (ES Modules) | - |
 | **LLM 协议** | OpenAI 兼容 | - |
 
@@ -99,14 +122,21 @@ npm run build:linux
 - **从角色库导入**：点击"从角色库添加"，从全局角色库快速导入
 - **AI 抽卡**：点击"AI 抽卡"随机生成角色
 
-### 4. 开始对话
+### 4. AI 快速建群
+
+1. 点击左侧面板"聊天群"Tab 中的"AI 建群"按钮
+2. 输入群组描述（如"办公室白领聊天群，3个女性，1个男性"）
+3. 选择 LLM 配置，AI 自动生成群名称、背景设定和多个角色
+4. 编辑预览后确认创建，支持同时保存角色到全局角色库
+
+### 5. 开始对话
 
 1. 在中间聊天窗口输入消息
 2. 按 Enter 发送（Shift + Enter 换行）
 3. 所有启用的角色会依次/并行回复
 4. 支持流式输出，实时查看 AI 回复过程
 
-### 5. 全局角色库
+### 6. 全局角色库
 
 跨群组复用角色人设：
 
@@ -114,13 +144,14 @@ npm run build:linux
 2. 点击"添加角色"创建全局角色（或使用 AI 抽卡）
 3. 输入角色名称、性别、年龄、设定和标签
 4. 在任意群组中点击"从角色库添加"快速导入
+5. 支持同步更新：修改全局角色后可同步到单个或所有关联群组
 
 **标签系统**：
 - 为角色添加标签便于分类管理
 - 支持按标签筛选角色
 - 一个角色可添加多个标签
 
-### 6. 角色记忆
+### 7. 角色记忆
 
 为角色添加跨群组的持久化记忆：
 
@@ -129,13 +160,29 @@ npm run build:linux
 - AI 对话时会将角色记忆注入上下文，增强角色一致性
 - 记忆按角色名称关联，跨群组共享
 
-### 7. 全局搜索
+### 8. 角色级 LLM 配置
+
+- 每个角色可独立配置 LLM Profile（在角色面板中开启）
+- 角色发言时优先使用角色级配置，未设置则回退到群组配置
+- 适用于不同角色使用不同模型的场景（如推理角色用 DeepSeek、对话角色用 GPT）
+
+### 9. 叙事引擎
+
+为群聊增加丰富的情感和关系维度：
+
+1. 在群设置中开启"叙事引擎"
+2. **情绪系统**：角色会根据对话内容自动产生情绪变化（15 种情绪）
+3. **关系图谱**：角色间自动建立关系，好感度随互动动态变化
+4. **事件触发**：系统检测对话平淡时推荐触发事件（7 场景约 85 事件）
+5. **余波互动**：角色发言后自动生成追评互动
+
+### 10. 全局搜索
 
 1. 在左侧面板顶部的搜索框输入关键词
 2. 搜索范围包括所有群组的消息内容和角色名称
 3. 点击搜索结果可跳转到对应群组
 
-### 8. 消息管理
+### 11. 消息管理
 
 - **编辑消息**：双击消息进行编辑
 - **删除消息**：右键或操作按钮删除单条消息
@@ -143,7 +190,7 @@ npm run build:linux
 - **清空消息**：清空当前群组的所有消息
 - **导出 ZIP**：将聊天记录导出为 ZIP 文件
 
-### 9. 系统提示词模板
+### 12. 系统提示词模板
 
 1. 创建角色时，点击"选择模板"下拉框
 2. 选择合适的模板（内置 8 个多角色对话模板）
@@ -156,12 +203,13 @@ npm run build:linux
 
 | 供应商 | 标识符 | 推荐模型 | 说明 |
 |--------|--------|----------|------|
-| **OpenAI** | `openai` | gpt-4o, gpt-4o-mini, o1-preview, o1-mini | 支持 GPT-4 和 GPT-3.5 系列 |
+| **OpenAI** | `openai` | gpt-5.4, gpt-5.4-mini, o3, o4-mini | GPT 系列大模型 |
 | **DeepSeek** | `deepseek` | deepseek-chat, deepseek-reasoner | 国产高性能 LLM，支持推理模式 |
-| **通义千问** | `qwen` | qwen-turbo, qwen-plus, qwen-max | 阿里云大模型 |
+| **通义千问** | `qwen` | qwen3, qwen3.5, qwen-max | 阿里云大模型 |
 | **Moonshot** | `moonshot` | moonshot-v1-8k, moonshot-v1-32k | Kimi 提供的 LLM |
-| **智谱 AI** | `zhipu` | glm-4, glm-4-flash | 智谱 AI GLM 系列大模型 |
-| **MiniMax** | `minimax` | MiniMax-Text-01 | MiniMax 大模型 |
+| **智谱 AI** | `zhipu` | glm-5, glm-5.1, glm-4-flash | 智谱 AI GLM 系列大模型 |
+| **智谱 AI Coding** | `zhipu-coding` | glm-5.1 | 智谱 AI Coding 专用端点 |
+| **MiniMax** | `minimax` | M2.7-Pro, M2.7-Ultra | MiniMax 大模型 |
 | **ModelScope** | `modelscope` | 自定义 | 魔搭社区模型服务 |
 | **Ollama** | `ollama` | llama3, qwen2, mistral | 本地部署，支持原生 API 和 OpenAI 兼容模式 |
 | **自定义** | `custom` | 自定义 | 支持任何 OpenAI 兼容的 API |
@@ -266,6 +314,9 @@ C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 | background | TEXT | 群背景设定 |
 | system_prompt | TEXT | 群系统提示词 |
 | auto_memory_extract | INTEGER | 是否自动提取角色记忆 |
+| narrative_enabled | INTEGER | 是否启用叙事引擎 |
+| aftermath_enabled | INTEGER | 是否启用余波互动 |
+| event_scene_type | TEXT | 事件场景类型 |
 | created_at | DATETIME | 创建时间 |
 | updated_at | DATETIME | 更新时间 |
 
@@ -281,6 +332,7 @@ C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 | is_user | INTEGER | 是否为用户角色（0/1） |
 | position | INTEGER | 发言排序位置 |
 | thinking_enabled | INTEGER | 角色级思考模式开关 |
+| custom_llm_profile_id | TEXT | 角色独立 LLM Profile ID（可选） |
 | created_at | DATETIME | 创建时间 |
 
 **messages（消息表）**
@@ -295,7 +347,47 @@ C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 | reasoning_content | TEXT | 推理过程内容 |
 | prompt_tokens | INTEGER | 输入 token 数 |
 | completion_tokens | INTEGER | 输出 token 数 |
+| model | TEXT | 实际使用的 LLM 模型名称（可选） |
+| is_aftermath | INTEGER | 是否为余波消息 |
+| message_type | TEXT | 消息类型（如 aftermath） |
 | timestamp | DATETIME | 时间戳 |
+
+**character_emotions（角色情绪表）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT | 记录 ID（主键） |
+| group_id | TEXT | 群组 ID |
+| character_id | TEXT | 角色 ID |
+| emotion | TEXT | 情绪类型 |
+| intensity | REAL | 情绪强度（0-1） |
+| reason | TEXT | 情绪原因 |
+| updated_at | DATETIME | 更新时间 |
+
+**character_relationships（角色关系表）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT | 记录 ID（主键） |
+| group_id | TEXT | 群组 ID |
+| character_id | TEXT | 角色 ID |
+| target_character_id | TEXT | 目标角色 ID |
+| relationship_type | TEXT | 关系类型 |
+| affinity | INTEGER | 好感度（-100~100） |
+| updated_at | DATETIME | 更新时间 |
+
+**narrative_events（叙事事件表）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT | 事件 ID（主键） |
+| group_id | TEXT | 群组 ID |
+| event_type | TEXT | 事件类型 |
+| description | TEXT | 事件描述 |
+| scene_type | TEXT | 场景类型 |
+| triggered | INTEGER | 是否已触发 |
+| triggered_at | DATETIME | 触发时间 |
+| created_at | DATETIME | 创建时间 |
 
 #### 2. 全局角色库数据库（`data/global/character-library.sqlite`）
 
@@ -343,7 +435,7 @@ C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 
 ### 数据库迁移
 
-应用启动时自动执行数据库结构升级，保证向后兼容性。历史迁移包括：reasoning_content、position、thinking_enabled（角色级）、random_order、prompt_tokens/completion_tokens、auto_memory_extract、system_prompt 等字段。
+应用启动时自动执行数据库结构升级，保证向后兼容性。历史迁移包括：reasoning_content、position、thinking_enabled（角色级）、random_order、prompt_tokens/completion_tokens、auto_memory_extract、system_prompt、custom_llm_profile_id、model、narrative_enabled、aftermath_enabled、event_scene_type、is_aftermath、message_type 等字段，以及 character_emotions、character_relationships、narrative_events 三张叙事引擎相关表。
 
 ### 数据备份与恢复
 
@@ -377,7 +469,8 @@ chat-simulator/
 │   │       ├── config.js
 │   │       ├── global-character.js
 │   │       ├── memory.js
-│   │       └── search.js
+│   │       ├── search.js
+│   │       └── narrative.js
 │   ├── database/           # 数据库层
 │   │   ├── manager.js      # 数据库管理器
 │   │   ├── schema.sql      # 数据库结构
@@ -388,17 +481,26 @@ chat-simulator/
 │   │   ├── ollama-client.js # Ollama 原生客户端
 │   │   ├── providers/      # 供应商配置
 │   │   └── proxy.js        # 代理配置
-│   └── config/             # 配置管理
-│       ├── manager.js      # 全局配置管理
-│       ├── llm-profiles.js # LLM 配置管理
-│       └── system-prompts.js # 系统提示词模板
+│   ├── config/             # 配置管理
+│   │   ├── manager.js      # 全局配置管理
+│   │   ├── llm-profiles.js # LLM 配置管理
+│   │   └── system-prompts.js # 系统提示词模板
+│   ├── narrative/          # 叙事引擎
+│   │   ├── engine.js       # 叙事引擎主控
+│   │   ├── emotion-manager.js    # 情绪状态机
+│   │   ├── relationship-manager.js # 关系图谱
+│   │   ├── event-trigger.js      # 事件触发系统
+│   │   └── prompt-builder.js     # 叙事上下文构建
+│   └── utils/              # 工具函数
+│       ├── uuid.js         # UUID 生成
+│       └── json-extractor.js # JSON 提取工具
 ├── src/                    # Vue 渲染进程
 │   ├── main.js             # 渲染进程入口
 │   ├── App.vue             # 根组件（含全局 Toast）
 │   ├── components/         # Vue 组件
 │   │   ├── layout/         # 布局组件（MainLayout、LeftPanel、GroupList、CharacterLibrary、GroupSearch）
-│   │   ├── chat/           # 聊天组件（ChatWindow、MessageBubble、MessageInput、CharacterPanel）
-│   │   ├── config/         # 配置组件（创建群/角色、编辑角色、全局角色、抽卡、群设置、LLM配置等）
+│   │   ├── chat/           # 聊天组件（ChatWindow、MessageBubble、MessageInput、CharacterPanel、EmotionTag、RelationshipPanel、EventPanel、StalenessTip）
+│   │   ├── config/         # 配置组件（创建群/角色、快速建群、编辑角色、全局角色、抽卡、群设置、LLM配置等）
 │   │   └── common/         # 通用组件（Toast、ConfirmDialog、TagFilter、TagSelector）
 │   ├── stores/             # Pinia 状态管理
 │   │   ├── groups.js       # 群组
@@ -407,13 +509,14 @@ chat-simulator/
 │   │   ├── config.js       # 配置
 │   │   ├── llm-profiles.js # LLM 配置
 │   │   ├── global-characters.js # 全局角色
+│   │   ├── narrative.js    # 叙事引擎
 │   │   ├── toast.js        # Toast 通知
 │   │   └── memory.js       # 角色记忆
 │   ├── composables/        # 组合式函数（useDialog）
 │   └── styles/             # 样式文件（variables.scss、global.scss）
-├── docs/                   # 设计文档
 ├── CLAUDE.md               # AI 上下文文档
 ├── electron/CLAUDE.md      # Electron 模块文档
+├── electron/narrative/CLAUDE.md # 叙事引擎模块文档
 └── src/CLAUDE.md           # 渲染进程模块文档
 ```
 
@@ -428,10 +531,12 @@ chat-simulator/
 3. **Ollama 使用**：使用 Ollama 前需要先启动 Ollama 服务，支持原生 API 和 OpenAI 兼容两种模式
 4. **代理配置**：如需使用代理，可在 LLM 配置 Profile 中独立配置
 5. **用户角色**：用户角色不会参与 LLM 对话生成，仅用于标识真实用户
-6. **全局角色库**：从角色库导入的角色会在群组中创建副本，修改全局角色不会影响已导入的群组角色
+6. **全局角色库**：从角色库导入的角色使用原始 ID（非副本），支持同步更新到单个或所有关联群组
 7. **角色记忆**：记忆按角色名称关联（不按 ID），同名角色跨群组共享记忆
 8. **思考模式**：仅支持具备推理能力的模型，其他模型启用此选项可能无效
 9. **流式输出**：LLM 回复使用流式推送，事件：`stream:start` -> `stream:chunk`(多次) -> `stream:end`
+10. **角色级 LLM**：角色可通过 `custom_llm_profile_id` 使用独立 LLM 配置，优先于群组配置
+11. **叙事引擎**：需在群设置中手动开启，支持独立开关情绪、关系、事件、余波各子系统
 
 ## 故障排查
 

@@ -2,11 +2,24 @@
 
 [根目录](../CLAUDE.md) > **electron**
 
-> 最后更新：2026-04-17
+> 最后更新：2026-04-18
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-18
+- **更新**：叙事系统 IPC 接口从 13 个扩充为 14 个（新增 `narrative:deleteEvent`、`narrative:setEmotion`、`narrative:getEmotion`、`narrative:removeRelationship`、`narrative:getRelationshipTypes`、`narrative:getEventPool`）
+- **更新**：IPC 通道常量 `channels.js` 新增叙事相关常量（`NARRATIVE_SET_EMOTION`、`NARRATIVE_GET_EMOTION`、`NARRATIVE_REMOVE_RELATIONSHIP`、`NARRATIVE_GET_RELATIONSHIP_TYPES`、`NARRATIVE_GET_EVENT_POOL`、`NARRATIVE_DELETE_EVENT`）
+- **更新**：情绪词典扩展至 15 种情绪（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）
+- **更新**：事件场景从 4 场景扩展为 7 场景（新增 home、school、restaurant、travel、party），事件总数约 85 个
+- **更新**：余波编排改为单角色模式（`_parseSingleAftermath`），余波消息携带 `message_type`、`is_aftermath`、`model`、`prompt_tokens`、`completion_tokens`
+- **更新**：好感度系统支持 6 级等级和 4 类互动模式
+- **更新**：数据库迁移新增 `narrative_enabled`、`aftermath_enabled`、`event_scene_type`（groups 表）和 `is_aftermath`、`message_type`（messages 表）
+- **更新**：内联 Schema（`SCHEMA_SQL`）新增 `character_emotions`、`character_relationships`、`narrative_events` 三张表
+- **更新**：叙事引擎通过 `narrative.js` Handler 暴露 14 个 IPC 接口
+- **更新**：`main.js` 启动流程新增叙事引擎初始化和 `setupNarrativeHandlers` 注册
+- **更新**：`llm.js` Handler 新增第三个参数 `narrativeEngine`，集成叙事引擎到对话流程
 
 ### 2026-04-17
 - **新增**：AI 快速建群接口 `llm:generateGroup`（根据描述生成群名称、背景、多个角色）
@@ -22,13 +35,13 @@
 - **优化**：角色 Handler 支持更新 `customLlmProfileId` 字段
 - **删除**：`database/migrations/add_user_character.js`（迁移已内联到 manager.js）
 - **新增**：叙事引擎模块 `narrative/`（engine.js、emotion-manager.js、relationship-manager.js、event-trigger.js、prompt-builder.js）
-- **新增**：叙事系统 IPC 处理器 `narrative.js`（13 个接口：情绪/关系/事件管理）
-- **新增**：角色情绪系统（关键词匹配 + LLM 推断混合模式，8 种内置情绪，情绪衰减机制）
+- **新增**：叙事系统 IPC 处理器 `narrative.js`（14 个接口：情绪/关系/事件管理）
+- **新增**：角色情绪系统（关键词匹配 + LLM 推断混合模式，15 种情绪，情绪衰减机制）
 - **新增**：角色关系系统（7 种预设关系类型，双向动态好感度 -100~100，互动关键词驱动更新）
-- **新增**：事件触发系统（4 场景 16 预设事件，推荐算法去重，对话平淡检测）
-- **新增**：角色间余波编排（条件触发：高情绪/角色提及/紧张关系/随机，LLM 生成 1-3 条追评）
+- **新增**：事件触发系统（7 场景约 85 预设事件，推荐算法去重，对话平淡检测）
+- **新增**：单角色余波编排（条件触发：高情绪/角色提及/紧张关系/随机，LLM 生成追评）
 - **新增**：叙事上下文注入到 LLM prompt（情绪状态 + 角色关系 + 当前事件）
-- **新增**：数据库迁移（character_emotions、character_relationships、narrative_events 三张表 + groups 表三个新字段）
+- **新增**：数据库迁移（character_emotions、character_relationships、narrative_events 三张表 + groups 表三个新字段 + messages 表两个新字段）
 - **优化**：LLM Handler 集成叙事引擎（preGenerate + postCharacterResponse + generateAftermath）
 
 ### 2026-03-29
@@ -67,14 +80,15 @@
 Electron 主进程是应用的核心后端，负责：
 1. **窗口管理**：创建和管理应用窗口
 2. **IPC 通信**：处理渲染进程的请求并返回结果
-3. **数据库管理**：管理三套独立数据库系统
+3. **数据库管理**：管理三套独立数据库系统（群组/全局角色库/角色记忆）
 4. **LLM 集成**：调用各种 LLM 供应商的 API 进行对话生成、角色抽卡、快速建群
-5. **配置管理**：管理全局 LLM、Profile、代理、系统提示词模板、抽卡配置、快速建群配置
-6. **全局角色库**：跨群组的角色模板管理、标签系统、同步更新
-7. **角色记忆**：跨群组的角色记忆管理（手动/自动）
-8. **全局搜索**：跨群组搜索消息和角色
-9. **数据迁移**：自动执行数据库结构升级
-10. **Profile 同步**：LLM Profile 更新时自动同步关联群组配置
+5. **叙事引擎**：编排情绪状态机、角色关系图谱、事件触发系统、余波生成
+6. **配置管理**：管理全局 LLM、Profile、代理、系统提示词模板、抽卡配置、快速建群配置
+7. **全局角色库**：跨群组的角色模板管理、标签系统、同步更新
+8. **角色记忆**：跨群组的角色记忆管理（手动/自动）
+9. **全局搜索**：跨群组搜索消息和角色
+10. **数据迁移**：自动执行数据库结构升级
+11. **Profile 同步**：LLM Profile 更新时自动同步关联群组配置
 
 ---
 
@@ -85,13 +99,14 @@ Electron 主进程是应用的核心后端，负责：
 
 ### 启动流程
 1. 应用就绪时（`app.whenReady()`）创建主窗口
-2. 动态导入各模块（数据库、IPC Handlers）
+2. 动态导入各模块（数据库、IPC Handlers、叙事引擎）
 3. 初始化 `DatabaseManager`（群组数据库）
 4. 初始化 `GlobalCharacterManager`（全局角色库数据库）
-5. 初始化 `MemoryManager`（角色记忆数据库，懒加载）
-6. 注册所有 IPC Handlers（8 个模块）
-7. 创建窗口
-8. 监听窗口关闭事件，清理所有数据库连接
+5. 初始化 `MemoryManager`（角色记忆数据库）
+6. 初始化 `NarrativeEngine`（叙事引擎，通过 `setDBManager` 关联数据库）
+7. 注册所有 IPC Handlers（9 个模块）
+8. 创建窗口
+9. 监听窗口关闭事件，清理所有数据库连接
 
 ### 关键代码
 ```javascript
@@ -100,15 +115,20 @@ dbManager = new DatabaseManager()
 globalCharManager = new GlobalCharacterManager()
 memoryManager = new MemoryManager()
 
-// 注册 8 个 IPC Handler 模块
+// 初始化叙事引擎
+const narrativeEngine = new NarrativeEngine()
+narrativeEngine.setDBManager(dbManager)
+
+// 注册 9 个 IPC Handler 模块
 setupGroupHandlers(dbManager)
 setupCharacterHandlers(dbManager)
 setupMessageHandlers(dbManager)
-setupLLMHandlers(dbManager, memoryManager)
+setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
 setupConfigHandlers(dbManager)
 setupGlobalCharacterHandlers(dbManager, globalCharManager)
 setupMemoryHandlers(memoryManager)
 setupSearchHandlers(dbManager)
+setupNarrativeHandlers(narrativeEngine)
 
 // 应用退出前清理三个数据库
 dbManager.closeAll()
@@ -160,6 +180,7 @@ memoryManager.close()
 | `exportToZip(groupId, groupName)` | 群组 ID, 名称 | `{ success, path }` | 导出聊天记录 ZIP |
 | `onNewMessage(callback)` | 回调函数 | 清理函数 | 监听新消息事件 |
 | `onStreamStart/Chunk/End/Error` | 回调函数 | 清理函数 | 流式消息事件 |
+| `onUserMessageSaved(callback)` | 回调函数 | 清理函数 | 用户消息保存确认事件 |
 
 **事件**：
 - `message:new`：新消息（旧接口）
@@ -167,7 +188,7 @@ memoryManager.close()
 - `message:stream:chunk`：流式片段（含 reasoning/content 类型）
 - `message:stream:end`：流式结束
 - `message:stream:error`：流式错误
-- `message:user:saved`：用户消息保存确认
+- `message:user:saved`：用户消息保存确认（含真实 ID、character_id、message_type）
 
 **Handler 实现**：`electron/ipc/handlers/message.js`
 
@@ -177,7 +198,7 @@ memoryManager.close()
 | `getProviders()` | 无 | `{ success, data: Provider[] }` | 获取所有 LLM 供应商 |
 | `getModels(provider)` | 供应商 ID | `{ success, data: string[] }` | 获取供应商的模型列表 |
 | `testConnection(config)` | LLM 配置 | `{ success, message, model }` | 测试 LLM 连接 |
-| `generate(groupId, content)` | 群组 ID, 用户消息 | 流式事件 | 生成 AI 回复（流式） |
+| `generate(groupId, content, options)` | 群组 ID, 用户消息, 选项（含 `messageType`） | 流式事件 | 生成 AI 回复（流式） |
 | `generateCharacterCommand(...)` | 群组/角色/指令 | 流式事件 | 单角色指令回复 |
 | `generateCharacter(hint)` | 提示词 | `{ success, data }` | AI 角色抽卡 |
 | `generateGroup(description, profileId)` | 描述, Profile ID | `{ success, data }` | AI 快速建群 |
@@ -260,21 +281,23 @@ memoryManager.close()
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
 | `getEmotions(groupId)` | 群组 ID | `{ success, data }` | 获取群组所有角色情绪 |
+| `getEmotion(groupId, characterId)` | 群组 ID, 角色 ID | `{ success, data }` | 获取指定角色情绪 |
+| `setEmotion(groupId, characterId, emotion, intensity)` | 群组/角色/情绪/强度 | `{ success }` | 手动设置角色情绪 |
 | `getRelationships(groupId)` | 群组 ID | `{ success, data }` | 获取群组角色关系 |
-| `getEvents(groupId)` | 群组 ID | `{ success, data }` | 获取群组叙事事件 |
-| `getStaleness(groupId)` | 群组 ID | `{ success, data }` | 获取群组对话平淡度 |
-| `setRelationship(fromId, toId, type, value)` | 角色ID, 角色ID, 关系类型, 好感度 | `{ success }` | 设置角色关系 |
-| `triggerEvent(groupId, eventId)` | 群组 ID, 事件 ID | `{ success }` | 手动触发事件 |
-| `clearEvent(groupId, eventId)` | 群组 ID, 事件 ID | `{ success }` | 清除事件 |
-| `setGroupNarrative(groupId, config)` | 群组 ID, 叙事配置 | `{ success }` | 设置群组叙事配置 |
-| `getGroupNarrative(groupId)` | 群组 ID | `{ success, data }` | 获取群组叙事配置 |
+| `getRelationship(groupId, fromId, toId)` | 群组/角色/角色 | `{ success, data }` | 获取指定角色间关系 |
+| `setRelationship(groupId, fromId, toId, type, description)` | 群组/角色/角色/类型/描述 | `{ success, data }` | 设置角色关系 |
+| `removeRelationship(groupId, fromId, toId)` | 群组/角色/角色 | `{ success }` | 删除角色关系 |
+| `getRelationshipTypes()` | 无 | `{ success, data }` | 获取关系类型列表 |
+| `getEventPool(sceneType)` | 场景类型 | `{ success, data }` | 获取事件池 |
+| `triggerEvent(groupId, eventKey, content, impact)` | 群组/事件键/内容/影响 | `{ success, data }` | 触发事件 |
+| `getRecentEvents(groupId, limit)` | 群组 ID, 数量 | `{ success, data }` | 获取最近事件 |
+| `getEventSuggestions(groupId, sceneType, count)` | 群组/场景/数量 | `{ success, data }` | 获取推荐事件 |
+| `checkStaleness(groupId)` | 群组 ID | `{ success, data }` | 检查对话平淡度 |
+| `deleteEvent(groupId, eventId)` | 群组 ID, 事件 ID | `{ success, deletedMessages }` | 删除事件（含关联消息） |
+| `onAftermath(callback)` | 回调函数 | 清理函数 | 监听余波事件 |
 
 **事件推送**：
-- `narrative:aftermath:start`：余波编排开始
-- `narrative:aftermath:chunk`：余波单条追评（流式）
-- `narrative:aftermath:end`：余波编排完成
-- `narrative:emotion:updated`：情绪更新通知
-- `narrative:event:triggered`：事件触发通知
+- `narrative:aftermath`：余波消息（含角色信息、内容、model、token 用量）
 
 **Handler 实现**：`electron/ipc/handlers/narrative.js`
 
@@ -295,13 +318,13 @@ memoryManager.close()
    - Preload 脚本：`electron/preload.js`
    - Renderer 进程：`index.html`
 
-2. **数据库结构**：`electron/database/schema.sql`
-   - 定义了 groups、characters、messages 三张表
+2. **数据库结构**：`electron/database/schema.sql`（基础结构）+ `electron/database/manager.js` 内联 `SCHEMA_SQL`（完整结构，含叙事引擎表）
+   - 定义了 groups、characters、messages、character_emotions、character_relationships、narrative_events 六张表
    - 包含外键约束和索引优化
    - 包含触发器自动更新 `updated_at`
 
 3. **LLM 供应商配置**：`electron/llm/providers/index.js`
-   - 预定义了 12 个供应商（OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、智谱AI Coding、百川、Ollama、ModelScope、MiniMax、自定义）
+   - 预定义了 11 个供应商（OpenAI、DeepSeek、通义千问、Moonshot、智谱AI、智谱AI Coding、百川、Ollama、ModelScope、MiniMax、自定义）
 
 ### 数据存储位置
 - **群组数据库**：`%APPDATA%/chat-simulator/data/groups/`（Windows）
@@ -338,7 +361,7 @@ memoryManager.close()
 ### LLM 供应商配置
 **路径**：`electron/llm/providers/index.js`
 
-**支持的供应商**（12 个）：
+**支持的供应商**（11 个 + 自定义）：
 - **OpenAI**：gpt-5.4 / gpt-5.4-pro / gpt-5.4-mini / gpt-5.4-nano / gpt-5 系列
 - **DeepSeek**：deepseek-chat / deepseek-coder
 - **通义千问**：qwen-plus / qwen3-max / qwen3.5-flash / qwen3.5-plus
@@ -363,11 +386,17 @@ memoryManager.close()
 1. 群组系统提示词（最高优先级）
 2. 群背景设定
 3. 群成员介绍（所有启用角色的名称和一句话简介）
-4. 角色全局记忆（跨群组共享）
-5. 角色系统提示词（人设）
-6. 历史消息（含角色名前缀，过滤定向指令和角色指令）
-7. 强制性指令（只扮演当前角色）
-8. 当前用户消息
+4. 叙事上下文（情绪状态 + 角色关系 + 当前事件，仅叙事引擎启用时注入）
+5. 角色全局记忆（跨群组共享）
+6. 角色系统提示词（人设）
+7. 历史消息（含角色名前缀，过滤定向指令和角色指令）
+8. 强制性指令（只扮演当前角色）
+9. 当前用户消息
+
+**叙事引擎集成流程**：
+1. `preGenerate()`：关键词快速判断情绪更新 + 构建叙事上下文注入 prompt
+2. `postCharacterResponse()`：好感度更新 + LLM 情绪推断（关键节点）
+3. `generateAftermath()`：所有角色回复完成后生成余波（条件触发：高情绪/角色提及/紧张关系/随机）
 
 **流式输出**：
 - `message:stream:start`：开始生成
@@ -399,6 +428,19 @@ memoryManager.close()
 
 ---
 
+## 叙事引擎
+
+### 概述
+叙事引擎通过 `NarrativeEngine` 类编排三个子系统：
+- **EmotionManager**：角色情绪状态机
+- **RelationshipManager**：角色关系图谱
+- **EventTrigger**：事件触发系统
+- **NarrativePromptBuilder**：叙事上下文构建
+
+详见 [叙事引擎模块文档](./narrative/CLAUDE.md)。
+
+---
+
 ## 测试与质量
 
 ### 当前状态
@@ -415,13 +457,17 @@ memoryManager.close()
    - `config/manager.js`：配置管理
    - `config/llm-profiles.js`：Profile 管理
    - `config/system-prompts.js`：模板管理
+   - `narrative/emotion-manager.js`：情绪状态机
+   - `narrative/relationship-manager.js`：关系管理器
+   - `narrative/event-trigger.js`：事件触发
 
-2. **集成测试**：测试 IPC Handlers（8 个模块）
+2. **集成测试**：测试 IPC Handlers（9 个模块）
    - 模拟渲染进程调用 IPC
    - 验证数据库操作和 LLM 调用
    - 测试迁移脚本是否正确执行
    - 测试角色独立 LLM 配置切换
    - 测试 Profile 更新群组同步
+   - 测试叙事引擎完整流程
 
 3. **E2E 测试**：使用 Spectron 或 Playwright
    - 测试完整的用户流程
@@ -491,6 +537,13 @@ memoryManager.close()
 - 匹配的群组自动更新为新配置
 - 返回结果中包含 `syncedGroups` 字段表示同步的群组数量
 
+### 11. 叙事引擎如何与 LLM 对话集成？
+- 叙事引擎在三个阶段介入对话流程：
+  1. `preGenerate()`：为每个角色更新情绪（关键词匹配），构建叙事上下文（情绪+关系+事件）注入 system prompt
+  2. `postCharacterResponse()`：根据回复内容更新好感度，在关键节点用 LLM 推断角色情绪
+  3. `generateAftermath()`：所有角色回复完成后，检查余波触发条件（高情绪/角色提及/紧张关系/60%随机），生成单角色追评
+- 叙事引擎功能可通过群设置的 `narrative_enabled` 和 `aftermath_enabled` 开关控制
+
 ---
 
 ## 相关文件清单
@@ -501,15 +554,15 @@ memoryManager.close()
 - `electron.vite.config.js`：构建配置
 
 ### 数据库
-- `electron/database/manager.js`：群组数据库管理器（含内联迁移）
-- `electron/database/schema.sql`：数据库结构
+- `electron/database/manager.js`：群组数据库管理器（含内联 Schema + 迁移）
+- `electron/database/schema.sql`：数据库基础结构
 - `electron/database/global-character-manager.js`：全局角色库管理器
 - `electron/database/memory-manager.js`：角色记忆管理器
 
 ### LLM 服务
 - `electron/llm/client.js`：OpenAI 兼容 LLM 客户端
 - `electron/llm/ollama-client.js`：Ollama 原生客户端
-- `electron/llm/providers/index.js`：供应商配置（12 个）
+- `electron/llm/providers/index.js`：供应商配置（11 个 + 自定义）
 - `electron/llm/proxy.js`：代理配置
 
 ### IPC Handlers
@@ -517,18 +570,18 @@ memoryManager.close()
 - `electron/ipc/handlers/group.js`：群组操作
 - `electron/ipc/handlers/character.js`：角色操作（含独立 LLM 配置）
 - `electron/ipc/handlers/message.js`：消息操作
-- `electron/ipc/handlers/llm.js`：LLM 操作（含快速建群、角色独立配置）
+- `electron/ipc/handlers/llm.js`：LLM 操作（含快速建群、叙事引擎集成）
 - `electron/ipc/handlers/config.js`：配置操作（含快速建群配置、Profile 同步）
 - `electron/ipc/handlers/global-character.js`：全局角色库操作（含同步）
 - `electron/ipc/handlers/memory.js`：角色记忆操作
 - `electron/ipc/handlers/search.js`：全局搜索
-- `electron/ipc/handlers/narrative.js`：叙事系统（情绪/关系/事件管理）
+- `electron/ipc/handlers/narrative.js`：叙事系统（14 个接口）
 
 ### 叙事引擎
 - `electron/narrative/engine.js`：叙事引擎主控（编排情绪/关系/事件/余波）
-- `electron/narrative/emotion-manager.js`：情绪状态机（关键词匹配 + LLM 推断，情绪衰减）
-- `electron/narrative/relationship-manager.js`：关系图谱管理（双向好感度，互动关键词驱动）
-- `electron/narrative/event-trigger.js`：事件触发系统（推荐算法，平淡检测）
+- `electron/narrative/emotion-manager.js`：情绪状态机（15 种情绪关键词 + LLM 推断，情绪衰减）
+- `electron/narrative/relationship-manager.js`：关系图谱管理（7 种关系类型，6 级好感度，4 类互动模式）
+- `electron/narrative/event-trigger.js`：事件触发系统（7 场景约 85 事件，推荐算法，平淡检测）
 - `electron/narrative/prompt-builder.js`：叙事上下文构建（情绪+关系+事件注入 prompt）
 
 ### 配置管理
@@ -542,5 +595,5 @@ memoryManager.close()
 
 ---
 
-**文档版本**：2.1.0
+**文档版本**：2.2.0
 **维护者**：AI 架构师（自适应版）

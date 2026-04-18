@@ -1,8 +1,8 @@
 {
-  "lastUpdated": "2026-04-17T00:54:13.000Z",
+  "lastUpdated": "2026-04-18T13:28:06.000Z",
   "projectName": "chat-simulator",
   "projectType": "electron-vue3-desktop-app",
-  "summary": "基于 Electron + Vue3 的 LLM 角色扮演聊天模拟器，支持多角色对话、多 LLM 供应商（12个）、全局角色库（标签系统+同步）、角色记忆系统、AI 快速建群、AI 角色抽卡、角色独立 LLM 配置、流式输出、全局搜索、SQLite 本地存储",
+  "summary": "基于 Electron + Vue3 的 LLM 角色扮演聊天模拟器，支持多角色对话、多 LLM 供应商（11+自定义）、全局角色库（标签系统+同步）、角色记忆系统、叙事引擎（15种情绪/7种关系/7场景85事件/余波编排）、AI 快速建群、AI 角色抽卡、角色独立 LLM 配置、流式输出、全局搜索、SQLite 本地存储",
   "root": {
     "path": "/",
     "documentation": "CLAUDE.md",
@@ -23,7 +23,7 @@
       "documentation": "electron/CLAUDE.md",
       "type": "electron-main-process",
       "entryPoint": "electron/main.js",
-      "description": "Electron 主进程，负责窗口管理、IPC 通信、数据库管理（群组/全局角色/记忆三个 SQLite）、LLM 调用（流式/非流式）、AI 快速建群、角色独立 LLM 配置、角色库同步、全局角色库、角色记忆、全局搜索、系统提示词模板、抽卡/快速建群配置"
+      "description": "Electron 主进程，负责窗口管理、IPC 通信（9个Handler模块）、数据库管理（群组/全局角色/记忆三个 SQLite）、LLM 调用（流式/非流式）、叙事引擎集成、AI 快速建群、角色独立 LLM 配置、角色库同步、全局角色库、角色记忆、全局搜索、系统提示词模板、抽卡/快速建群配置"
     },
     {
       "name": "renderer-ui",
@@ -31,18 +31,26 @@
       "documentation": "src/CLAUDE.md",
       "type": "vue-renderer-process",
       "entryPoint": "src/main.js",
-      "description": "Vue 渲染进程，包含 UI 组件（25 个 Vue 文件）、8 个 Pinia Store、1 个 composable、全局角色库管理（含同步）、角色记忆管理、AI 快速建群对话框、角色独立 LLM 配置、Toast 提示、确认对话框、标签系统"
+      "description": "Vue 渲染进程，包含 UI 组件（29 个 Vue 文件）、9 个 Pinia Store、1 个 composable、叙事引擎 UI（EmotionTag/RelationshipPanel/EventPanel/StalenessTip）、全局角色库管理（含同步）、角色记忆管理、AI 快速建群对话框、角色独立 LLM 配置、Toast 提示、确认对话框、标签系统"
+    },
+    {
+      "name": "narrative",
+      "path": "electron/narrative",
+      "documentation": "electron/narrative/CLAUDE.md",
+      "type": "narrative-engine",
+      "entryPoint": "electron/narrative/engine.js",
+      "description": "叙事引擎模块，包含情绪状态机（EmotionManager，15种情绪关键词+LLM推断）、关系图谱管理（RelationshipManager，7种关系类型+6级好感度+4类互动模式）、事件触发系统（EventTrigger，7场景约85预设事件+推荐算法+平淡检测）、叙事上下文构建器（NarrativePromptBuilder）、余波编排（单角色模式）"
     }
   ],
   "coverage": {
-    "totalFiles": 60,
-    "scannedFiles": 60,
+    "totalFiles": 67,
+    "scannedFiles": 67,
     "coveragePercent": 100,
     "ignoredFiles": 0,
     "details": {
       "electron": {
-        "total": 25,
-        "scanned": 25,
+        "total": 30,
+        "scanned": 30,
         "keyFiles": [
           "electron/main.js",
           "electron/preload.js",
@@ -66,13 +74,19 @@
           "electron/ipc/handlers/global-character.js",
           "electron/ipc/handlers/memory.js",
           "electron/ipc/handlers/search.js",
+          "electron/ipc/handlers/narrative.js",
+          "electron/narrative/engine.js",
+          "electron/narrative/emotion-manager.js",
+          "electron/narrative/relationship-manager.js",
+          "electron/narrative/event-trigger.js",
+          "electron/narrative/prompt-builder.js",
           "electron/utils/uuid.js",
           "electron/utils/json-extractor.js"
         ]
       },
       "src": {
-        "total": 33,
-        "scanned": 33,
+        "total": 36,
+        "scanned": 36,
         "keyFiles": [
           "src/main.js",
           "src/App.vue",
@@ -85,6 +99,7 @@
           "src/stores/global-characters.js",
           "src/stores/memory.js",
           "src/stores/toast.js",
+          "src/stores/narrative.js",
           "src/components/layout/MainLayout.vue",
           "src/components/layout/LeftPanel.vue",
           "src/components/layout/GroupList.vue",
@@ -94,6 +109,10 @@
           "src/components/chat/MessageBubble.vue",
           "src/components/chat/MessageInput.vue",
           "src/components/chat/CharacterPanel.vue",
+          "src/components/chat/EmotionTag.vue",
+          "src/components/chat/RelationshipPanel.vue",
+          "src/components/chat/EventPanel.vue",
+          "src/components/chat/StalenessTip.vue",
           "src/components/config/CreateGroupDialog.vue",
           "src/components/config/QuickGroupDialog.vue",
           "src/components/config/CreateCharacterDialog.vue",
@@ -144,17 +163,15 @@
     "electron/config/proxy-config.json"
   ],
   "recentChanges": [
-    "新增 AI 快速建群功能（QuickGroupDialog.vue、llm:generateGroup IPC 接口、quickGroupConfig 配置）",
-    "新增角色级独立 LLM 配置（custom_llm_profile_id 字段、createClientForCharacter 函数）",
-    "新增角色库同步功能（syncToGroup、syncToAllGroups、existsInLibrary 接口）",
-    "新增 JSON 提取工具（json-extractor.js，支持 markdown 代码块和截断修复）",
-    "新增消息模型记录（messages.model 字段）",
-    "新增 LLM Profile 更新时自动同步关联群组配置（syncGroupsProfile 函数）",
-    "新增供应商：智谱AI Coding（zhipu-coding）",
-    "优化供应商模型列表（OpenAI gpt-5.4 系列、通义千问 qwen3/qwen3.5、智谱 glm-5/5.1、MiniMax M2.7 系列）",
-    "修正全局角色库导入机制（使用原始 ID 而非创建副本）",
-    "删除 docs/ 目录（设计文档已归档）",
-    "删除 database/migrations/add_user_character.js（迁移已内联到 manager.js）"
+    "叙事引擎 IPC 接口从 13 个扩充为 14 个（新增 deleteEvent、setEmotion、getEmotion、removeRelationship、getRelationshipTypes、getEventPool）",
+    "情绪词典扩展至 15 种情绪（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）",
+    "事件场景从 4 场景 16 事件扩展为 7 场景约 85 事件（新增 home、school、restaurant、travel、party）",
+    "余波编排从多人模式改为单角色模式（_parseSingleAftermath）",
+    "好感度系统支持 6 级等级（深厚/亲密/友好/中立/不满/敌对）和 4 类互动模式",
+    "数据库新增 narrative_enabled、aftermath_enabled、event_scene_type、is_aftermath、message_type 字段",
+    "内联 Schema 新增 character_emotions、character_relationships、narrative_events 三张表",
+    "新增叙事引擎模块级 CLAUDE.md 文档（electron/narrative/CLAUDE.md）",
+    "前端新增 narrative Store 和 EmotionTag、RelationshipPanel、EventPanel、StalenessTip 组件"
   ],
   "techStack": {
     "framework": "Electron 41.2.0",

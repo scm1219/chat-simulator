@@ -1,10 +1,25 @@
 # Chat - LLM 角色扮演聊天模拟器
 
-> 最后更新：2026-04-17
+> 最后更新：2026-04-18
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-18
+- **更新**：全面架构扫描，校准叙事引擎模块文档
+- **更新**：数据模型新增叙事引擎相关字段和表（`narrative_enabled`、`aftermath_enabled`、`event_scene_type`、`is_aftermath`、`message_type`）
+- **更新**：叙事系统 IPC 接口从 13 个扩充为 14 个（新增 `narrative:deleteEvent`、`narrative:setEmotion`、`narrative:getEmotion`、`narrative:removeRelationship`、`narrative:getRelationshipTypes`、`narrative:getEventPool`）
+- **更新**：情绪词典扩展至 15 种情绪关键词（新增紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌）
+- **更新**：事件场景从 4 场景 16 事件扩展为 7 场景约 85 事件（新增 home、school、restaurant、travel、party）
+- **更新**：余波编排从多人模式改为单角色模式（`_parseSingleAftermath`），余波消息携带 `message_type`、`is_aftermath`、`model`、`prompt_tokens`、`completion_tokens`
+- **更新**：好感度系统支持 6 级等级（深厚/亲密/友好/中立/不满/敌对）和 4 类互动模式（praise/criticize/share/empathy）
+- **更新**：数据库迁移新增叙事引擎相关字段（`narrative_enabled`、`aftermath_enabled`、`event_scene_type`、`is_aftermath`、`message_type`）
+- **新增**：`narrative` 模块级 CLAUDE.md 文档
+- **新增**：叙事引擎模块在模块索引中添加独立文档链接
+- **更新**：Mermaid 结构图新增叙事引擎组件（EmotionTag、RelationshipPanel、EventPanel、StalenessTip）和 narrative Store
+- **更新**：前端组件结构新增叙事相关组件（EmotionTag、RelationshipPanel、EventPanel、StalenessTip 位于 chat/ 目录）
+- **更新**：Pinia Store 从 8 个扩展为 9 个（新增 `narrative.js`）
 
 ### 2026-04-17
 - **新增**：AI 快速建群功能（`QuickGroupDialog.vue`、`llm:generateGroup` IPC 接口）
@@ -26,7 +41,7 @@
 - **新增**：事件触发系统（4 场景 16 预设事件，推荐算法 + 平淡检测）
 - **新增**：角色间余波编排（自动生成角色间追评互动）
 - **新增**：前端叙事组件（EmotionTag、RelationshipPanel、EventPanel、StalenessTip）
-- **新增**：叙事系统 IPC 接口（13 个通道 + aftermath 事件推送）
+- **新增**：叙事系统 IPC 接口（14 个通道 + aftermath 事件推送）
 - **新增**：群设置叙事配置（叙事引擎开关、余波开关、事件场景类型）
 - **优化**：LLM 对话流程集成叙事上下文注入（情绪+关系+事件）
 
@@ -97,7 +112,7 @@
 - **系统提示词模板**：内置 8 个多角色对话模板，支持自定义
 - **角色排序**：支持拖拽排序 AI 角色发言顺序，支持随机发言
 - **消息管理**：支持消息编辑、删除、从某条开始删除、清空、导出 ZIP
-- **叙事引擎**：情绪状态机（关键词+LLM混合）、双向角色关系（好感度系统）、事件触发（推荐+平淡检测）、角色间余波互动
+- **叙事引擎**：15 种情绪状态机（关键词+LLM混合推断）、7 种预设关系类型与 6 级好感度、7 场景约 85 个预设事件、单角色余波互动、对话平淡检测
 
 ---
 
@@ -144,6 +159,7 @@ graph TD
     Electron --> LLM["llm (LLM 服务)"];
     Electron --> Config["config (配置管理)"];
     Electron --> Utils["utils (工具)"];
+    Electron --> Narrative["narrative (叙事引擎)"];
 
     DB --> DBManager["manager.js<br/>数据库管理器"];
     DB --> Schema["schema.sql<br/>数据库结构"];
@@ -160,6 +176,7 @@ graph TD
     Handlers --> GlobalCharHandler["global-character.js"];
     Handlers --> MemoryHandler["memory.js"];
     Handlers --> SearchHandler["search.js"];
+    Handlers --> NarrativeHandler["narrative.js"];
 
     LLM --> Client["client.js<br/>LLM 客户端"];
     LLM --> OllamaClient["ollama-client.js<br/>Ollama 原生客户端"];
@@ -172,8 +189,6 @@ graph TD
 
     Utils --> UUID["uuid.js<br/>UUID 生成"];
     Utils --> JSONExtractor["json-extractor.js<br/>JSON 提取"];
-
-    Electron --> Narrative["narrative (叙事引擎)"];
 
     Narrative --> Engine["engine.js<br/>叙事引擎主控"];
     Narrative --> EmotionMgr["emotion-manager.js<br/>情绪状态机"];
@@ -201,6 +216,10 @@ graph TD
     Chat --> MessageBubble["MessageBubble.vue"];
     Chat --> MessageInput["MessageInput.vue"];
     Chat --> CharacterPanel["CharacterPanel.vue"];
+    Chat --> EmotionTag["EmotionTag.vue<br/>情绪标签"];
+    Chat --> RelationshipPanel["RelationshipPanel.vue<br/>关系图谱"];
+    Chat --> EventPanel["EventPanel.vue<br/>事件面板"];
+    Chat --> StalenessTip["StalenessTip.vue<br/>平淡提示"];
 
     ConfigC --> CreateGroup["CreateGroupDialog.vue"];
     ConfigC --> QuickGroup["QuickGroupDialog.vue"];
@@ -226,6 +245,7 @@ graph TD
     Stores --> GlobalCharsStore["global-characters.js"];
     Stores --> ToastStore["toast.js"];
     Stores --> MemoryStore["memory.js"];
+    Stores --> NarrativeStore["narrative.js"];
 
     Composables --> UseDialog["useDialog.js"];
 
@@ -234,6 +254,7 @@ graph TD
 
     click Electron "./electron/CLAUDE.md" "查看 electron 模块文档"
     click Src "./src/CLAUDE.md" "查看 src 模块文档"
+    click Narrative "./electron/narrative/CLAUDE.md" "查看叙事引擎模块文档"
 ```
 
 ---
@@ -244,7 +265,7 @@ graph TD
 |---------|------|------|------|------|
 | **electron** | `electron/` | Electron 主进程 | 窗口管理、IPC 通信、数据库、LLM 调用、快速建群、角色同步 | [CLAUDE.md](./electron/CLAUDE.md) |
 | **src** | `src/` | Vue 渲染进程 | UI 组件、状态管理、样式 | [CLAUDE.md](./src/CLAUDE.md) |
-| **narrative** | `electron/narrative/` | 叙事引擎 | 情绪、关系、事件、余波编排、Prompt 构建 | |
+| **narrative** | `electron/narrative/` | 叙事引擎 | 情绪状态机、关系图谱、事件触发、余波编排、Prompt 构建 | [CLAUDE.md](./electron/narrative/CLAUDE.md) |
 
 ---
 
@@ -302,6 +323,9 @@ npm run build:linux
 - `background`: 群背景设定（可选，文本）
 - `system_prompt`: 群系统提示词（可选，文本）
 - `auto_memory_extract`: 是否自动提取角色记忆（0/1）
+- `narrative_enabled`: 是否启用叙事引擎（默认 1）
+- `aftermath_enabled`: 是否启用余波编排（默认 1）
+- `event_scene_type`: 事件场景类型（默认 'general'，可选 office/home/school/restaurant/travel/party/general）
 - `created_at`: 创建时间
 - `updated_at`: 更新时间
 
@@ -327,7 +351,34 @@ npm run build:linux
 - `prompt_tokens`: 输入 token 数
 - `completion_tokens`: 输出 token 数
 - `model`: 实际使用的 LLM 模型名称（可选）
+- `is_aftermath`: 是否为余波消息（0/1）
+- `message_type`: 消息类型（normal/event/aftermath）
 - `timestamp`: 时间戳
+
+##### character_emotions（角色情绪表）
+- `character_id`: 角色 ID（主键）
+- `emotion`: 当前情绪（默认 '平静'）
+- `intensity`: 情绪强度（0.0~1.0）
+- `decay_rate`: 衰减速率（默认 0.1）
+- `source`: 来源（keyword/llm/manual/event）
+- `updated_at`: 更新时间
+
+##### character_relationships（角色关系表）
+- `from_id` + `to_id`: 联合主键（双向关系）
+- `type`: 关系类型（friend/lover/rival/mentor/colleague/family/stranger）
+- `favorability`: 好感度（-100~100）
+- `description`: 关系描述
+- `updated_at`: 更新时间
+
+##### narrative_events（叙事事件记录表）
+- `id`: 事件 ID（主键）
+- `group_id`: 所属群组 ID（外键）
+- `event_key`: 事件标识键
+- `content`: 事件内容描述
+- `impact`: 事件影响（情绪类型）
+- `event_type`: 事件类型（user_triggered）
+- `triggered_by`: 触发来源
+- `created_at`: 创建时间
 
 #### 2. 全局角色库数据库（`data/global/character-library.sqlite`）
 
@@ -358,7 +409,7 @@ npm run build:linux
 - `group_id`: 来源群组 ID（自动提取时记录）
 - `created_at`/`updated_at`: 时间戳
 
-完整 SQL 结构见 [`electron/database/schema.sql`](./electron/database/schema.sql)。
+完整 SQL 结构见 [`electron/database/schema.sql`](./electron/database/schema.sql)。内联 Schema（含叙事引擎表）定义在 [`electron/database/manager.js`](./electron/database/manager.js) 的 `SCHEMA_SQL` 常量中。
 
 ### 数据库迁移
 项目使用内联迁移机制，在 `DatabaseManager.runMigrations()` 中自动执行：
@@ -371,6 +422,11 @@ npm run build:linux
 6. **添加 custom_llm_profile_id 字段**：角色独立 LLM Profile
 7. **添加 model 字段**：消息实际使用的模型
 8. **添加 auto_memory_extract 字段**：自动记忆提取开关
+9. **添加 narrative_enabled 字段**：群组叙事引擎开关（默认开启）
+10. **添加 aftermath_enabled 字段**：群组余波编排开关（默认开启）
+11. **添加 event_scene_type 字段**：群组事件场景类型（默认 'general'）
+12. **添加 is_aftermath 字段**：消息余波标记
+13. **添加 message_type 字段**：消息类型区分（normal/event/aftermath）
 
 ---
 
@@ -381,7 +437,7 @@ npm run build:linux
 - **手动测试**：通过开发模式手动验证功能
 
 ### 推荐测试方案
-1. **单元测试**：使用 Vitest 测试 LLM 客户端、数据库管理器、全局角色管理器、JSON 提取器
+1. **单元测试**：使用 Vitest 测试 LLM 客户端、数据库管理器、全局角色管理器、JSON 提取器、情绪管理器、关系管理器、事件触发器
 2. **集成测试**：使用 Playwright 测试 Electron 主进程 IPC 调用
 3. **E2E 测试**：使用 Spectron 或 Playwright 测试完整用户流程
 
@@ -437,6 +493,9 @@ npm run build:linux
 10. **流式输出**：LLM 回复使用流式推送，前端通过事件监听实时更新
 11. **Token 统计**：消息保存时记录 token 用量和实际模型，可用于成本分析
 12. **JSON 提取**：LLM 返回的 JSON 使用 `json-extractor.js` 提取，支持 markdown 代码块和截断修复
+13. **叙事引擎**：叙事系统通过 `NarrativeEngine` 编排情绪/关系/事件三个子系统，集成到 LLM 对话流程的 `preGenerate` -> `postCharacterResponse` -> `generateAftermath` 三个阶段
+14. **叙事上下文注入**：叙事引擎在 LLM 调用前注入情绪状态、角色关系、当前事件作为 system prompt
+15. **余波消息**：余波消息存储时标记 `is_aftermath=1`、`message_type='aftermath'`，并记录实际使用的模型和 token 用量
 
 ### 常见任务模式
 
@@ -446,9 +505,10 @@ npm run build:linux
 3. 测试连接和对话功能
 
 #### 添加新的 IPC 接口
-1. 在 `electron/ipc/handlers/` 对应模块添加 `ipcMain.handle`
-2. 在 `electron/preload.js` 添加 API 暴露
-3. 在渲染进程的 Store 或组件中调用
+1. 在 `electron/ipc/channels.js` 添加通道常量
+2. 在 `electron/ipc/handlers/` 对应模块添加 `ipcMain.handle`
+3. 在 `electron/preload.js` 添加 API 暴露
+4. 在渲染进程的 Store 或组件中调用
 
 #### 添加新的 Vue 组件
 1. 在 `src/components/` 对应目录创建 `.vue` 文件
@@ -460,6 +520,11 @@ npm run build:linux
 1. 修改 `electron/database/manager.js` 中的 `SCHEMA_SQL` 和 `runMigrations()`
 2. 更新相关 IPC Handlers 和 Vue 组件
 3. 测试新建群组和已有群组的兼容性
+
+#### 添加叙事引擎新场景
+1. 在 `electron/narrative/event-trigger.js` 的 `DEFAULT_EVENT_POOL` 中添加新场景和事件
+2. 更新前端 `GroupSettingsDialog.vue` 中的场景选项
+3. 测试事件推荐和触发功能
 
 ---
 
@@ -514,6 +579,14 @@ npm run build:linux
 - 角色发言时优先使用角色级配置，未设置则回退到群组配置
 - 在角色面板中开启/关闭独立配置开关
 
+### 10. 什么是叙事引擎？
+- 叙事引擎为角色对话增加动态情绪、关系和事件系统
+- 情绪系统：关键词匹配 + LLM 关键节点推断混合模式，15 种内置情绪
+- 关系系统：7 种预设关系类型，双向动态好感度（-100~100），6 级好感度等级
+- 事件系统：7 个场景约 85 个预设事件，推荐算法 + 平淡检测
+- 余波编排：对话后角色自动生成追评互动
+- 可通过群设置中的叙事配置开关控制
+
 ---
 
 ## 相关资源
@@ -526,6 +599,6 @@ npm run build:linux
 
 ---
 
-**文档版本**：2.1.0
+**文档版本**：2.2.0
 **维护者**：AI 架构师（自适应版）
 **项目状态**：活跃开发中
