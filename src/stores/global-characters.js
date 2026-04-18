@@ -20,7 +20,6 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
 
   // 计算属性 - 筛选后的角色
   const filteredCharacters = computed(() => {
-    console.log('[Store] filteredCharacters - characters.value:', characters.value.length)
     let result = characters.value
 
     // 按关键词筛选
@@ -43,7 +42,6 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       })
     }
 
-    console.log('[Store] filteredCharacters - result:', result.length)
     return result
   })
 

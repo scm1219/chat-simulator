@@ -52,7 +52,6 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
     try {
       const db = dbManager.getGroupDB(groupId)
       const characters = db.prepare('SELECT * FROM characters WHERE group_id = ? ORDER BY is_user DESC, position ASC, created_at ASC').all(groupId)
-      console.log('[character:getByGroupId] 角色列表:', characters.map(c => ({ name: c.name, is_user: c.is_user, position: c.position })))
       return { success: true, data: characters }
     } catch (error) {
       return { success: false, error: error.message }
@@ -162,14 +161,10 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
         return { success: false, error: '用户角色不可调整顺序' }
       }
 
-      console.log('[character:reorder] 开始移动角色:', character.name, 'direction:', direction)
-
       // 获取所有非用户角色并按 position 排序
       const allCharacters = db.prepare(
         'SELECT * FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC, created_at ASC'
       ).all(groupId)
-
-      console.log('[character:reorder] 所有 AI 角色 (移动前):', allCharacters.map((c, i) => `${i}: ${c.name} (position=${c.position})`))
 
       // 找到当前角色的索引
       const currentIndex = allCharacters.findIndex(c => c.id === id)
@@ -177,8 +172,6 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       if (currentIndex === -1) {
         return { success: false, error: '角色不存在' }
       }
-
-      console.log('[character:reorder] 当前角色索引:', currentIndex)
 
       // 计算新的索引
       let newIndex
@@ -190,11 +183,8 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
         return { success: false, error: '无效的移动方向' }
       }
 
-      console.log('[character:reorder] 新索引:', newIndex)
-
       // 如果位置没有变化，直接返回
       if (newIndex === currentIndex) {
-        console.log('[character:reorder] 位置未变化，直接返回')
         return { success: true, data: character }
       }
 
@@ -202,8 +192,6 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       const reorderedCharacters = [...allCharacters]
       const [removed] = reorderedCharacters.splice(currentIndex, 1)
       reorderedCharacters.splice(newIndex, 0, removed)
-
-      console.log('[character:reorder] 交换后的顺序:', reorderedCharacters.map((c, i) => `${i}: ${c.name}`))
 
       // 更新所有角色的 position 值（基于新数组的索引）
       const updateStmt = db.prepare('UPDATE characters SET position = ? WHERE id = ?')
@@ -215,8 +203,6 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       const updatedCharacters = db.prepare(
         'SELECT * FROM characters WHERE group_id = ? ORDER BY is_user DESC, position ASC, created_at ASC'
       ).all(groupId)
-
-      console.log('[character:reorder] 更新后的角色列表:', updatedCharacters.map(c => ({ name: c.name, is_user: c.is_user, position: c.position })))
 
       return { success: true, data: updatedCharacters }
     } catch (error) {

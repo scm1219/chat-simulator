@@ -294,13 +294,6 @@ async function handleCreate() {
       background: form.value.background || null
     }
 
-    console.log('[CreateGroup] 准备创建群组', {
-      profileName: profile.name,
-      hasApiKey: !!profile.apiKey,
-      hasBaseUrl: !!profile.baseURL,
-      groupData
-    })
-
     const group = await groupsStore.createGroup(groupData)
     emit('created', group)
   } catch (error) {

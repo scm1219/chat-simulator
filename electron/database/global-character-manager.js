@@ -387,7 +387,6 @@ export class GlobalCharacterManager {
    */
   getAllWithTags() {
     const characters = this.getAll()
-    console.log('[GlobalCharacterManager] getAllWithTags - characters count:', characters.length)
 
     // 为每个角色获取标签
     for (const character of characters) {

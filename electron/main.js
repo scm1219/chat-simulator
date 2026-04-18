@@ -9,7 +9,6 @@ let dbManager = null
 
 function createWindow() {
   const preloadPath = path.join(__dirname, '../preload/index.cjs')
-  console.log('Preload path:', preloadPath)
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -30,11 +29,9 @@ function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
 
   if (isDev) {
-    console.log('Loading dev URL:', devUrl)
     mainWindow.loadURL(devUrl)
     mainWindow.webContents.openDevTools()
   } else {
-    console.log('Loading production file')
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
     // 生产环境设置 CSP，禁止 unsafe-eval
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -51,17 +48,11 @@ function createWindow() {
 
   // 窗口准备好后显示
   mainWindow.once('ready-to-show', () => {
-    console.log('Window ready to show')
     mainWindow.show()
   })
 
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('Page finished loading')
-    mainWindow.webContents.executeJavaScript(`
-      console.log('[Renderer] window.electronAPI:', window.electronAPI);
-      console.log('[Renderer] electronAPI keys:', window.electronAPI ? Object.keys(window.electronAPI) : 'undefined');
-    `).then(() => console.log('[Main] executeJavaScript completed'))
-      .catch(err => console.error('[Main] executeJavaScript error:', err))
+    // 页面加载完成
   })
 
   mainWindow.on('closed', () => {

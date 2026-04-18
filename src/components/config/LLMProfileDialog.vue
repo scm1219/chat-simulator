@@ -156,8 +156,6 @@ async function handleAdd() {
 // 编辑配置
 async function handleEdit(profile) {
   editingProfile.value = profile
-  // 调试：打印原始数据
-  console.log('[handleEdit] profile.useNativeApi:', profile.useNativeApi, typeof profile.useNativeApi)
   formData.value = {
     name: profile.name,
     provider: profile.provider,
@@ -175,7 +173,6 @@ async function handleEdit(profile) {
       bypassRules: profile.proxy?.bypassRules || 'localhost,127.0.0.1,::1'
     }
   }
-  console.log('[handleEdit] formData.useNativeApi:', formData.value.useNativeApi)
   await nextTick()
   showFormDialog.value = true
 }

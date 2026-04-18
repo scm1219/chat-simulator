@@ -536,9 +536,7 @@ function canMoveDown(index) {
 // 移动角色
 async function moveCharacter(char, direction) {
   try {
-    console.log('[CharacterPanel] 移动角色:', char.name, direction, '当前 position:', char.position)
-    const result = await charactersStore.reorderCharacter(char.id, direction)
-    console.log('[CharacterPanel] 移动结果:', result)
+    await charactersStore.reorderCharacter(char.id, direction)
   } catch (error) {
     console.error('[CharacterPanel] 移动角色失败:', error)
     toast.error(`移动角色失败: ${error.message}`)

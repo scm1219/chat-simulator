@@ -80,12 +80,10 @@ export function getSystemPromptTemplates() {
     if (fs.existsSync(CONFIG_FILE)) {
       const data = fs.readFileSync(CONFIG_FILE, 'utf-8')
       const config = JSON.parse(data)
-      console.log('[SystemPrompts] 已加载模板配置，共', config.templates?.length || 0, '个模板')
       return config.templates || DEFAULT_TEMPLATES
     } else {
       // 首次运行，创建默认配置文件
       saveSystemPromptTemplates(DEFAULT_TEMPLATES)
-      console.log('[SystemPrompts] 已创建默认模板配置')
       return DEFAULT_TEMPLATES
     }
   } catch (error) {
@@ -103,7 +101,6 @@ export function saveSystemPromptTemplates(templates) {
   try {
     ensureConfigDir()
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({ templates }, null, 2))
-    console.log('[SystemPrompts] 已保存模板配置，共', templates.length, '个模板')
     return true
   } catch (error) {
     console.error('[SystemPrompts] 保存模板配置失败', error)
@@ -117,7 +114,6 @@ export function saveSystemPromptTemplates(templates) {
  */
 export function resetSystemPromptTemplates() {
   saveSystemPromptTemplates(DEFAULT_TEMPLATES)
-  console.log('[SystemPrompts] 已重置为默认模板')
   return DEFAULT_TEMPLATES
 }
 
@@ -137,7 +133,6 @@ export function addSystemPromptTemplate(template) {
     }
     templates.push(newTemplate)
     saveSystemPromptTemplates(templates)
-    console.log('[SystemPrompts] 已添加新模板', newTemplate.name)
     return newTemplate
   } catch (error) {
     console.error('[SystemPrompts] 添加模板失败', error)
@@ -161,7 +156,6 @@ export function updateSystemPromptTemplate(id, data) {
     }
     templates[index] = { ...templates[index], ...data }
     saveSystemPromptTemplates(templates)
-    console.log('[SystemPrompts] 已更新模板', id)
     return templates[index]
   } catch (error) {
     console.error('[SystemPrompts] 更新模板失败', error)
@@ -184,7 +178,6 @@ export function deleteSystemPromptTemplate(id) {
     }
     templates.splice(index, 1)
     saveSystemPromptTemplates(templates)
-    console.log('[SystemPrompts] 已删除模板', id)
     return true
   } catch (error) {
     console.error('[SystemPrompts] 删除模板失败', error)

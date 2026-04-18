@@ -36,15 +36,7 @@ export function getGlobalLLMConfig() {
   try {
     if (fs.existsSync(LLM_CONFIG_FILE)) {
       const data = fs.readFileSync(LLM_CONFIG_FILE, 'utf-8')
-      const config = { ...DEFAULT_LLM_CONFIG, ...JSON.parse(data) }
-      console.log('[Config] 全局 LLM 配置已加载', {
-        provider: config.provider,
-        hasApiKey: !!config.apiKey,
-        model: config.model
-      })
-      return config
-    } else {
-      console.log('[Config] 配置文件不存在，使用默认配置')
+      return { ...DEFAULT_LLM_CONFIG, ...JSON.parse(data) }
     }
   } catch (error) {
     console.error('[Config] 加载 LLM 配置失败', error)

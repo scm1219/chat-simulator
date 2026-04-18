@@ -47,14 +47,12 @@ export const useMessagesStore = defineStore('messages', () => {
       throw new Error('No group selected')
     }
 
-    console.log('[Messages] 发送消息', { groupId, content, options })
     sending.value = true
 
     try {
       // 调用 LLM 生成回复（流式输出）
       // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generate(groupId, content, options)
-      console.log('[Messages] LLM 返回结果', result)
 
       if (!result.success) {
         console.error('[Messages] LLM 调用失败', result.error)
@@ -80,14 +78,12 @@ export const useMessagesStore = defineStore('messages', () => {
       throw new Error('No group selected')
     }
 
-    console.log('[Messages] 发送角色指令', { groupId, characterId, instruction })
     sending.value = true
 
     try {
       // 调用 LLM 生成回复（单角色指令）
       // 注意：用户消息会由主进程通过 message:user:saved 事件发送回来
       const result = await window.electronAPI.llm.generateCharacterCommand(groupId, characterId, instruction)
-      console.log('[Messages] LLM 返回结果', result)
 
       if (!result.success) {
         console.error('[Messages] LLM 调用失败', result.error)
@@ -129,7 +125,6 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听用户消息保存事件（添加用户消息到前端）
     const userMessageSavedListener = window.electronAPI.message.onUserMessageSaved((data) => {
-      console.log('[Messages] 用户消息已保存', data)
       // 检查是否已存在相同的消息（避免重复）
       const exists = messages.value.some(msg =>
         msg.id === data.id ||
@@ -137,13 +132,11 @@ export const useMessagesStore = defineStore('messages', () => {
       )
       if (!exists) {
         messages.value.push(data)
-        console.log('[Messages] 用户消息已添加到界面')
       }
     })
 
     // 监听流式开始
     streamStartListener = window.electronAPI.message.onStreamStart((data) => {
-      console.log('[Messages] 流式消息开始', data)
       // 添加临时消息
       messages.value.push({
         ...data,
@@ -174,7 +167,6 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式结束
     streamEndListener = window.electronAPI.message.onStreamEnd((data) => {
-      console.log('[Messages] 流式消息结束', data)
       // 移除临时消息
       messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
       // 添加最终消息（包含思考内容）

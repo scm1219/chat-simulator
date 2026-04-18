@@ -376,7 +376,6 @@ const canSubmit = computed(() => {
 
 // 监听 modelValue 变化（从父组件更新）
 watch(() => props.modelValue, (newVal) => {
-  console.log('[LLMProfileForm] watch props.modelValue:', newVal?.useNativeApi)
   isUpdatingFromProps = true
   form.value = { ...newVal }
   // 同步代理配置的 refs
@@ -389,7 +388,6 @@ watch(() => props.modelValue, (newVal) => {
     customProxyUrl.value = ''
     bypassRules.value = 'localhost,127.0.0.1,::1'
   }
-  console.log('[LLMProfileForm] form.value.useNativeApi after update:', form.value.useNativeApi)
   // 下一个 tick 后重置标志位
   setTimeout(() => {
     isUpdatingFromProps = false
@@ -425,9 +423,6 @@ function resetBaseURL() {
 
 // 初始化
 onMounted(() => {
-  console.log('[LLMProfileForm] onMounted - props.modelValue.useNativeApi:', props.modelValue?.useNativeApi)
-  console.log('[LLMProfileForm] onMounted - form.value.useNativeApi before:', form.value.useNativeApi)
-
   // 阻止 onMounted 中的修改触发 watch(form) 的 emit
   isUpdatingFromProps = true
 
@@ -454,8 +449,6 @@ onMounted(() => {
   }
   // 同步代理到 form
   syncProxyToForm()
-
-  console.log('[LLMProfileForm] onMounted - form.value.useNativeApi after:', form.value.useNativeApi)
 
   // 下一个 tick 后重置标志位，允许后续用户输入触发 emit
   setTimeout(() => {

@@ -39,37 +39,15 @@ export class OllamaNativeClient {
 
     // 添加请求拦截器用于调试
     this.client.interceptors.request.use(
-      (request) => {
-        console.log('[Ollama Native] 发送请求:', {
-          url: request.url,
-          method: request.method,
-          baseURL: request.baseURL,
-          model: request.data?.model
-        })
-        return request
-      },
-      (error) => {
-        console.error('[Ollama Native] 请求错误:', error)
-        return Promise.reject(error)
-      }
+      (request) => request,
+      (error) => Promise.reject(error)
     )
 
     // 添加响应拦截器用于调试
     this.client.interceptors.response.use(
-      (response) => {
-        console.log('[Ollama Native] 收到响应:', {
-          status: response.status,
-          hasMessage: !!response.data?.message,
-          done: response.data?.done
-        })
-        return response
-      },
+      (response) => response,
       (error) => {
-        console.error('[Ollama Native] 响应错误:', {
-          message: error.message,
-          status: error.response?.status,
-          data: error.response?.data
-        })
+        console.error('[Ollama Native] 请求失败:', error.message, error.response?.status)
         return Promise.reject(error)
       }
     )
@@ -95,13 +73,6 @@ export class OllamaNativeClient {
       // 处理思考模式参数：始终传递 think 参数（true 或 false）
       requestData.think = options.thinkingEnabled === true
 
-      console.log('[Ollama Native] 请求:', {
-        model: requestData.model,
-        messageCount: messages.length,
-        stream: isStreaming,
-        think: requestData.think
-      })
-
       if (isStreaming) {
         return await this.chatStream(requestData, options.onChunk)
       }
@@ -109,15 +80,8 @@ export class OllamaNativeClient {
       // 非流式请求
       const response = await this.client.post('/api/chat', requestData)
 
-      console.log('[Ollama Native] 响应:', {
-        status: response.status,
-        hasMessage: !!response.data?.message,
-        done: response.data?.done
-      })
-
       // 检查响应格式
       if (!response.data || !response.data.message) {
-        console.error('[Ollama Native] 响应格式错误', response.data)
         return {
           success: false,
           error: 'API 返回格式错误：缺少 message 字段'
@@ -129,7 +93,6 @@ export class OllamaNativeClient {
       const thinking = message?.thinking
 
       if (!content) {
-        console.error('[Ollama Native] 响应中没有 content', message)
         return {
           success: false,
           error: 'API 返回的内容为空'
@@ -267,18 +230,12 @@ export class OllamaNativeClient {
         stream: false
       })
 
-      console.log('[Ollama Native] 测试连接响应:', {
-        status: response.status,
-        hasMessage: !!response.data?.message
-      })
-
       return {
         success: true,
         message: '连接成功',
         model: this.model
       }
     } catch (error) {
-      console.error('[Ollama Native] 测试连接失败:', error.message)
       return this.handleError(error)
     }
   }

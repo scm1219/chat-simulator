@@ -46,40 +46,15 @@ export class LLMClient {
 
     // 添加请求拦截器用于调试
     this.client.interceptors.request.use(
-      (request) => {
-        console.log('[LLM Client] 发送请求:', {
-          url: request.url,
-          method: request.method,
-          baseURL: request.baseURL,
-          fullURL: `${request.baseURL}${request.url}`,
-          model: request.data?.model
-        })
-        return request
-      },
-      (error) => {
-        console.error('[LLM Client] 请求错误:', error)
-        return Promise.reject(error)
-      }
+      (request) => request,
+      (error) => Promise.reject(error)
     )
 
     // 添加响应拦截器用于调试
     this.client.interceptors.response.use(
-      (response) => {
-        console.log('[LLM Client] 收到响应:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-          dataKeys: Object.keys(response.data || {}),
-          hasChoices: !!response.data?.choices
-        })
-        return response
-      },
+      (response) => response,
       (error) => {
-        console.error('[LLM Client] 响应错误:', {
-          message: error.message,
-          status: error.response?.status,
-          data: error.response?.data
-        })
+        console.error('[LLM Client] 请求失败:', error.message, error.response?.status)
         return Promise.reject(error)
       }
     )
@@ -128,14 +103,6 @@ export class LLMClient {
     const useStreaming = hasOnChunk || (this.streamEnabled && options.streaming !== false)
     const isStreaming = useStreaming && typeof options.onChunk === 'function'
 
-    console.log('[LLM Client] 流式输出设置:', {
-      configStreamEnabled: this.streamEnabled,
-      hasOnChunk: hasOnChunk,
-      optionsStreaming: options.streaming,
-      useStreaming: useStreaming,
-      isStreaming: isStreaming
-    })
-
     try {
       const requestData = {
         model: this.model,
@@ -158,22 +125,6 @@ export class LLMClient {
       // 处理思考模式参数：同时传递三种格式，兼容所有供应商
       this.applyThinkingMode(requestData, options.thinkingEnabled)
 
-      // 打印请求参数（用于调试）
-      console.log('[LLM Client] 请求参数:', {
-        model: requestData.model,
-        messageCount: requestData.messages.length,
-        messages: requestData.messages.map(msg => ({
-          role: msg.role,
-          content: msg.content?.substring(0, 100) + (msg.content?.length > 100 ? '...' : '')
-        })),
-        temperature: requestData.temperature,
-        max_tokens: requestData.max_tokens,
-        stream: requestData.stream,
-        thinking: requestData.thinking || '未设置（模型自动决定）',
-        chat_template_kwargs: requestData.chat_template_kwargs || undefined,
-        enable_thinking: requestData.enable_thinking !== undefined ? requestData.enable_thinking : undefined
-      })
-
       if (isStreaming) {
         // 流式请求
         return await this.chatStream(requestData, options.onChunk)
@@ -181,17 +132,8 @@ export class LLMClient {
         // 非流式请求
         const response = await this.client.post('/chat/completions', requestData)
 
-        console.log('[LLM Client] API 响应数据:', {
-          status: response.status,
-          hasData: !!response.data,
-          hasChoices: !!response.data?.choices,
-          choicesLength: response.data?.choices?.length,
-          firstChoice: response.data?.choices?.[0]
-        })
-
         // 检查响应格式
         if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-          console.error('[LLM Client] 响应格式错误', response.data)
           return {
             success: false,
             error: 'API 返回格式错误：缺少 choices 字段'
@@ -203,7 +145,6 @@ export class LLMClient {
         const reasoningContent = message?.reasoning_content
 
         if (!content) {
-          console.error('[LLM Client] 响应中没有 content', response.data.choices[0])
           return {
             success: false,
             error: 'API 返回的内容为空'
@@ -317,22 +258,12 @@ export class LLMClient {
         max_tokens: 10
       })
 
-      console.log('[LLM Client] 测试连接响应:', {
-        status: response.status,
-        dataKeys: Object.keys(response.data || {})
-      })
-
       return {
         success: true,
         message: '连接成功',
         model: this.model
       }
     } catch (error) {
-      console.error('[LLM Client] 测试连接失败:', error.message)
-      console.error('[LLM Client] 错误详情:', {
-        response: error.response?.data,
-        status: error.response?.status
-      })
       return this.handleError(error)
     }
   }

@@ -189,5 +189,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
     global: (keyword) => ipcRenderer.invoke('search:global', keyword)
   }
 })
-
-console.log('Preload script loaded successfully')

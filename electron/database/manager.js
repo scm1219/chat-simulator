@@ -170,16 +170,13 @@ export class DatabaseManager {
    * @param {string} groupId - 群组 ID
    */
   runMigrations(db, groupId) {
-    console.log(`[Database] 开始检查群组 ${groupId} 的数据库迁移...`)
-
     // 检查 messages 表是否有 reasoning_content 字段
     const tableInfo = db.pragma('table_info(messages)')
     const hasReasoningContent = tableInfo.some(col => col.name === 'reasoning_content')
 
     if (!hasReasoningContent) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.reasoning_content 字段`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.reasoning_content`)
       db.exec('ALTER TABLE messages ADD COLUMN reasoning_content TEXT')
-      console.log(`[Database][${groupId}] 迁移完成：reasoning_content 字段已添加`)
     }
 
     // 检查 characters 表是否有 position 字段
@@ -187,7 +184,7 @@ export class DatabaseManager {
     const hasPosition = charTableInfo.some(col => col.name === 'position')
 
     if (!hasPosition) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 characters.position 字段`)
+      console.log(`[Database][${groupId}] 迁移：添加 characters.position`)
       db.exec('ALTER TABLE characters ADD COLUMN position INTEGER DEFAULT 0')
 
       // 为当前群组的已有 AI 角色设置 position（按创建时间排序，排除用户角色）
@@ -195,23 +192,14 @@ export class DatabaseManager {
         'SELECT id FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY created_at'
       ).all(groupId)
 
-      console.log(`[Database][${groupId}] 为 ${aiCharacters.length} 个 AI 角色设置 position 值`)
-
       aiCharacters.forEach((char, index) => {
         db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
       })
-
-      console.log(`[Database][${groupId}] 迁移完成：position 字段已添加并初始化`)
     } else {
       // position 字段已存在，检查是否需要规范化当前群组的角色
-      console.log(`[Database][${groupId}] 检查 position 字段是否需要规范化...`)
-
-      // 检查当前群组的 AI 角色是否有重复的 position 值或不连续的情况
       const aiCharacters = db.prepare(
         'SELECT id, position FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC, created_at ASC'
       ).all(groupId)
-
-      console.log(`[Database][${groupId}] 当前群组有 ${aiCharacters.length} 个 AI 角色`)
 
       let needsNormalize = false
       const seenPositions = new Set()
@@ -226,14 +214,10 @@ export class DatabaseManager {
       }
 
       if (needsNormalize) {
-        console.log(`[Database][${groupId}] 检测到 position 值不连续或有重复，开始规范化...`)
-        // 重新规范化当前群组所有 AI 角色的 position 值
         aiCharacters.forEach((char, index) => {
           db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
         })
-        console.log(`[Database][${groupId}] 规范化完成`)
-      } else {
-        console.log(`[Database][${groupId}] position 字段正常，无需规范化`)
+        console.log(`[Database][${groupId}] 迁移：规范化 characters.position`)
       }
     }
 
@@ -241,9 +225,8 @@ export class DatabaseManager {
     const hasThinkingEnabled = charTableInfo.some(col => col.name === 'thinking_enabled')
 
     if (!hasThinkingEnabled) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 characters.thinking_enabled 字段`)
       db.exec('ALTER TABLE characters ADD COLUMN thinking_enabled INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移完成：thinking_enabled 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 characters.thinking_enabled`)
     }
 
     // 检查 groups 表是否有 random_order 字段
@@ -251,42 +234,37 @@ export class DatabaseManager {
     const hasRandomOrder = groupsTableInfo.some(col => col.name === 'random_order')
 
     if (!hasRandomOrder) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 groups.random_order 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN random_order INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移完成：random_order 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 groups.random_order`)
     }
 
     // 检查 messages 表是否有 prompt_tokens 字段
     const hasPromptTokens = tableInfo.some(col => col.name === 'prompt_tokens')
     if (!hasPromptTokens) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.prompt_tokens / completion_tokens 字段`)
       db.exec('ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER')
       db.exec('ALTER TABLE messages ADD COLUMN completion_tokens INTEGER')
-      console.log(`[Database][${groupId}] 迁移完成：token 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.prompt_tokens/completion_tokens`)
     }
 
     // 检查 characters 表是否有 custom_llm_profile_id 字段
     const hasCustomLLMProfileId = charTableInfo.some(col => col.name === 'custom_llm_profile_id')
     if (!hasCustomLLMProfileId) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 characters.custom_llm_profile_id 字段`)
       db.exec('ALTER TABLE characters ADD COLUMN custom_llm_profile_id TEXT')
-      console.log(`[Database][${groupId}] 迁移完成: custom_llm_profile_id 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 characters.custom_llm_profile_id`)
     }
 
     // 检查 messages 表是否有 model 字段
     const hasModel = tableInfo.some(col => col.name === 'model')
     if (!hasModel) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.model 字段`)
       db.exec('ALTER TABLE messages ADD COLUMN model TEXT')
-      console.log(`[Database][${groupId}] 迁移完成: model 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.model`)
     }
 
     // 检查 groups 表是否有 auto_memory_extract 字段
     const hasAutoMemoryExtract = groupsTableInfo.some(col => col.name === 'auto_memory_extract')
     if (!hasAutoMemoryExtract) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 groups.auto_memory_extract 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN auto_memory_extract INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移完成: auto_memory_extract 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 groups.auto_memory_extract`)
     }
 
     // --- 叙事引擎相关迁移 ---
@@ -294,25 +272,22 @@ export class DatabaseManager {
     // 添加 narrative_enabled 字段
     const hasNarrativeEnabled = groupsTableInfo.some(col => col.name === 'narrative_enabled')
     if (!hasNarrativeEnabled) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 groups.narrative_enabled 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN narrative_enabled INTEGER NOT NULL DEFAULT 1')
-      console.log(`[Database][${groupId}] 迁移完成: narrative_enabled 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 groups.narrative_enabled`)
     }
 
     // 添加 aftermath_enabled 字段
     const hasAftermathEnabled = groupsTableInfo.some(col => col.name === 'aftermath_enabled')
     if (!hasAftermathEnabled) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 groups.aftermath_enabled 字段`)
       db.exec('ALTER TABLE groups ADD COLUMN aftermath_enabled INTEGER NOT NULL DEFAULT 1')
-      console.log(`[Database][${groupId}] 迁移完成: aftermath_enabled 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 groups.aftermath_enabled`)
     }
 
     // 添加 event_scene_type 字段
     const hasEventSceneType = groupsTableInfo.some(col => col.name === 'event_scene_type')
     if (!hasEventSceneType) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 groups.event_scene_type 字段`)
       db.exec("ALTER TABLE groups ADD COLUMN event_scene_type TEXT DEFAULT 'general'")
-      console.log(`[Database][${groupId}] 迁移完成: event_scene_type 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 groups.event_scene_type`)
     }
 
     // --- messages 表迁移 ---
@@ -321,30 +296,24 @@ export class DatabaseManager {
     const messagesTableInfo = db.pragma('table_info(messages)')
     const hasIsAftermath = messagesTableInfo.some(col => col.name === 'is_aftermath')
     if (!hasIsAftermath) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.is_aftermath 字段`)
       db.exec('ALTER TABLE messages ADD COLUMN is_aftermath INTEGER NOT NULL DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移完成: is_aftermath 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.is_aftermath`)
     }
 
     // 添加 message_type 字段（区分 normal/event/aftermath）
     const hasMessageType = messagesTableInfo.some(col => col.name === 'message_type')
     if (!hasMessageType) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.message_type 字段`)
       db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'normal'")
-      // 回填已有余波消息的类型
       db.exec("UPDATE messages SET message_type = 'aftermath' WHERE is_aftermath = 1")
-      console.log(`[Database][${groupId}] 迁移完成: message_type 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.message_type`)
     }
 
     // 添加 event_impact 字段（事件影响标签，如"惊慌"、"欢乐"）
     const hasEventImpact = messagesTableInfo.some(col => col.name === 'event_impact')
     if (!hasEventImpact) {
-      console.log(`[Database][${groupId}] 执行迁移：添加 messages.event_impact 字段`)
       db.exec('ALTER TABLE messages ADD COLUMN event_impact TEXT')
-      console.log(`[Database][${groupId}] 迁移完成: event_impact 字段已添加`)
+      console.log(`[Database][${groupId}] 迁移：添加 messages.event_impact`)
     }
-
-    console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
   }
 
   /**

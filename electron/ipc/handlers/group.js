@@ -8,8 +8,6 @@ export function setupGroupHandlers(dbManager) {
   // 创建群组
   ipcMain.handle('group:create', async (event, data) => {
     try {
-      console.log('[Group] 创建群组 - 原始数据', data)
-
       // 转换数据类型，确保兼容 SQLite3
       const id = generateUUID()
 
@@ -29,8 +27,6 @@ export function setupGroupHandlers(dbManager) {
         background: data.background ? String(data.background) : null,
         system_prompt: data.systemPrompt ? String(data.systemPrompt) : null
       }
-
-      console.log('[Group] 创建群组 - 转换后数据', values)
 
       const db = dbManager.getGroupDB(id)
       db.prepare(`
@@ -60,7 +56,6 @@ export function setupGroupHandlers(dbManager) {
       `).run(userCharacterId, id, '用户', '你是用户，正在参与群聊对话。', 1, 1)
 
       const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
-      console.log('[Group] 群组创建成功', { id, name: group.name, hasApiKey: !!group.llm_api_key })
       return { success: true, data: group }
     } catch (error) {
       console.error('[Group] 创建群组失败', error)
@@ -227,8 +222,6 @@ export function setupGroupHandlers(dbManager) {
   // 复制群组
   ipcMain.handle('group:duplicate', async (event, sourceId) => {
     try {
-      console.log('[Group] 复制群组 - 源群组 ID', sourceId)
-
       // 获取源群组数据
       const sourceDb = dbManager.getGroupDB(sourceId)
       const sourceGroup = sourceDb.prepare('SELECT * FROM groups WHERE id = ?').get(sourceId)
@@ -318,12 +311,6 @@ export function setupGroupHandlers(dbManager) {
       }
 
       const newGroup = newDb.prepare('SELECT * FROM groups WHERE id = ?').get(newId)
-      console.log('[Group] 群组复制成功', {
-        id: newId,
-        name: newGroup.name,
-        charactersCount: sourceCharacters.length,
-        messagesCount: sourceMessages.length
-      })
       return { success: true, data: newGroup }
     } catch (error) {
       console.error('[Group] 复制群组失败', error)

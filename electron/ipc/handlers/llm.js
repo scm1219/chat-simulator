@@ -31,7 +31,6 @@ function createLLMClient(config) {
   // 如果是 Ollama 且启用原生 API，使用原生客户端
   if (provider === 'ollama' && useNativeApi) {
     const providerConfig = getProviderConfig('ollama')
-    console.log('[LLM] 使用 Ollama 原生 API 客户端')
     return new OllamaNativeClient({
       ...rest,
       baseURL: baseURL || providerConfig.nativeBaseURL || 'http://localhost:11434',
@@ -40,8 +39,6 @@ function createLLMClient(config) {
     })
   }
 
-  // 其他情况使用 OpenAI 兼容客户端
-  console.log('[LLM] 使用 OpenAI 兼容 API 客户端')
   return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
 }
 
@@ -64,7 +61,6 @@ async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxToken
   const profile = profileId
     ? llmProfiles.find(p => p.id === profileId) || llmProfiles[0]
     : llmProfiles[0]
-  console.log('[LLM] 使用配置', { profile: profile.name, provider: profile.provider, model: profile.model })
 
   const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
   const client = createLLMClient({
@@ -86,7 +82,6 @@ async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxToken
   })
 
   if (!result.success) {
-    console.error('[LLM] LLM 调用失败', result.error)
     return { success: false, error: result.error }
   }
 
@@ -94,11 +89,9 @@ async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxToken
     return { success: false, error: 'LLM 返回了空响应，请重试或更换模型' }
   }
 
-  console.log('[LLM] 原始响应内容（前 200 字符）:', result.content.substring(0, 200))
   const jsonResult = extractJSON(result.content)
   if (!jsonResult.success) {
-    console.error('[LLM] 解析 JSON 失败', jsonResult.error)
-    console.error('[LLM] 原始响应', result.content)
+    console.error('[LLM] JSON 解析失败:', jsonResult.error)
     return { success: false, error: 'LLM 返回的格式不正确，请重试' }
   }
 
@@ -119,7 +112,6 @@ function createClientForCharacter(character, group, llmProfiles, apiKey) {
   if (character.custom_llm_profile_id) {
     const profile = llmProfiles.find(p => p.id === character.custom_llm_profile_id)
     if (profile) {
-      console.log(`[LLM] 角色 ${character.name} 使用独立 LLM 配置: ${profile.name} (${profile.provider}/${profile.model})`)
       const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
       const client = createLLMClient({
         provider: profile.provider,
@@ -195,11 +187,9 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
   ipcMain.handle('llm:generate', async (event, groupId, userContent, options = {}) => {
     const messageType = options.messageType || 'normal'
     const eventImpact = options.eventImpact || null
-    console.log('[LLM] 开始生成回复', { groupId, userContent, messageType, eventImpact })
 
     try {
       const db = dbManager.getGroupDB(groupId)
-      console.log('[LLM] 数据库连接成功')
 
       // 1. 保存用户消息
       const userMsgId = generateUUID()
@@ -213,7 +203,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         INSERT INTO messages (id, group_id, character_id, role, content, message_type, event_impact)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent, messageType, eventImpact)
-      console.log('[LLM] 用户消息已保存', { userMsgId, messageType, eventImpact })
 
       // 通知前端：用户消息已保存（包含真实 ID）
       event.sender.send('message:user:saved', {
@@ -232,15 +221,8 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       // 2. 获取群组配置
       const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
       if (!group) {
-        console.error('[LLM] 群组不存在', { groupId })
         return { success: false, error: '群组不存在' }
       }
-      console.log('[LLM] 群组配置', {
-        name: group.name,
-        provider: group.llm_provider,
-        model: group.llm_model,
-        useGlobalKey: group.use_global_api_key
-      })
 
       // 3. 获取启用的角色（排除用户角色）
       const characters = db.prepare(`
@@ -248,38 +230,26 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       `).all(groupId)
 
       if (characters.length === 0) {
-        console.error('[LLM] 没有启用的角色')
         return { success: false, error: '没有启用的角色' }
       }
-      console.log('[LLM] 启用的角色', characters.map(c => c.name))
 
       // 3.1 获取所有角色（包含用户角色，用于群成员介绍）
       const allCharacters = db.prepare(`
         SELECT * FROM characters WHERE group_id = ? AND enabled = 1
       `).all(groupId)
-      console.log('[LLM] 群成员介绍包含角色', allCharacters.map(c => c.name))
 
       // 4. 获取历史消息（根据 max_history 限制，系统自动加 10 轮）
       const maxMessages = ((group.max_history || 20) + 10) * 2 + 1 // +1 是刚才添加的用户消息
 
-      // 先检查数据库中 assistant 消息的 character_id 情况
-      const assistantMessagesCheck = db.prepare(`
-        SELECT
-          m.id,
-          m.character_id,
-          c.name as character_name
+      // 先检查数据库中 assistant 消息的 character_id 情况（调试用，保留查询以备排查）
+      db.prepare(`
+        SELECT m.id, m.character_id, c.name as character_name
         FROM messages m
         LEFT JOIN characters c ON m.character_id = c.id
         WHERE m.group_id = ? AND m.role = 'assistant'
         ORDER BY m.timestamp DESC
         LIMIT 5
       `).all(groupId)
-
-      console.log('[LLM] 数据库中最近的 assistant 消息检查:', assistantMessagesCheck.map(m => ({
-        id: m.id,
-        character_id: m.character_id,
-        character_name: m.character_name
-      })))
 
       const history = db.prepare(`
         SELECT
@@ -292,7 +262,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         ORDER BY m.timestamp DESC
         LIMIT ?
       `).all(groupId, maxMessages).reverse()
-      console.log('[LLM] 历史消息数量', history.length)
 
       // 5. 获取 API Key（优先使用群组独立 Key）
       const globalLLMConfig = getGlobalLLMConfig()
@@ -305,10 +274,8 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       const needApiKey = providerConfig?.needApiKey !== false
 
       if (needApiKey && !apiKey) {
-        console.error('[LLM] API Key 未配置')
         return { success: false, error: '请先配置 API Key' }
       }
-      console.log('[LLM] API Key 配置检查', { hasKey: !!apiKey, needApiKey, provider: group.llm_provider })
 
       // 6. 获取 LLM 配置文件列表
       const llmProfiles = getLLMProfiles()
@@ -317,7 +284,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       const responseMode = group.response_mode || 'sequential'
       const thinkingEnabled = group.thinking_enabled === 1
       const randomOrder = group.random_order === 1
-      console.log('[LLM] 回复模式', responseMode, '思考模式', thinkingEnabled, '随机发言', randomOrder)
       const responses = []
 
       if (responseMode === 'parallel') {
@@ -355,7 +321,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
             const j = Math.floor(Math.random() * (i + 1));
             [characters[i], characters[j]] = [characters[j], characters[i]]
           }
-          console.log('[LLM] 随机发言顺序:', characters.map(c => c.name))
         }
         for (const character of characters) {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
@@ -387,16 +352,9 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
               character_name: response.characterName,
               character_is_user: 0
             })
-            console.log(`[LLM] 添加 ${response.characterName} 的回复到历史上下文，character_id: ${response.characterId}`)
           }
         }
       }
-
-      console.log('[LLM] 所有角色回复生成完成', {
-        total: responses.length,
-        success: responses.filter(r => r.success).length,
-        failed: responses.filter(r => !r.success).length
-      })
 
       // 所有角色回复完成后，生成余波
       let aftermathMessages = []
@@ -423,8 +381,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
 
   // 生成单角色指令回复
   ipcMain.handle('llm:generateCharacterCommand', async (event, groupId, characterId, instruction) => {
-    console.log('[LLM] 开始生成单角色指令回复', { groupId, characterId, instruction })
-
     try {
       const db = dbManager.getGroupDB(groupId)
 
@@ -440,7 +396,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         INSERT INTO messages (id, group_id, character_id, role, content)
         VALUES (?, ?, ?, ?, ?)
       `).run(userMsgId, groupId, userCharacter?.id || null, 'user', instruction)
-      console.log('[LLM] 用户指令消息已保存', { userMsgId })
 
       // 通知前端：用户消息已保存（包含真实 ID）
       event.sender.send('message:user:saved', {
@@ -457,18 +412,14 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       // 2. 获取群组配置
       const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
       if (!group) {
-        console.error('[LLM] 群组不存在', { groupId })
         return { success: false, error: '群组不存在' }
       }
 
       // 3. 获取指定角色
       const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
       if (!character) {
-        console.error('[LLM] 角色不存在', { characterId })
         return { success: false, error: '角色不存在' }
       }
-
-      console.log('[LLM] 目标角色', { name: character.name })
 
       // 4. 获取所有角色（用于成员介绍）
       const allCharacters = db.prepare(`
@@ -500,7 +451,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       const needApiKey = providerConfig?.needApiKey !== false
 
       if (needApiKey && !apiKey) {
-        console.error('[LLM] API Key 未配置')
         return { success: false, error: '请先配置 API Key' }
       }
 
@@ -526,8 +476,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         group.auto_memory_extract === 1
       )
 
-      console.log('[LLM] 单角色指令回复生成完成')
-
       return { success: true, data: [response] }
     } catch (error) {
       console.error('[LLM] 生成单角色指令回复失败', error)
@@ -537,8 +485,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
 
   // 生成角色信息（角色抽卡）
   ipcMain.handle('llm:generateCharacter', async (event, hint = '') => {
-    console.log('[LLM] 开始生成角色信息', { hint })
-
     try {
       const gachaConfig = getGachaConfig()
       const systemPrompt = gachaConfig.systemPrompt
@@ -565,7 +511,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         return { success: false, error: '角色信息不完整，请重试' }
       }
 
-      console.log('[LLM] 角色信息生成成功', characterData)
       return { success: true, data: characterData }
     } catch (error) {
       console.error('[LLM] 生成角色信息失败', error)
@@ -575,8 +520,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
 
   // 快速建群：根据描述生成群组信息
   ipcMain.handle('llm:generateGroup', async (event, description = '', profileId = '') => {
-    console.log('[LLM] 开始生成群组信息', { description, profileId })
-
     try {
       const quickGroupConfig = getQuickGroupConfig()
       const systemPrompt = quickGroupConfig.systemPrompt
@@ -610,12 +553,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         }
       }
 
-      console.log('[LLM] 群组信息生成成功', {
-        name: groupData.name,
-        characterCount: groupData.characters.length,
-        hasBackground: !!groupData.background
-      })
-
       return { success: true, data: groupData }
     } catch (error) {
       console.error('[LLM] 生成群组信息失败', error)
@@ -629,8 +566,6 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
  */
 async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, thinkingEnabled = false, background = null, systemPrompt = null, allCharacters = [], memoryManager = null, autoMemoryExtract = false, narrativeContext = []) {
   try {
-    console.log(`[LLM] 开始为角色 ${character.name} 生成回复`)
-
     // 优先使用角色的思考模式设置，如果没有则使用群组的设置
     const characterThinkingEnabled = character.thinking_enabled === 1 || thinkingEnabled
 
@@ -646,12 +581,6 @@ async function generateCharacterResponse(client, character, history, userContent
 
     // 构建消息上下文
     const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters, memories, narrativeContext)
-    console.log(`[LLM] ${character.name} - 消息上下文构建完成`, {
-      messageCount: messages.length,
-      hasBackground: !!background,
-      hasSystemPrompt: !!systemPrompt,
-      thinkingEnabled: characterThinkingEnabled
-    })
 
     // 创建临时消息 ID
     const tempMessageId = 'temp_' + Date.now() + '_' + character.id
@@ -691,37 +620,15 @@ async function generateCharacterResponse(client, character, history, userContent
     })
 
     if (result.success) {
-      console.log(`[LLM] ${character.name} - 回复生成成功`, {
-        contentLength: result.content?.length,
-        hasReasoningContent: !!result.reasoningContent,
-        usage: result.usage
-      })
-
       // 保存完整回复到数据库（包含思考内容、token 用量和模型信息）
       const assistantMsgId = generateUUID()
       const promptTokens = result.usage?.prompt_tokens ?? null
       const completionTokens = result.usage?.completion_tokens ?? null
       const responseModel = result.model || null
-      console.log(`[LLM] ${character.name} - 保存消息到数据库`, {
-        messageId: assistantMsgId,
-        characterId: character.id,
-        characterName: character.name,
-        promptTokens,
-        completionTokens,
-        model: responseModel
-      })
       db.prepare(`
         INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel)
-
-      // 验证保存是否成功
-      const savedMsg = db.prepare('SELECT * FROM messages WHERE id = ?').get(assistantMsgId)
-      console.log(`[LLM] ${character.name} - 验证保存的消息`, {
-        id: savedMsg?.id,
-        character_id: savedMsg?.character_id,
-        role: savedMsg?.role
-      })
 
       // 通知渲染进程：流式结束，发送完整消息
       event.sender.send('message:stream:end', {
@@ -898,14 +805,6 @@ function buildContextMessages(character, history, userContent, background = null
   })
 
   // 6. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
-  console.log('[LLM] 历史消息原始数据（前3条）:', history.slice(0, 3).map(msg => ({
-    role: msg.role,
-    content: msg.content?.substring(0, 50),
-    character_id: msg.character_id,
-    character_name: msg.character_name,
-    character_is_user: msg.character_is_user
-  })))
-
   const roleMessages = history
     .filter(msg => {
       // 过滤掉系统消息
@@ -918,57 +817,27 @@ function buildContextMessages(character, history, userContent, background = null
 
       // 过滤掉【角色指令】消息（这些是一次性指令，不应该出现在历史中）
       if (content.includes('【角色指令】')) {
-        console.log(`[LLM] 过滤掉角色指令消息:`, content.substring(0, 100))
         return false
       }
 
       // 过滤掉给其他角色的定向用户指令
-      // 判断标准：user 消息中包含 @角色名 格式，且不是给当前角色的
       if (msg.role === 'user') {
-        // 检测 @角色名 格式
         const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
-        if (atMatch) {
-          const targetCharacterName = atMatch[1]
-
-          // 如果这条指令不是给当前角色的，过滤掉
-          if (targetCharacterName !== character.name) {
-            console.log(`[LLM] 过滤掉给角色"${targetCharacterName}"的定向指令:`, content)
-            return false
-          }
+        if (atMatch && atMatch[1] !== character.name) {
+          return false
         }
       }
 
       return true
     })
     .map(msg => {
-      // 构建消息内容
+      // 构建消息内容：有角色名称时添加前缀
       let content = msg.content
-
-      // 如果是 assistant 消息且有角色名称，添加角色名前缀
-      if (msg.role === 'assistant' && msg.character_name) {
-        content = `${msg.character_name}：${content}`
-      }
-      // 如果是 user 消息且有角色名称（用户角色），也添加角色名前缀
-      else if (msg.role === 'user' && msg.character_name) {
+      if (msg.character_name) {
         content = `${msg.character_name}：${content}`
       }
 
-      const result = {
-        role: msg.role,
-        content: content
-      }
-
-      // 调试：输出 assistant 消息的格式化结果
-      if (msg.role === 'assistant') {
-        console.log('[LLM] assistant 消息格式化:', {
-          hasCharacterName: !!msg.character_name,
-          characterName: msg.character_name,
-          originalContent: msg.content?.substring(0, 50),
-          formattedContent: content.substring(0, 80)
-        })
-      }
-
-      return result
+      return { role: msg.role, content }
     })
 
   messages.push(...roleMessages)
