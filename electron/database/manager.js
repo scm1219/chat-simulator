@@ -336,6 +336,14 @@ export class DatabaseManager {
       console.log(`[Database][${groupId}] 迁移完成: message_type 字段已添加`)
     }
 
+    // 添加 event_impact 字段（事件影响标签，如"惊慌"、"欢乐"）
+    const hasEventImpact = messagesTableInfo.some(col => col.name === 'event_impact')
+    if (!hasEventImpact) {
+      console.log(`[Database][${groupId}] 执行迁移：添加 messages.event_impact 字段`)
+      db.exec('ALTER TABLE messages ADD COLUMN event_impact TEXT')
+      console.log(`[Database][${groupId}] 迁移完成: event_impact 字段已添加`)
+    }
+
     console.log(`[Database] 群组 ${groupId} 的数据库迁移检查完成`)
   }
 

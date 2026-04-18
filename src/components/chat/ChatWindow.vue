@@ -6,6 +6,24 @@
         <h2>{{ currentGroup.name }}</h2>
         <div class="header-actions">
           <button
+            :class="['toggle-view-btn', { active: displayMode === 'table' }]"
+            @click="toggleDisplayMode"
+            :title="displayMode === 'bubble' ? '表格视图' : '气泡视图'"
+          >
+            <svg v-if="displayMode === 'bubble'" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="2" rx="0.5" fill="currentColor"/>
+              <rect x="1" y="4.5" width="14" height="2" rx="0.5" fill="currentColor"/>
+              <rect x="1" y="8" width="14" height="2" rx="0.5" fill="currentColor"/>
+              <rect x="1" y="11.5" width="14" height="2" rx="0.5" fill="currentColor"/>
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="2" width="7" height="5" rx="1" fill="currentColor" opacity="0.3"/>
+              <rect x="9" y="9" width="6" height="5" rx="1" fill="currentColor" opacity="0.3"/>
+              <rect x="1" y="9" width="5" height="5" rx="1" fill="currentColor" opacity="0.15"/>
+              <rect x="8" y="2" width="7" height="5" rx="1" fill="currentColor" opacity="0.15"/>
+            </svg>
+          </button>
+          <button
             class="export-button"
             @click="handleExportMessages"
             :disabled="exporting"
@@ -57,13 +75,72 @@
           <p class="hint">输入消息后，AI 角色会自动回复</p>
         </div>
 
-        <MessageBubble
-          v-for="msg in messagesStore.messages"
-          :key="msg.id"
-          :message="msg"
-          :character="getCharacter(msg.character_id)"
-          :data-message-id="msg.id"
-        />
+        <!-- 气泡视图 -->
+        <template v-if="displayMode === 'bubble'">
+          <MessageBubble
+            v-for="msg in messagesStore.messages"
+            :key="msg.id"
+            :message="msg"
+            :character="getCharacter(msg.character_id)"
+            :data-message-id="msg.id"
+          />
+        </template>
+
+        <!-- 表格视图 -->
+        <div v-else class="table-view">
+          <table class="messages-table">
+            <thead>
+              <tr>
+                <th class="col-index">#</th>
+                <th class="col-role">角色</th>
+                <th class="col-content">内容</th>
+                <th class="col-type">类型</th>
+                <th class="col-time">时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(msg, index) in messagesStore.messages"
+                :key="msg.id"
+                :data-message-id="msg.id"
+                :class="['msg-row', msg.role, { highlighted: isHighlighted(msg.id) }]"
+              >
+                <td class="col-index">{{ index + 1 }}</td>
+                <td class="col-role">
+                  <span :class="['role-badge', msg.role]">
+                    {{ getCharacterName(msg) }}
+                  </span>
+                </td>
+                <td class="col-content">
+                  <div
+                    v-if="editingId !== msg.id"
+                    class="content-text"
+                    @dblclick="startTableEdit(msg)"
+                    :title="'双击编辑'"
+                  >{{ msg.content || '' }}</div>
+                  <textarea
+                    v-else
+                    ref="tableEditTextarea"
+                    v-model="tableEditContent"
+                    class="content-edit"
+                    rows="1"
+                    @keydown.enter.ctrl="saveTableEdit(msg)"
+                    @keydown.escape="cancelTableEdit"
+                    @blur="saveTableEdit(msg)"
+                  />
+                </td>
+                <td class="col-type">
+                  <template v-if="msg.message_type === 'event'">
+                    <span class="type-tag event-tag">事件</span>
+                    <span v-if="msg.event_impact" class="type-tag event-impact-tag">{{ msg.event_impact }}</span>
+                  </template>
+                  <span v-else-if="msg.is_aftermath || msg.message_type === 'aftermath'" class="type-tag aftermath-tag">余波</span>
+                </td>
+                <td class="col-time">{{ formatTime(msg.timestamp) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- 平淡提示 & 事件面板（输入框上方） -->
@@ -132,6 +209,14 @@ const toggleRightPanel = inject('toggleRightPanel')
 
 const messagesContainer = ref(null)
 const currentGroup = computed(() => groupsStore.currentGroup)
+
+// 展示模式：bubble（气泡）| table（表格）
+const displayMode = ref('bubble')
+
+// 表格编辑状态
+const editingId = ref(null)
+const tableEditContent = ref('')
+const tableEditTextarea = ref(null)
 
 // 模型选择器状态
 const selectedProfileId = ref('')
@@ -215,8 +300,80 @@ function getCharacter(characterId) {
   return charactersStore.characters.find(c => c.id === characterId)
 }
 
+// 切换展示模式
+function toggleDisplayMode() {
+  displayMode.value = displayMode.value === 'bubble' ? 'table' : 'bubble'
+  editingId.value = null
+}
+
+// 获取角色名称（表格视图用）
+function getCharacterName(msg) {
+  if (msg.role === 'user') {
+    const userChar = charactersStore.characters.find(c => c.is_user === 1)
+    return userChar?.name || '用户'
+  }
+  const char = getCharacter(msg.character_id)
+  return char?.name || msg.characterName || '角色'
+}
+
+// 格式化时间（表格视图用）
+function formatTime(timestamp) {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+// 判断消息是否高亮（表格视图用）
+function isHighlighted(messageId) {
+  return messagesStore.highlightMessageId === messageId
+}
+
+// 表格内联编辑
+async function startTableEdit(msg) {
+  // 流式消息不可编辑
+  if (msg.isStreaming) return
+  editingId.value = msg.id
+  tableEditContent.value = msg.content || ''
+  await nextTick()
+  // 聚焦并调整高度
+  const textareas = tableEditTextarea.value
+  if (textareas) {
+    const el = Array.isArray(textareas) ? textareas[0] : textareas
+    el?.focus()
+    adjustTableTextareaHeight(el)
+  }
+}
+
+function adjustTableTextareaHeight(el) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.max(el.scrollHeight, 32) + 'px'
+}
+
+async function saveTableEdit(msg) {
+  if (editingId.value !== msg.id) return
+  const newContent = tableEditContent.value.trim()
+  if (newContent && newContent !== msg.content) {
+    try {
+      await messagesStore.updateMessage(msg.id, newContent)
+    } catch (error) {
+      toast.error('编辑消息失败: ' + error.message)
+    }
+  }
+  editingId.value = null
+}
+
+function cancelTableEdit() {
+  editingId.value = null
+}
+
 // 发送消息
 async function handleSendMessage(content) {
+  // 发送时自动切换到气泡视图
+  if (displayMode.value === 'table') {
+    displayMode.value = 'bubble'
+    editingId.value = null
+  }
   try {
     await messagesStore.sendMessage(content)
     // 发送完成后检查平淡度
@@ -266,7 +423,7 @@ async function handleEventTriggered(event) {
   showEventPanel.value = false
   showStalenessTip.value = false
   try {
-    await messagesStore.sendMessage(event.content, { messageType: 'event' })
+    await messagesStore.sendMessage(event.content, { messageType: 'event', eventImpact: event.impact })
     if (groupsStore.currentGroupId) {
       await narrativeStore.checkStaleness(groupsStore.currentGroupId)
       showStalenessTip.value = narrativeStore.staleness.stale
@@ -516,6 +673,33 @@ onUnmounted(() => {
     }
   }
 
+  .toggle-view-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    color: $text-secondary;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      color: $wechat-green;
+      border-color: $wechat-green;
+      background: rgba($wechat-green, 0.05);
+    }
+
+    &.active {
+      color: white;
+      background: $wechat-green;
+      border-color: $wechat-green;
+    }
+  }
+
   .model-selector {
     display: flex;
     align-items: center;
@@ -560,6 +744,12 @@ onUnmounted(() => {
   padding: $spacing-lg;
   display: flex;
   flex-direction: column;
+
+  // 表格视图时取消 flex 列布局，让表格自适应宽度
+  &:has(.table-view) {
+    display: block;
+    padding: 0;
+  }
 }
 
 .empty-state,
@@ -605,6 +795,164 @@ onUnmounted(() => {
 
   &:hover {
     border-color: $wechat-green;
+  }
+}
+
+// 表格视图样式
+.table-view {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.messages-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-size-sm;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+
+    th {
+      background: $bg-secondary;
+      padding: $spacing-sm $spacing-md;
+      text-align: left;
+      font-weight: $font-weight-medium;
+      color: $text-secondary;
+      border-bottom: 2px solid $border-color;
+      white-space: nowrap;
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid $border-color;
+      transition: background 0.15s;
+
+      &:hover {
+        background: rgba($wechat-green, 0.03);
+      }
+
+      &.highlighted {
+        animation: table-highlight 2s ease-out;
+      }
+    }
+
+    td {
+      padding: $spacing-sm $spacing-md;
+      vertical-align: top;
+    }
+  }
+}
+
+.col-index {
+  width: 36px;
+  text-align: center;
+  color: $text-placeholder;
+  font-size: $font-size-xs;
+}
+
+.col-role {
+  width: 80px;
+  white-space: nowrap;
+}
+
+.col-content {
+  min-width: 200px;
+}
+
+.col-type {
+  width: auto;
+  min-width: 48px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.col-time {
+  width: 70px;
+  white-space: nowrap;
+  color: $text-placeholder;
+  font-size: $font-size-xs;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: $font-size-xs;
+
+  &.user {
+    background: $bubble-user;
+    color: $bubble-user-text;
+  }
+
+  &.assistant {
+    background: $bubble-assistant;
+    color: $bubble-assistant-text;
+    border: 1px solid $border-color;
+  }
+
+  &.system {
+    background: $bg-tertiary;
+    color: $text-secondary;
+  }
+}
+
+.type-tag {
+  font-size: 10px;
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 18px;
+  display: inline-block;
+  margin-right: 2px;
+
+  &.event-tag {
+    background: #fff3e0;
+    color: #e65100;
+  }
+
+  &.event-impact-tag {
+    background: #fff3e0;
+    color: #bf360c;
+    border: 1px solid #ffcc80;
+  }
+
+  &.aftermath-tag {
+    background: #e8f5e9;
+    color: #43a047;
+  }
+}
+
+.content-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  cursor: default;
+  min-height: 22px;
+  padding: 2px 0;
+}
+
+.content-edit {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid $color-primary;
+  border-radius: $border-radius-sm;
+  font-size: $font-size-sm;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  background: white;
+}
+
+@keyframes table-highlight {
+  0% {
+    background: rgba(255, 214, 0, 0.3);
+  }
+  100% {
+    background: transparent;
   }
 }
 </style>

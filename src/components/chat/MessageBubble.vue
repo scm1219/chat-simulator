@@ -3,6 +3,7 @@
     <div v-if="isUser" class="message-content-user">
       <div class="message-header">
         <div v-if="isEvent" class="event-tag">事件</div>
+        <div v-if="isEvent && displayImpact" class="event-impact-tag">{{ displayImpact }}</div>
         <div v-if="character || message.characterName" class="character-name">
           {{ character?.name || message.characterName || '用户' }}
         </div>
@@ -140,6 +141,8 @@ const isUser = computed(() => props.message.role === 'user')
 const isAftermath = computed(() => !!props.message.isAftermath || props.message.is_aftermath === 1 || props.message.message_type === 'aftermath')
 
 const isEvent = computed(() => props.message.message_type === 'event')
+
+const displayImpact = computed(() => props.message.event_impact || null)
 
 // 获取发送状态
 const sending = computed(() => messagesStore.sending)
@@ -578,6 +581,17 @@ async function handleResend() {
   font-size: 10px;
   background: #fff3e0;
   color: #e65100;
+  border-radius: 8px;
+  padding: 0 6px;
+  line-height: 18px;
+  flex-shrink: 0;
+}
+
+.event-impact-tag {
+  font-size: 10px;
+  background: #fff3e0;
+  color: #bf360c;
+  border: 1px solid #ffcc80;
   border-radius: 8px;
   padding: 0 6px;
   line-height: 18px;

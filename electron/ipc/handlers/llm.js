@@ -134,7 +134,8 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
   // 生成 AI 回复（多角色对话）
   ipcMain.handle('llm:generate', async (event, groupId, userContent, options = {}) => {
     const messageType = options.messageType || 'normal'
-    console.log('[LLM] 开始生成回复', { groupId, userContent, messageType })
+    const eventImpact = options.eventImpact || null
+    console.log('[LLM] 开始生成回复', { groupId, userContent, messageType, eventImpact })
 
     try {
       const db = dbManager.getGroupDB(groupId)
@@ -149,10 +150,10 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       `).get(groupId)
 
       db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content, message_type)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent, messageType)
-      console.log('[LLM] 用户消息已保存', { userMsgId, messageType })
+        INSERT INTO messages (id, group_id, character_id, role, content, message_type, event_impact)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(userMsgId, groupId, userCharacter?.id || null, 'user', userContent, messageType, eventImpact)
+      console.log('[LLM] 用户消息已保存', { userMsgId, messageType, eventImpact })
 
       // 通知前端：用户消息已保存（包含真实 ID）
       event.sender.send('message:user:saved', {
@@ -164,6 +165,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         role: 'user',
         content: userContent,
         message_type: messageType,
+        event_impact: eventImpact,
         timestamp: new Date().toISOString()
       })
 
