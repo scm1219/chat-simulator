@@ -236,8 +236,10 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   async function updateMessage(messageId, content) {
+    const groupsStore = useGroupsStore()
+    const groupId = groupsStore.currentGroupId
     try {
-      const result = await window.electronAPI.message.update(messageId, content)
+      const result = await window.electronAPI.message.update(groupId, messageId, content)
       if (result.success) {
         // 更新本地消息列表
         const index = messages.value.findIndex(msg => msg.id === messageId)
@@ -254,8 +256,10 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   async function deleteMessage(messageId) {
+    const groupsStore = useGroupsStore()
+    const groupId = groupsStore.currentGroupId
     try {
-      const result = await window.electronAPI.message.delete(messageId)
+      const result = await window.electronAPI.message.delete(groupId, messageId)
       if (result.success) {
         // 从本地消息列表中删除
         const index = messages.value.findIndex(msg => msg.id === messageId)
@@ -272,9 +276,11 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   async function resendMessage(messageId) {
+    const groupsStore = useGroupsStore()
+    const groupId = groupsStore.currentGroupId
     try {
       // 删除该消息及之后的所有消息
-      const result = await window.electronAPI.message.deleteFrom(messageId)
+      const result = await window.electronAPI.message.deleteFrom(groupId, messageId)
       if (!result.success) {
         throw new Error(result.error)
       }

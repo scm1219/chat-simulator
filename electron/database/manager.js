@@ -111,6 +111,9 @@ export class DatabaseManager {
     // 缓存所有数据库连接
     this.connections = new Map()
 
+    // 角色 ID → 群组 ID 索引缓存（避免跨群组全表扫描）
+    this._characterGroupIndex = new Map()
+
     // 数据库存储目录
     this.dataDir = path.join(app.getPath('userData'), 'data', 'groups')
 
@@ -150,6 +153,9 @@ export class DatabaseManager {
 
     // 缓存连接
     this.connections.set(groupId, db)
+
+    // 填充角色索引缓存
+    this._indexGroupCharacters(db, groupId)
 
     return db
   }
@@ -343,6 +349,9 @@ export class DatabaseManager {
    * @param {string} groupId - 群组 ID
    */
   deleteGroupDB(groupId) {
+    // 清理角色索引
+    this._unindexGroup(groupId)
+
     // 关闭连接
     this.closeGroupDB(groupId)
 
@@ -365,5 +374,57 @@ export class DatabaseManager {
         return match ? match[1] : null
       })
       .filter(Boolean)
+  }
+
+  // ============ 角色 ID → 群组 ID 索引管理 ============
+
+  /**
+   * 填充指定群组的角色索引
+   * @param {Database} db - 数据库连接
+   * @param {string} groupId - 群组 ID
+   */
+  _indexGroupCharacters(db, groupId) {
+    const characters = db.prepare('SELECT id FROM characters').all()
+    for (const char of characters) {
+      this._characterGroupIndex.set(char.id, groupId)
+    }
+  }
+
+  /**
+   * 清除指定群组的所有角色索引
+   * @param {string} groupId - 群组 ID
+   */
+  _unindexGroup(groupId) {
+    for (const [charId, gId] of this._characterGroupIndex) {
+      if (gId === groupId) {
+        this._characterGroupIndex.delete(charId)
+      }
+    }
+  }
+
+  /**
+   * 索引单个角色（创建时调用）
+   * @param {string} characterId - 角色 ID
+   * @param {string} groupId - 群组 ID
+   */
+  indexCharacter(characterId, groupId) {
+    this._characterGroupIndex.set(characterId, groupId)
+  }
+
+  /**
+   * 移除单个角色索引（删除时调用）
+   * @param {string} characterId - 角色 ID
+   */
+  unindexCharacter(characterId) {
+    this._characterGroupIndex.delete(characterId)
+  }
+
+  /**
+   * 查找角色所属的群组 ID
+   * @param {string} characterId - 角色 ID
+   * @returns {string|null} 群组 ID，未找到返回 null
+   */
+  findCharacterGroup(characterId) {
+    return this._characterGroupIndex.get(characterId) || null
   }
 }

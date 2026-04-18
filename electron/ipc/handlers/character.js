@@ -6,19 +6,20 @@ import { generateUUID } from '../../utils/uuid.js'
 import { createHandler } from '../handler-wrapper.js'
 
 /**
- * 跨群组数据库查找角色
+ * 通过索引缓存查找角色所属的群组数据库
  * @param {object} dbManager 数据库管理器
  * @param {string} characterId 角色 ID
  * @returns {{ db: object, character: object, groupId: string } | null}
  */
 function findCharacterDB(dbManager, characterId) {
-  const groupIds = dbManager.getGroupDBFiles()
-  for (const groupId of groupIds) {
-    const db = dbManager.getGroupDB(groupId)
-    const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
-    if (character) return { db, character, groupId }
-  }
-  return null
+  const groupId = dbManager.findCharacterGroup(characterId)
+  if (!groupId) return null
+
+  const db = dbManager.getGroupDB(groupId)
+  const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+  if (!character) return null
+
+  return { db, character, groupId }
 }
 
 export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
@@ -39,6 +40,9 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       INSERT INTO characters (id, group_id, name, system_prompt, position)
       VALUES (?, ?, ?, ?, ?)
     `).run(id, groupId, name, systemPrompt, nextPosition)
+
+    // 维护索引缓存
+    dbManager.indexCharacter(id, groupId)
 
     const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(id)
     return { success: true, data: character }
@@ -106,6 +110,8 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       } catch (err) {
         console.error('[Character:delete] 清理叙事数据失败:', err.message)
       }
+      // 维护索引缓存
+      dbManager.unindexCharacter(id)
     }
 
     if (result.changes > 0) {
