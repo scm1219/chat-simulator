@@ -12,6 +12,11 @@
       <span class="hint">Enter 发送，Shift + Enter 换行</span>
       <div class="action-buttons">
         <button
+          class="btn-event"
+          @click="emit('toggle-event')"
+          title="事件"
+        >&#127916;</button>
+        <button
           class="btn btn-secondary"
           @click="handleClearMessages"
           :disabled="disabled"
@@ -42,7 +47,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['send', 'clear'])
+const emit = defineEmits(['send', 'clear', 'toggle-event'])
 
 const { confirm } = useDialog()
 const content = ref('')
@@ -83,6 +88,8 @@ async function handleClearMessages() {
   display: flex;
   flex-direction: column;
   gap: $spacing-md;
+  flex: 1;
+  min-width: 0;
 }
 
 .input-textarea {
@@ -102,6 +109,20 @@ async function handleClearMessages() {
 .action-buttons {
   display: flex;
   gap: $spacing-sm;
+}
+
+.btn-event {
+  background: none;
+  border: none;
+  font-size: $font-size-lg;
+  cursor: pointer;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $border-radius-sm;
+  transition: background 0.2s;
+
+  &:hover {
+    background: $bg-tertiary;
+  }
 }
 
 .hint {

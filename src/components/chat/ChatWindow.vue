@@ -159,16 +159,12 @@
 
       <!-- 输入框 -->
       <div class="chat-input">
-        <div class="input-row">
-          <MessageInput
-            @send="handleSendMessage"
-            @clear="handleClearMessages"
-            :disabled="messagesStore.sending"
-          />
-          <button class="btn-event" @click="showEventPanel = !showEventPanel" title="事件">
-            &#127916;
-          </button>
-        </div>
+        <MessageInput
+          @send="handleSendMessage"
+          @clear="handleClearMessages"
+          @toggle-event="showEventPanel = !showEventPanel"
+          :disabled="messagesStore.sending"
+        />
       </div>
     </div>
 
@@ -772,31 +768,6 @@ onUnmounted(() => {
   border-top: 1px solid $border-color;
   background: $bg-primary;
   padding: $spacing-lg;
-}
-
-.input-row {
-  display: flex;
-  align-items: flex-end;
-  gap: $spacing-sm;
-}
-
-.btn-event {
-  background: none;
-  border: 1px solid $border-color;
-  border-radius: $border-radius-md;
-  width: 36px;
-  height: 36px;
-  cursor: pointer;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s;
-
-  &:hover {
-    border-color: $wechat-green;
-  }
 }
 
 // 表格视图样式
