@@ -21,6 +21,41 @@ export function fetchCharacterMemories(memoryManager, characterName) {
 }
 
 /**
+ * 过滤和格式化历史消息
+ * 规则：过滤系统消息、空内容、角色指令、其他角色的定向指令
+ * @param {Array} history - 原始历史消息列表
+ * @param {object} character - 当前角色（用于定向指令过滤）
+ * @returns {Array} 过滤后的 { role, content } 消息列表
+ */
+export function filterHistoryMessages(history, character) {
+  return history
+    .filter(msg => {
+      if (msg.role === 'system') return false
+      if (!msg.content) return false
+
+      const content = msg.content.trim()
+
+      // 过滤掉【角色指令】消息（一次性指令，不应出现在历史中）
+      if (content.includes('【角色指令】')) return false
+
+      // 过滤掉给其他角色的定向用户指令
+      if (msg.role === 'user') {
+        const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
+        if (atMatch && atMatch[1] !== character.name) return false
+      }
+
+      return true
+    })
+    .map(msg => {
+      let content = msg.content
+      if (msg.character_name) {
+        content = `${msg.character_name}：${content}`
+      }
+      return { role: msg.role, content }
+    })
+}
+
+/**
  * 构建对话上下文消息
  * 按 8 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设 → 历史消息 → 强制指令
  * @param {object} character - 当前角色
@@ -84,42 +119,8 @@ export function buildContextMessages(character, history, userContent, background
     content: character.system_prompt
   })
 
-  // 6. 添加历史消息（格式化角色名称，并过滤定向指令和角色指令）
-  const roleMessages = history
-    .filter(msg => {
-      // 过滤掉系统消息
-      if (msg.role === 'system') return false
-
-      // 检查消息内容是否存在
-      if (!msg.content) return false
-
-      const content = msg.content.trim()
-
-      // 过滤掉【角色指令】消息（这些是一次性指令，不应该出现在历史中）
-      if (content.includes('【角色指令】')) {
-        return false
-      }
-
-      // 过滤掉给其他角色的定向用户指令
-      if (msg.role === 'user') {
-        const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
-        if (atMatch && atMatch[1] !== character.name) {
-          return false
-        }
-      }
-
-      return true
-    })
-    .map(msg => {
-      // 构建消息内容：有角色名称时添加前缀
-      let content = msg.content
-      if (msg.character_name) {
-        content = `${msg.character_name}：${content}`
-      }
-
-      return { role: msg.role, content }
-    })
-
+  // 6. 添加历史消息（过滤 + 格式化）
+  const roleMessages = filterHistoryMessages(history, character)
   messages.push(...roleMessages)
 
   // 7. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）

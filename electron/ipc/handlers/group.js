@@ -5,48 +5,50 @@ import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
 import { createHandler } from '../handler-wrapper.js'
 
+// 群组 INSERT 列名和默认值常量（新增字段只需修改此处）
+const GROUP_COLUMNS = [
+  'id', 'name', 'llm_provider', 'llm_model', 'llm_api_key', 'llm_base_url',
+  'max_history', 'response_mode', 'use_global_api_key', 'thinking_enabled',
+  'random_order', 'background', 'system_prompt'
+]
+const GROUP_INSERT_SQL = `
+  INSERT INTO groups (${GROUP_COLUMNS.join(', ')})
+  VALUES (${GROUP_COLUMNS.map(() => '?').join(', ')})
+`
+
+/**
+ * 将前端 camelCase 字段映射为数据库 snake_case 字段
+ * @param {object} data - 前端数据
+ * @param {string} [id] - 可选 ID（不传时从 data.id 取）
+ * @returns {Array} 按 GROUP_COLUMNS 顺序排列的值数组
+ */
+function mapGroupValues(data, id) {
+  const groupId = id || data.id
+  return [
+    groupId,
+    String(data.name || ''),
+    String(data.llmProvider || data.llm_provider || 'openai'),
+    String(data.llmModel || data.llm_model || 'gpt-3.5-turbo'),
+    (data.llmApiKey || data.llm_api_key) ? String(data.llmApiKey || data.llm_api_key) : null,
+    (data.llmBaseUrl || data.llm_base_url) ? String(data.llmBaseUrl || data.llm_base_url) : null,
+    parseInt(data.maxHistory || data.max_history) || 20,
+    String(data.responseMode || data.response_mode || 'sequential'),
+    data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : (data.use_global_api_key !== undefined ? data.use_global_api_key : 1),
+    data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : (data.thinking_enabled || 0),
+    data.randomOrder !== undefined ? (data.randomOrder ? 1 : 0) : (data.random_order || 0),
+    (data.background) ? String(data.background) : null,
+    (data.systemPrompt || data.system_prompt) ? String(data.systemPrompt || data.system_prompt) : null
+  ]
+}
+
 export function setupGroupHandlers(dbManager) {
   // 创建群组
   ipcMain.handle('group:create', createHandler(async (event, data) => {
-    // 转换数据类型，确保兼容 SQLite3
     const id = generateUUID()
-
-    // 确保所有值都是 SQLite3 支持的类型
-    const values = {
-      id: id,
-      name: String(data.name || ''),
-      llm_provider: String(data.llmProvider || 'openai'),
-      llm_model: String(data.llmModel || 'gpt-3.5-turbo'),
-      llm_api_key: data.llmApiKey ? String(data.llmApiKey) : null,
-      llm_base_url: data.llmBaseUrl ? String(data.llmBaseUrl) : null,
-      max_history: parseInt(data.maxHistory) || 20,
-      response_mode: String(data.responseMode || 'sequential'),
-      use_global_api_key: (data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : 1),
-      thinking_enabled: (data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : 0),
-      random_order: (data.randomOrder !== undefined ? (data.randomOrder ? 1 : 0) : 0),
-      background: data.background ? String(data.background) : null,
-      system_prompt: data.systemPrompt ? String(data.systemPrompt) : null
-    }
+    const values = mapGroupValues(data, id)
 
     const db = dbManager.getGroupDB(id)
-    db.prepare(`
-      INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, random_order, background, system_prompt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      values.id,
-      values.name,
-      values.llm_provider,
-      values.llm_model,
-      values.llm_api_key,
-      values.llm_base_url,
-      values.max_history,
-      values.response_mode,
-      values.use_global_api_key,
-      values.thinking_enabled,
-      values.random_order,
-      values.background,
-      values.system_prompt
-    )
+    db.prepare(GROUP_INSERT_SQL).run(...values)
 
     // 自动创建默认用户角色
     const userCharacterId = generateUUID()
@@ -221,24 +223,12 @@ export function setupGroupHandlers(dbManager) {
       ? sourceGroup.name
       : `${sourceGroup.name}(副本)`
 
-    newDb.prepare(`
-      INSERT INTO groups (id, name, llm_provider, llm_model, llm_api_key, llm_base_url, max_history, response_mode, use_global_api_key, thinking_enabled, random_order, background, system_prompt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      newId,
-      duplicateName,
-      sourceGroup.llm_provider,
-      sourceGroup.llm_model,
-      sourceGroup.llm_api_key,
-      sourceGroup.llm_base_url,
-      sourceGroup.max_history,
-      sourceGroup.response_mode,
-      sourceGroup.use_global_api_key,
-      sourceGroup.thinking_enabled,
-      sourceGroup.random_order,
-      sourceGroup.background,
-      sourceGroup.system_prompt
-    )
+    // 使用统一的列名常量，snake_case 直接传入 mapGroupValues
+    const groupValues = mapGroupValues({
+      ...sourceGroup,
+      name: duplicateName
+    }, newId)
+    newDb.prepare(GROUP_INSERT_SQL).run(...groupValues)
 
     // 复制所有角色（含完整字段），并建立旧ID到新ID的映射
     const characterIdMap = {} // 旧角色ID -> 新角色ID

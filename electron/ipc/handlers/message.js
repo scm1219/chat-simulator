@@ -2,6 +2,10 @@
  * 消息 IPC 处理器
  */
 import { ipcMain } from 'electron'
+import fs from 'fs'
+import path from 'path'
+import archiver from 'archiver'
+import { app, dialog, BrowserWindow } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
 import { createHandler } from '../handler-wrapper.js'
 
@@ -125,9 +129,6 @@ export function setupMessageHandlers(dbManager) {
 
   // 导出群组聊天记录为 ZIP（保留手动 try/catch，因含临时文件清理逻辑）
   ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
-    const fs = require('fs')
-    const path = require('path')
-    const { app, dialog, BrowserWindow } = require('electron')
     let jsonFilePath = null
     let zipFilePath = null
 
@@ -215,7 +216,6 @@ export function setupMessageHandlers(dbManager) {
       fs.writeFileSync(jsonFilePath, JSON.stringify(exportData, null, 2), 'utf-8')
 
       // 创建 ZIP 文件（先写到临时路径，完成后移动到目标路径）
-      const archiver = require('archiver')
       const tempZipPath = path.join(tempDir, `temp_${Date.now()}.zip`)
       zipFilePath = tempZipPath
 

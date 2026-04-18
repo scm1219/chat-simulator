@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useGroupsStore } from './groups.js'
-import { useCharactersStore } from './characters.js'
 
 export const useMessagesStore = defineStore('messages', () => {
   // 状态
@@ -15,6 +14,7 @@ export const useMessagesStore = defineStore('messages', () => {
   let streamChunkListener = null
   let streamEndListener = null
   let streamErrorListener = null
+  let _cleanupStreamListeners = null // 流式监听器清理函数
 
   // 方法
   async function loadMessages(groupId) {
@@ -39,7 +39,6 @@ export const useMessagesStore = defineStore('messages', () => {
 
   async function sendMessage(content, options = {}) {
     const groupsStore = useGroupsStore()
-    const charactersStore = useCharactersStore()
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
@@ -70,7 +69,6 @@ export const useMessagesStore = defineStore('messages', () => {
 
   async function sendMessageToCharacter(characterId, instruction) {
     const groupsStore = useGroupsStore()
-    const charactersStore = useCharactersStore()
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
@@ -123,6 +121,12 @@ export const useMessagesStore = defineStore('messages', () => {
       return
     }
 
+    // 清理上一次注册的监听器，防止重复注册
+    if (_cleanupStreamListeners) {
+      _cleanupStreamListeners()
+      _cleanupStreamListeners = null
+    }
+
     // 监听用户消息保存事件（添加用户消息到前端）
     const userMessageSavedListener = window.electronAPI.message.onUserMessageSaved((data) => {
       // 检查是否已存在相同的消息（避免重复）
@@ -148,7 +152,6 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式内容片段
     streamChunkListener = window.electronAPI.message.onStreamChunk((data) => {
-      // console.log('[Messages] 收到流式内容片段', data.tempId, data.type, data.content?.length)
       // 更新临时消息的流式内容
       const message = messages.value.find(msg => msg.id === data.tempId || msg.tempId === data.tempId)
       if (message) {
@@ -192,14 +195,16 @@ export const useMessagesStore = defineStore('messages', () => {
       messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
     })
 
-    // 返回清理函数
-    return () => {
+    // 保存清理函数，供下次调用或组件卸载时使用
+    _cleanupStreamListeners = () => {
       userMessageSavedListener?.()
       streamStartListener?.()
       streamChunkListener?.()
       streamEndListener?.()
       streamErrorListener?.()
     }
+
+    return _cleanupStreamListeners
   }
 
   async function clearMessages(groupId) {
