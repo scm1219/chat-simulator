@@ -18,6 +18,7 @@ import {
   updateSystemPromptTemplate,
   deleteSystemPromptTemplate
 } from '../../config/system-prompts.js'
+import { createHandler } from '../handler-wrapper.js'
 
 /**
  * 注册 get/save/reset 三件套配置 Handler
@@ -28,198 +29,130 @@ import {
  * @param {() => object} fns.getDefault - 获取默认配置
  */
 function registerConfigCRUD(prefix, { get, save, getDefault }) {
-  ipcMain.handle(`${prefix}:get`, async () => {
-    try {
-      const config = get()
-      return { success: true, data: config }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle(`${prefix}:get`, createHandler(async () => {
+    const config = get()
+    return { success: true, data: config }
+  }))
 
-  ipcMain.handle(`${prefix}:save`, async (event, config) => {
-    try {
-      const result = save(config)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle(`${prefix}:save`, createHandler(async (event, config) => {
+    const result = save(config)
+    return { success: result }
+  }))
 
-  ipcMain.handle(`${prefix}:reset`, async () => {
-    try {
-      const defaultConfig = getDefault()
-      const result = save(defaultConfig)
-      if (result) {
-        return { success: true, data: defaultConfig }
-      }
-      return { success: false, error: '重置失败' }
-    } catch (error) {
-      return { success: false, error: error.message }
+  ipcMain.handle(`${prefix}:reset`, createHandler(async () => {
+    const defaultConfig = getDefault()
+    const result = save(defaultConfig)
+    if (result) {
+      return { success: true, data: defaultConfig }
     }
-  })
+    return { success: false, error: '重置失败' }
+  }))
 }
 
 export function setupConfigHandlers(dbManager) {
   // 获取全局 LLM 配置
-  ipcMain.handle('config:getLLMConfig', async () => {
-    try {
-      const config = getGlobalLLMConfig()
-      return { success: true, data: config }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('config:getLLMConfig', createHandler(async () => {
+    const config = getGlobalLLMConfig()
+    return { success: true, data: config }
+  }))
 
   // 保存全局 LLM 配置
-  ipcMain.handle('config:saveLLMConfig', async (event, config) => {
-    try {
-      const result = saveGlobalLLMConfig(config)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('config:saveLLMConfig', createHandler(async (event, config) => {
+    const result = saveGlobalLLMConfig(config)
+    return { success: result }
+  }))
 
   // 获取代理配置
-  ipcMain.handle('config:getProxyConfig', async () => {
-    try {
-      const config = getProxyConfig()
-      return { success: true, data: config }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('config:getProxyConfig', createHandler(async () => {
+    const config = getProxyConfig()
+    return { success: true, data: config }
+  }))
 
   // 保存代理配置
-  ipcMain.handle('config:saveProxyConfig', async (event, config) => {
-    try {
-      const result = saveProxyConfig(config)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('config:saveProxyConfig', createHandler(async (event, config) => {
+    const result = saveProxyConfig(config)
+    return { success: result }
+  }))
 
   // ============ LLM 配置管理 ============
 
   // 获取所有 LLM 配置
-  ipcMain.handle('llmProfile:getAll', async () => {
-    try {
-      const profiles = getLLMProfiles()
-      return { success: true, data: profiles }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('llmProfile:getAll', createHandler(async () => {
+    const profiles = getLLMProfiles()
+    return { success: true, data: profiles }
+  }))
 
   // 添加 LLM 配置
-  ipcMain.handle('llmProfile:add', async (event, profile) => {
-    try {
-      const result = addLLMProfile(profile)
-      return result
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('llmProfile:add', createHandler(async (event, profile) => {
+    const result = addLLMProfile(profile)
+    return result
+  }))
 
   // 更新 LLM 配置
-  ipcMain.handle('llmProfile:update', async (event, id, data) => {
-    try {
-      // 获取旧配置，用于匹配需要同步的群组
-      const oldProfile = getLLMProfiles().find(p => p.id === id) || null
-      const result = updateLLMProfile(id, data)
+  ipcMain.handle('llmProfile:update', createHandler(async (event, id, data) => {
+    // 获取旧配置，用于匹配需要同步的群组
+    const oldProfile = getLLMProfiles().find(p => p.id === id) || null
+    const result = updateLLMProfile(id, data)
 
-      // 同步更新所有使用旧配置的群组
-      if (result.success && oldProfile && dbManager) {
-        const syncedGroups = syncGroupsProfile(dbManager, oldProfile, data)
-        console.log(`[Config] Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
-        result.syncedGroups = syncedGroups
-      }
-
-      return result
-    } catch (error) {
-      return { success: false, error: error.message }
+    // 同步更新所有使用旧配置的群组
+    if (result.success && oldProfile && dbManager) {
+      const syncedGroups = syncGroupsProfile(dbManager, oldProfile, data)
+      console.log(`[Config] Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
+      result.syncedGroups = syncedGroups
     }
-  })
+
+    return result
+  }, 'Config:llmProfile:update'))
 
   // 删除 LLM 配置
-  ipcMain.handle('llmProfile:delete', async (event, id) => {
-    try {
-      const result = deleteLLMProfile(id)
-      return result
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('llmProfile:delete', createHandler(async (event, id) => {
+    const result = deleteLLMProfile(id)
+    return result
+  }))
 
   // ============ 系统提示词模板 ============
 
   // 获取所有系统提示词模板
-  ipcMain.handle('systemPrompt:getAll', async () => {
-    try {
-      const templates = getSystemPromptTemplates()
-      return { success: true, data: templates }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('systemPrompt:getAll', createHandler(async () => {
+    const templates = getSystemPromptTemplates()
+    return { success: true, data: templates }
+  }))
 
   // 保存系统提示词模板
-  ipcMain.handle('systemPrompt:save', async (event, templates) => {
-    try {
-      const result = saveSystemPromptTemplates(templates)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('systemPrompt:save', createHandler(async (event, templates) => {
+    const result = saveSystemPromptTemplates(templates)
+    return { success: result }
+  }))
 
   // 重置为默认模板
-  ipcMain.handle('systemPrompt:reset', async () => {
-    try {
-      const templates = resetSystemPromptTemplates()
-      return { success: true, data: templates }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('systemPrompt:reset', createHandler(async () => {
+    const templates = resetSystemPromptTemplates()
+    return { success: true, data: templates }
+  }))
 
   // 添加模板
-  ipcMain.handle('systemPrompt:add', async (event, template) => {
-    try {
-      const result = addSystemPromptTemplate(template)
-      if (result) {
-        return { success: true, data: result }
-      }
-      return { success: false, error: '添加模板失败' }
-    } catch (error) {
-      return { success: false, error: error.message }
+  ipcMain.handle('systemPrompt:add', createHandler(async (event, template) => {
+    const result = addSystemPromptTemplate(template)
+    if (result) {
+      return { success: true, data: result }
     }
-  })
+    return { success: false, error: '添加模板失败' }
+  }))
 
   // 更新模板
-  ipcMain.handle('systemPrompt:update', async (event, id, data) => {
-    try {
-      const result = updateSystemPromptTemplate(id, data)
-      if (result) {
-        return { success: true, data: result }
-      }
-      return { success: false, error: '未找到模板' }
-    } catch (error) {
-      return { success: false, error: error.message }
+  ipcMain.handle('systemPrompt:update', createHandler(async (event, id, data) => {
+    const result = updateSystemPromptTemplate(id, data)
+    if (result) {
+      return { success: true, data: result }
     }
-  })
+    return { success: false, error: '未找到模板' }
+  }))
 
   // 删除模板
-  ipcMain.handle('systemPrompt:delete', async (event, id) => {
-    try {
-      const result = deleteSystemPromptTemplate(id)
-      return { success: result }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('systemPrompt:delete', createHandler(async (event, id) => {
+    const result = deleteSystemPromptTemplate(id)
+    return { success: result }
+  }))
 
   // ============ 抽卡配置 & 快速建群配置（使用工厂函数） ============
 

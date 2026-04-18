@@ -3,6 +3,7 @@
  * 支持跨群组搜索消息内容和角色名称
  */
 import { ipcMain } from 'electron'
+import { createHandler } from '../handler-wrapper.js'
 
 /**
  * 截取关键词上下文文本
@@ -90,48 +91,44 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
 
 export function setupSearchHandlers(dbManager) {
   // 全局搜索
-  ipcMain.handle('search:global', async (event, keyword) => {
-    try {
-      if (!keyword || !keyword.trim()) {
-        return { success: true, data: [] }
-      }
-
-      const trimmedKeyword = keyword.trim()
-      const groupIds = dbManager.getGroupDBFiles()
-      const allResults = []
-      const MAX_TOTAL = 50
-
-      for (const groupId of groupIds) {
-        if (allResults.length >= MAX_TOTAL) break
-
-        const db = dbManager.getGroupDB(groupId)
-        // 获取群组名称
-        let groupName = groupId
-        try {
-          const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId)
-          if (group) groupName = group.name
-        } catch (_) {
-          // 忽略，使用 ID 作为名称
-        }
-
-        const remaining = MAX_TOTAL - allResults.length
-        const results = searchGroupDB(db, groupId, groupName, trimmedKeyword, Math.min(10, remaining))
-        allResults.push(...results)
-      }
-
-      // 消息结果按时间倒序，角色结果排在最后
-      allResults.sort((a, b) => {
-        if (a.type === 'character' && b.type !== 'character') return 1
-        if (a.type !== 'character' && b.type === 'character') return -1
-        if (a.timestamp && b.timestamp) {
-          return new Date(b.timestamp) - new Date(a.timestamp)
-        }
-        return 0
-      })
-
-      return { success: true, data: allResults.slice(0, MAX_TOTAL) }
-    } catch (error) {
-      return { success: false, error: error.message }
+  ipcMain.handle('search:global', createHandler(async (event, keyword) => {
+    if (!keyword || !keyword.trim()) {
+      return { success: true, data: [] }
     }
-  })
+
+    const trimmedKeyword = keyword.trim()
+    const groupIds = dbManager.getGroupDBFiles()
+    const allResults = []
+    const MAX_TOTAL = 50
+
+    for (const groupId of groupIds) {
+      if (allResults.length >= MAX_TOTAL) break
+
+      const db = dbManager.getGroupDB(groupId)
+      // 获取群组名称
+      let groupName = groupId
+      try {
+        const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId)
+        if (group) groupName = group.name
+      } catch (_) {
+        // 忽略，使用 ID 作为名称
+      }
+
+      const remaining = MAX_TOTAL - allResults.length
+      const results = searchGroupDB(db, groupId, groupName, trimmedKeyword, Math.min(10, remaining))
+      allResults.push(...results)
+    }
+
+    // 消息结果按时间倒序，角色结果排在最后
+    allResults.sort((a, b) => {
+      if (a.type === 'character' && b.type !== 'character') return 1
+      if (a.type !== 'character' && b.type === 'character') return -1
+      if (a.timestamp && b.timestamp) {
+        return new Date(b.timestamp) - new Date(a.timestamp)
+      }
+      return 0
+    })
+
+    return { success: true, data: allResults.slice(0, MAX_TOTAL) }
+  }, 'Search:global'))
 }

@@ -3,150 +3,127 @@
  */
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
+import { createHandler } from '../handler-wrapper.js'
 
 export function setupMessageHandlers(dbManager) {
   // 获取群组的消息列表（按时间正序）
-  ipcMain.handle('message:getByGroupId', async (event, groupId) => {
-    try {
-      const db = dbManager.getGroupDB(groupId)
-      const messages = db.prepare(`
-        SELECT
-          m.*,
-          c.name as characterName,
-          c.is_user as characterIsUser
-        FROM messages m
-        LEFT JOIN characters c ON m.character_id = c.id
-        WHERE m.group_id = ?
-        ORDER BY m.timestamp ASC
-      `).all(groupId)
+  ipcMain.handle('message:getByGroupId', createHandler(async (event, groupId) => {
+    const db = dbManager.getGroupDB(groupId)
+    const messages = db.prepare(`
+      SELECT
+        m.*,
+        c.name as characterName,
+        c.is_user as characterIsUser
+      FROM messages m
+      LEFT JOIN characters c ON m.character_id = c.id
+      WHERE m.group_id = ?
+      ORDER BY m.timestamp ASC
+    `).all(groupId)
 
-      return { success: true, data: messages }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+    return { success: true, data: messages }
+  }))
 
   // 创建消息
-  ipcMain.handle('message:create', async (event, data) => {
-    try {
-      const { groupId, characterId, role, content } = data
-      const id = generateUUID()
+  ipcMain.handle('message:create', createHandler(async (event, data) => {
+    const { groupId, characterId, role, content } = data
+    const id = generateUUID()
 
-      const db = dbManager.getGroupDB(groupId)
-      db.prepare(`
-        INSERT INTO messages (id, group_id, character_id, role, content)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(id, groupId, characterId || null, role, content)
+    const db = dbManager.getGroupDB(groupId)
+    db.prepare(`
+      INSERT INTO messages (id, group_id, character_id, role, content)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, groupId, characterId || null, role, content)
 
-      const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(id)
-      return { success: true, data: message }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+    const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(id)
+    return { success: true, data: message }
+  }, 'Message:create'))
 
   // 清空群组的所有消息
-  ipcMain.handle('message:clearByGroupId', async (event, groupId) => {
-    try {
-      const db = dbManager.getGroupDB(groupId)
-      db.prepare('DELETE FROM messages WHERE group_id = ?').run(groupId)
+  ipcMain.handle('message:clearByGroupId', createHandler(async (event, groupId) => {
+    const db = dbManager.getGroupDB(groupId)
+    db.prepare('DELETE FROM messages WHERE group_id = ?').run(groupId)
 
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+    return { success: true }
+  }, 'Message:clearByGroupId'))
 
   // 更新消息
-  ipcMain.handle('message:update', async (event, messageId, content) => {
-    try {
-      // 首先获取消息以确定它属于哪个群组
-      const groupIds = dbManager.getGroupDBFiles()
-      let db = null
-      let message = null
+  ipcMain.handle('message:update', createHandler(async (event, messageId, content) => {
+    // 首先获取消息以确定它属于哪个群组
+    const groupIds = dbManager.getGroupDBFiles()
+    let db = null
+    let message = null
 
-      for (const groupId of groupIds) {
-        db = dbManager.getGroupDB(groupId)
-        message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
-        if (message) break
-      }
-
-      if (!message) {
-        return { success: false, error: '消息不存在' }
-      }
-
-      // 更新消息内容
-      db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, messageId)
-
-      const updatedMessage = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
-      return { success: true, data: updatedMessage }
-    } catch (error) {
-      return { success: false, error: error.message }
+    for (const groupId of groupIds) {
+      db = dbManager.getGroupDB(groupId)
+      message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+      if (message) break
     }
-  })
+
+    if (!message) {
+      return { success: false, error: '消息不存在' }
+    }
+
+    // 更新消息内容
+    db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, messageId)
+
+    const updatedMessage = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+    return { success: true, data: updatedMessage }
+  }, 'Message:update'))
 
   // 删除消息
-  ipcMain.handle('message:delete', async (event, messageId) => {
-    try {
-      // 首先获取消息以确定它属于哪个群组
-      const groupIds = dbManager.getGroupDBFiles()
-      let db = null
-      let message = null
+  ipcMain.handle('message:delete', createHandler(async (event, messageId) => {
+    // 首先获取消息以确定它属于哪个群组
+    const groupIds = dbManager.getGroupDBFiles()
+    let db = null
+    let message = null
 
-      for (const groupId of groupIds) {
-        db = dbManager.getGroupDB(groupId)
-        message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
-        if (message) break
-      }
-
-      if (!message) {
-        return { success: false, error: '消息不存在' }
-      }
-
-      // 删除消息
-      db.prepare('DELETE FROM messages WHERE id = ?').run(messageId)
-
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: error.message }
+    for (const groupId of groupIds) {
+      db = dbManager.getGroupDB(groupId)
+      message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+      if (message) break
     }
-  })
+
+    if (!message) {
+      return { success: false, error: '消息不存在' }
+    }
+
+    // 删除消息
+    db.prepare('DELETE FROM messages WHERE id = ?').run(messageId)
+
+    return { success: true }
+  }, 'Message:delete'))
 
   // 删除指定消息及其之后的所有消息
-  ipcMain.handle('message:deleteFrom', async (event, messageId) => {
-    try {
-      // 首先获取消息以确定它属于哪个群组
-      const groupIds = dbManager.getGroupDBFiles()
-      let db = null
-      let message = null
-      let targetGroupId = null
+  ipcMain.handle('message:deleteFrom', createHandler(async (event, messageId) => {
+    // 首先获取消息以确定它属于哪个群组
+    const groupIds = dbManager.getGroupDBFiles()
+    let db = null
+    let message = null
+    let targetGroupId = null
 
-      for (const groupId of groupIds) {
-        db = dbManager.getGroupDB(groupId)
-        message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
-        if (message) {
-          targetGroupId = groupId
-          break
-        }
+    for (const groupId of groupIds) {
+      db = dbManager.getGroupDB(groupId)
+      message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+      if (message) {
+        targetGroupId = groupId
+        break
       }
-
-      if (!message) {
-        return { success: false, error: '消息不存在' }
-      }
-
-      // 获取消息的时间戳
-      const timestamp = message.timestamp
-
-      // 删除该消息及之后的所有消息
-      db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(targetGroupId, timestamp)
-
-      return { success: true, data: { content: message.content, groupId: targetGroupId } }
-    } catch (error) {
-      return { success: false, error: error.message }
     }
-  })
 
-  // 导出群组聊天记录为 ZIP
+    if (!message) {
+      return { success: false, error: '消息不存在' }
+    }
+
+    // 获取消息的时间戳
+    const timestamp = message.timestamp
+
+    // 删除该消息及之后的所有消息
+    db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(targetGroupId, timestamp)
+
+    return { success: true, data: { content: message.content, groupId: targetGroupId } }
+  }, 'Message:deleteFrom'))
+
+  // 导出群组聊天记录为 ZIP（保留手动 try/catch，因含临时文件清理逻辑）
   ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
     const fs = require('fs')
     const path = require('path')

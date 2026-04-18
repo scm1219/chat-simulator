@@ -10,6 +10,7 @@ import { getGlobalLLMConfig, getGachaConfig, getQuickGroupConfig } from '../../c
 import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { extractJSON } from '../../utils/json-extractor.js'
 import { generateUUID } from '../../utils/uuid.js'
+import { createHandler } from '../handler-wrapper.js'
 
 /**
  * 解析 Profile 代理配置为客户端可用的 proxy + bypassRules
@@ -158,30 +159,22 @@ function createClientForCharacter(character, group, llmProfiles, apiKey) {
 
 export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngine = null) {
   // 获取所有 LLM 供应商
-  ipcMain.handle('llm:getProviders', async () => {
-    try {
-      return { success: true, data: getAllProviders() }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  ipcMain.handle('llm:getProviders', createHandler(async () => {
+    return { success: true, data: getAllProviders() }
+  }))
 
   // 测试 LLM 连接
-  ipcMain.handle('llm:testConnection', async (event, config) => {
-    try {
-      const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(config, config.baseURL)
-      const client = createLLMClient({
-        ...config,
-        proxy: resolvedProxy,
-        bypassRules
-      })
+  ipcMain.handle('llm:testConnection', createHandler(async (event, config) => {
+    const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(config, config.baseURL)
+    const client = createLLMClient({
+      ...config,
+      proxy: resolvedProxy,
+      bypassRules
+    })
 
-      const result = await client.testConnection()
-      return result
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+    const result = await client.testConnection()
+    return result
+  }, 'LLM:testConnection'))
 
   // 生成 AI 回复（多角色对话）
   ipcMain.handle('llm:generate', async (event, groupId, userContent, options = {}) => {
@@ -484,81 +477,71 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
   })
 
   // 生成角色信息（角色抽卡）
-  ipcMain.handle('llm:generateCharacter', async (event, hint = '') => {
-    try {
-      const gachaConfig = getGachaConfig()
-      const systemPrompt = gachaConfig.systemPrompt
-      const userPrompt = hint
-        ? gachaConfig.userPromptTemplate.replace('{hint}', hint)
-        : gachaConfig.defaultUserPrompt
+  ipcMain.handle('llm:generateCharacter', createHandler(async (event, hint = '') => {
+    const gachaConfig = getGachaConfig()
+    const systemPrompt = gachaConfig.systemPrompt
+    const userPrompt = hint
+      ? gachaConfig.userPromptTemplate.replace('{hint}', hint)
+      : gachaConfig.defaultUserPrompt
 
-      const jsonResult = await callLLMForJSON({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        maxTokens: 1000
-      })
+    const jsonResult = await callLLMForJSON({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      maxTokens: 1000
+    })
 
-      if (!jsonResult.success) {
-        return { success: false, error: jsonResult.error }
-      }
-
-      const characterData = jsonResult.data
-
-      // 验证数据
-      if (!characterData.name || !characterData.systemPrompt) {
-        return { success: false, error: '角色信息不完整，请重试' }
-      }
-
-      return { success: true, data: characterData }
-    } catch (error) {
-      console.error('[LLM] 生成角色信息失败', error)
-      return { success: false, error: error.message }
+    if (!jsonResult.success) {
+      return { success: false, error: jsonResult.error }
     }
-  })
+
+    const characterData = jsonResult.data
+
+    // 验证数据
+    if (!characterData.name || !characterData.systemPrompt) {
+      return { success: false, error: '角色信息不完整，请重试' }
+    }
+
+    return { success: true, data: characterData }
+  }, 'LLM:generateCharacter'))
 
   // 快速建群：根据描述生成群组信息
-  ipcMain.handle('llm:generateGroup', async (event, description = '', profileId = '') => {
-    try {
-      const quickGroupConfig = getQuickGroupConfig()
-      const systemPrompt = quickGroupConfig.systemPrompt
-      const userPrompt = description
-        ? quickGroupConfig.userPromptTemplate.replace('{description}', description)
-        : quickGroupConfig.defaultUserPrompt
+  ipcMain.handle('llm:generateGroup', createHandler(async (event, description = '', profileId = '') => {
+    const quickGroupConfig = getQuickGroupConfig()
+    const systemPrompt = quickGroupConfig.systemPrompt
+    const userPrompt = description
+      ? quickGroupConfig.userPromptTemplate.replace('{description}', description)
+      : quickGroupConfig.defaultUserPrompt
 
-      const jsonResult = await callLLMForJSON({
-        profileId: profileId || undefined,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        maxTokens: 3000
-      })
+    const jsonResult = await callLLMForJSON({
+      profileId: profileId || undefined,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      maxTokens: 3000
+    })
 
-      if (!jsonResult.success) {
-        return { success: false, error: jsonResult.error }
-      }
-
-      const groupData = jsonResult.data
-
-      // 验证数据
-      if (!groupData.name || !Array.isArray(groupData.characters) || groupData.characters.length === 0) {
-        return { success: false, error: '群组信息不完整（缺少群名称或角色），请重试' }
-      }
-
-      for (const char of groupData.characters) {
-        if (!char.name || !char.systemPrompt) {
-          return { success: false, error: `角色"${char.name || '未命名'}"信息不完整，请重试` }
-        }
-      }
-
-      return { success: true, data: groupData }
-    } catch (error) {
-      console.error('[LLM] 生成群组信息失败', error)
-      return { success: false, error: error.message }
+    if (!jsonResult.success) {
+      return { success: false, error: jsonResult.error }
     }
-  })
+
+    const groupData = jsonResult.data
+
+    // 验证数据
+    if (!groupData.name || !Array.isArray(groupData.characters) || groupData.characters.length === 0) {
+      return { success: false, error: '群组信息不完整（缺少群名称或角色），请重试' }
+    }
+
+    for (const char of groupData.characters) {
+      if (!char.name || !char.systemPrompt) {
+        return { success: false, error: `角色"${char.name || '未命名'}"信息不完整，请重试` }
+      }
+    }
+
+    return { success: true, data: groupData }
+  }, 'LLM:generateGroup'))
 }
 
 /**
