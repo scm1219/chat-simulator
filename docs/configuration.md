@@ -2,18 +2,19 @@
 
 ## 支持的 LLM 供应商
 
-| 供应商 | 标识符 | 推荐模型 | 说明 |
+| 供应商 | 标识符 | 可用模型 | 说明 |
 |--------|--------|----------|------|
-| **OpenAI** | `openai` | gpt-5.4, gpt-5.4-mini, o3, o4-mini | GPT 系列大模型 |
-| **DeepSeek** | `deepseek` | deepseek-chat, deepseek-reasoner | 国产高性能 LLM，支持推理模式 |
-| **通义千问** | `qwen` | qwen3, qwen3.5, qwen-max | 阿里云大模型 |
+| **OpenAI** | `openai` | gpt-5.4, gpt-5.4-pro, gpt-5.4-mini, gpt-5.4-nano, gpt-5, gpt-5-pro, gpt-5-mini, gpt-5-nano | GPT 系列大模型 |
+| **DeepSeek** | `deepseek` | deepseek-chat, deepseek-coder | 国产高性能 LLM |
+| **通义千问** | `qwen` | qwen-plus, qwen3-max, qwen3.5-flash, qwen3.5-plus | 阿里云大模型 |
 | **Moonshot** | `moonshot` | moonshot-v1-8k, moonshot-v1-32k | Kimi 提供的 LLM |
-| **智谱 AI** | `zhipu` | glm-5, glm-5.1, glm-4-flash | 智谱 AI GLM 系列大模型 |
-| **智谱 AI Coding** | `zhipu-coding` | glm-5.1 | 智谱 AI Coding 专用端点 |
-| **MiniMax** | `minimax` | M2.7-Pro, M2.7-Ultra | MiniMax 大模型 |
-| **ModelScope** | `modelscope` | 自定义 | 魔搭社区模型服务 |
-| **Ollama** | `ollama` | llama3, qwen2, mistral | 本地部署，支持原生 API 和 OpenAI 兼容模式 |
-| **自定义** | `custom` | 自定义 | 支持任何 OpenAI 兼容的 API |
+| **智谱 AI** | `zhipu` | glm-4.5-air, glm-4.7-flash, glm-4.7, glm-5, glm-5-turbo, glm-5.1 | 智谱 AI GLM 系列大模型 |
+| **智谱 AI Coding** | `zhipu-coding` | glm-4.5-air, glm-4.7-flash, glm-4.7, glm-5, glm-5-turbo, glm-5.1 | 智谱 AI Coding 专用端点 |
+| **百川智能** | `baichuan` | Baichuan2-Turbo, Baichuan2-53B | 百川智能大模型 |
+| **MiniMax** | `minimax` | MiniMax-M2.7, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-highspeed, MiniMax-M2.1, MiniMax-M2.1-highspeed, MiniMax-M2 | MiniMax 大模型 |
+| **ModelScope** | `modelscope` | Qwen/Qwen3.5-27B, Qwen/Qwen3.5-35B-A3B, Qwen/Qwen3.5-122B-A10B | 魔搭社区模型服务 |
+| **Ollama** | `ollama` | 动态获取 | 本地部署，支持原生 API 和 OpenAI 兼容模式 |
+| **自定义** | `custom` | 用户输入 | 支持任何 OpenAI 兼容的 API |
 
 ## 回复模式
 

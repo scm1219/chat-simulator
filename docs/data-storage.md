@@ -82,46 +82,45 @@ C:\Users\{用户名}\AppData\Roaming\chat-simulator\
 | prompt_tokens | INTEGER | 输入 token 数 |
 | completion_tokens | INTEGER | 输出 token 数 |
 | model | TEXT | 实际使用的 LLM 模型名称（可选） |
-| is_aftermath | INTEGER | 是否为余波消息 |
-| message_type | TEXT | 消息类型（如 aftermath） |
+| is_aftermath | INTEGER | 是否为余波消息（0/1） |
+| message_type | TEXT | 消息类型（normal/event/aftermath） |
+| event_impact | TEXT | 事件影响情绪类型（可选） |
 | timestamp | DATETIME | 时间戳 |
 
 **character_emotions（角色情绪表）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | TEXT | 记录 ID（主键） |
-| group_id | TEXT | 群组 ID |
-| character_id | TEXT | 角色 ID |
-| emotion | TEXT | 情绪类型 |
-| intensity | REAL | 情绪强度（0-1） |
-| reason | TEXT | 情绪原因 |
-| updated_at | DATETIME | 更新时间 |
+| character_id | TEXT | 角色 ID（主键） |
+| emotion | TEXT | 当前情绪（默认 '平静'） |
+| intensity | REAL | 情绪强度（0.0~1.0） |
+| decay_rate | REAL | 衰减速率（默认 0.1） |
+| source | TEXT | 来源（keyword/llm/manual/event） |
+| updated_at | TEXT | 更新时间 |
 
 **character_relationships（角色关系表）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | TEXT | 记录 ID（主键） |
-| group_id | TEXT | 群组 ID |
-| character_id | TEXT | 角色 ID |
-| target_character_id | TEXT | 目标角色 ID |
-| relationship_type | TEXT | 关系类型 |
-| affinity | INTEGER | 好感度（-100~100） |
-| updated_at | DATETIME | 更新时间 |
+| from_id | TEXT | 源角色 ID（联合主键） |
+| to_id | TEXT | 目标角色 ID（联合主键） |
+| type | TEXT | 关系类型（friend/lover/rival/mentor/colleague/family/stranger） |
+| favorability | INTEGER | 好感度（-100~100，默认 0） |
+| description | TEXT | 关系描述（可选） |
+| updated_at | TEXT | 更新时间 |
 
 **narrative_events（叙事事件表）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | TEXT | 事件 ID（主键） |
-| group_id | TEXT | 群组 ID |
-| event_type | TEXT | 事件类型 |
-| description | TEXT | 事件描述 |
-| scene_type | TEXT | 场景类型 |
-| triggered | INTEGER | 是否已触发 |
-| triggered_at | DATETIME | 触发时间 |
-| created_at | DATETIME | 创建时间 |
+| group_id | TEXT | 所属群组 ID（外键） |
+| event_key | TEXT | 事件标识键 |
+| content | TEXT | 事件内容描述 |
+| impact | TEXT | 事件影响（情绪类型） |
+| event_type | TEXT | 事件类型（默认 'user_triggered'） |
+| triggered_by | TEXT | 触发来源（可选） |
+| created_at | TEXT | 创建时间 |
 
 ### 2. 全局角色库数据库（`data/global/character-library.sqlite`）
 

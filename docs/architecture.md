@@ -34,6 +34,7 @@ chat-simulator/
 │   │   ├── llm-profiles.js # LLM 配置管理
 │   │   └── system-prompts.js # 系统提示词模板
 │   ├── narrative/          # 叙事引擎
+│   │   ├── constants.js    # 共享常量（情绪词典、关系类型、好感度等级等）
 │   │   ├── engine.js       # 叙事引擎主控
 │   │   ├── emotion-manager.js    # 情绪状态机
 │   │   ├── relationship-manager.js # 关系图谱
