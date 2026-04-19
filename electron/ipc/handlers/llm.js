@@ -195,15 +195,16 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       }
     } else {
       // 顺序模式：依次调用每个角色
-      // 随机发言模式：打乱角色顺序
+      // 随机发言模式：打乱角色顺序（操作副本，不修改原数组）
+      const orderedCharacters = randomOrder ? [...characters] : characters
       if (randomOrder) {
-        for (let i = characters.length - 1; i > 0; i--) {
+        for (let i = orderedCharacters.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [characters[i], characters[j]] = [characters[j], characters[i]]
+          [orderedCharacters[i], orderedCharacters[j]] = [orderedCharacters[j], orderedCharacters[i]]
         }
       }
 
-      for (const character of characters) {
+      for (const character of orderedCharacters) {
         const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
         const narrativeContext = (narrativeEngine && group.narrative_enabled === 1)
           ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)

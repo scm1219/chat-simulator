@@ -57,7 +57,7 @@ export function filterHistoryMessages(history, character) {
 
 /**
  * 构建对话上下文消息
- * 按 8 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设 → 历史消息 → 强制指令
+ * 按 9 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设 → 历史消息 → 强制指令 → 用户消息
  * @param {object} character - 当前角色
  * @param {Array} history - 历史消息列表
  * @param {string} userContent - 用户消息内容
@@ -90,7 +90,9 @@ export function buildContextMessages(character, history, userContent, background
   // 3. 添加群成员介绍
   if (allCharacters.length > 0) {
     const membersIntro = allCharacters.map(char => {
-      return `- ${char.name}: ${char.system_prompt.split('\n')[0]}`
+      const firstLine = char.system_prompt.split('\n').find(l => l.trim()) || char.name
+      const summary = firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine
+      return `- ${char.name}: ${summary}`
     }).join('\n')
 
     messages.push({
@@ -99,12 +101,12 @@ export function buildContextMessages(character, history, userContent, background
     })
   }
 
-  // 3.5 注入叙事上下文（情绪、关系、事件）
+  // 4. 注入叙事上下文（情绪、关系、事件）
   if (narrativeContext.length > 0) {
     messages.push(...narrativeContext)
   }
 
-  // 4.5 注入角色全局记忆（如果有）
+  // 5. 注入角色全局记忆（如果有）
   if (memories.length > 0) {
     const memoryLines = memories.map(m => `- ${m.content}`).join('\n')
     messages.push({
@@ -113,23 +115,23 @@ export function buildContextMessages(character, history, userContent, background
     })
   }
 
-  // 5. 添加角色系统提示词（人设）
+  // 6. 添加角色系统提示词（人设）
   messages.push({
     role: 'system',
     content: character.system_prompt
   })
 
-  // 6. 添加历史消息（过滤 + 格式化）
+  // 7. 添加历史消息（过滤 + 格式化）
   const roleMessages = filterHistoryMessages(history, character)
   messages.push(...roleMessages)
 
-  // 7. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
+  // 8. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
   messages.push({
     role: 'system',
     content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。注意用户会提及其它角色，你只要扮演"${character.name}"这个角色回答就好了。`
   })
 
-  // 8. 添加当前用户消息
+  // 9. 添加当前用户消息
   const lastMessage = roleMessages[roleMessages.length - 1]
   if (!lastMessage || lastMessage.role !== 'user') {
     // 只有最后一条不是用户消息时，才添加

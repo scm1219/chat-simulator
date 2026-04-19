@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import path from 'path'
 
 // 保持对窗口对象的全局引用
@@ -49,10 +49,6 @@ function createWindow() {
   // 窗口准备好后显示
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
-  })
-
-  mainWindow.webContents.on('did-finish-load', () => {
-    // 页面加载完成
   })
 
   mainWindow.on('closed', () => {
@@ -115,6 +111,10 @@ app.whenReady().then(async () => {
       createWindow()
     }
   })
+}).catch(error => {
+  console.error('[Main] 应用初始化失败:', error)
+  dialog.showErrorBox('初始化失败', `应用启动失败：${error.message}`)
+  app.quit()
 })
 
 // 所有窗口关闭时退出应用（macOS 除外）

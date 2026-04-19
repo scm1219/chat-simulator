@@ -165,15 +165,15 @@ export class NarrativeEngine {
   }
 
   /**
-   * 清理角色相关的所有叙事数据
+   * 清理角色相关的所有叙事数据（事务保护）
    * 在角色删除时调用，清理情绪记录和双向关系记录
    */
   removeCharacter(db, characterId) {
-    // 清理情绪记录
-    db.prepare('DELETE FROM character_emotions WHERE character_id = ?').run(characterId)
-    // 清理关系记录（双向：作为 from_id 和 to_id 的记录都要删除）
-    db.prepare('DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
-    db.prepare('DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
+    db.transaction(() => {
+      db.prepare('DELETE FROM character_emotions WHERE character_id = ?').run(characterId)
+      db.prepare('DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
+      db.prepare('DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
+    })()
     console.log(`[Narrative] 已清理角色 ${characterId} 的叙事数据`)
   }
 
@@ -245,11 +245,13 @@ export class NarrativeEngine {
     if (!text || text.length > 50) return []
 
     const msgId = generateUUID()
-    db.prepare(`
-      INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens)
-      VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?)
-    `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0)
-    this.emotion.updateFromMessage(db, triggerChar.id, text)
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens)
+        VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?)
+      `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0)
+      this.emotion.updateFromMessage(db, triggerChar.id, text)
+    })()
     return [{
       id: msgId, groupId, characterId: triggerChar.id, characterName: triggerChar.name,
       role: 'assistant', content: text, isAftermath: true,

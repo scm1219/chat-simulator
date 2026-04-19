@@ -113,6 +113,149 @@ CREATE TABLE IF NOT EXISTS narrative_events (
 CREATE INDEX IF NOT EXISTS idx_narrative_events_group_id ON narrative_events(group_id);
 `
 
+/**
+ * 迁移定义（按版本号顺序）
+ * 每个迁移的 up 函数保持幂等：先检查字段是否存在，再执行 ALTER
+ */
+const MIGRATIONS = [
+  {
+    version: 1,
+    name: 'messages_add_reasoning_content',
+    up(db) {
+      const cols = db.pragma('table_info(messages)')
+      if (!cols.some(c => c.name === 'reasoning_content')) {
+        db.exec('ALTER TABLE messages ADD COLUMN reasoning_content TEXT')
+      }
+    }
+  },
+  {
+    version: 2,
+    name: 'characters_add_position',
+    up(db, groupId) {
+      const cols = db.pragma('table_info(characters)')
+      if (!cols.some(c => c.name === 'position')) {
+        db.exec('ALTER TABLE characters ADD COLUMN position INTEGER DEFAULT 0')
+        const chars = db.prepare(
+          'SELECT id FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY created_at'
+        ).all(groupId)
+        chars.forEach((char, i) => {
+          db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(i, char.id)
+        })
+      } else {
+        // 检测并修复重复 position
+        const chars = db.prepare(
+          'SELECT id, position FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC, created_at ASC'
+        ).all(groupId)
+        let needsNormalize = false
+        const seen = new Set()
+        for (const c of chars) {
+          if (seen.has(c.position)) { needsNormalize = true; break }
+          seen.add(c.position)
+        }
+        if (needsNormalize) {
+          chars.forEach((c, i) => {
+            db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(i, c.id)
+          })
+        }
+      }
+    }
+  },
+  {
+    version: 3,
+    name: 'characters_add_thinking_enabled',
+    up(db) {
+      const cols = db.pragma('table_info(characters)')
+      if (!cols.some(c => c.name === 'thinking_enabled')) {
+        db.exec('ALTER TABLE characters ADD COLUMN thinking_enabled INTEGER DEFAULT 0')
+      }
+    }
+  },
+  {
+    version: 4,
+    name: 'groups_add_random_order',
+    up(db) {
+      const cols = db.pragma('table_info(groups)')
+      if (!cols.some(c => c.name === 'random_order')) {
+        db.exec('ALTER TABLE groups ADD COLUMN random_order INTEGER DEFAULT 0')
+      }
+    }
+  },
+  {
+    version: 5,
+    name: 'messages_add_token_counts',
+    up(db) {
+      const cols = db.pragma('table_info(messages)')
+      if (!cols.some(c => c.name === 'prompt_tokens')) {
+        db.exec('ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER')
+        db.exec('ALTER TABLE messages ADD COLUMN completion_tokens INTEGER')
+      }
+    }
+  },
+  {
+    version: 6,
+    name: 'characters_add_custom_llm_profile',
+    up(db) {
+      const cols = db.pragma('table_info(characters)')
+      if (!cols.some(c => c.name === 'custom_llm_profile_id')) {
+        db.exec('ALTER TABLE characters ADD COLUMN custom_llm_profile_id TEXT')
+      }
+    }
+  },
+  {
+    version: 7,
+    name: 'messages_add_model',
+    up(db) {
+      const cols = db.pragma('table_info(messages)')
+      if (!cols.some(c => c.name === 'model')) {
+        db.exec('ALTER TABLE messages ADD COLUMN model TEXT')
+      }
+    }
+  },
+  {
+    version: 8,
+    name: 'groups_add_auto_memory_extract',
+    up(db) {
+      const cols = db.pragma('table_info(groups)')
+      if (!cols.some(c => c.name === 'auto_memory_extract')) {
+        db.exec('ALTER TABLE groups ADD COLUMN auto_memory_extract INTEGER DEFAULT 0')
+      }
+    }
+  },
+  {
+    version: 9,
+    name: 'groups_add_narrative_fields',
+    up(db) {
+      const cols = db.pragma('table_info(groups)')
+      if (!cols.some(c => c.name === 'narrative_enabled')) {
+        db.exec('ALTER TABLE groups ADD COLUMN narrative_enabled INTEGER NOT NULL DEFAULT 1')
+      }
+      if (!cols.some(c => c.name === 'aftermath_enabled')) {
+        db.exec('ALTER TABLE groups ADD COLUMN aftermath_enabled INTEGER NOT NULL DEFAULT 1')
+      }
+      if (!cols.some(c => c.name === 'event_scene_type')) {
+        db.exec("ALTER TABLE groups ADD COLUMN event_scene_type TEXT DEFAULT 'general'")
+      }
+    }
+  },
+  {
+    version: 10,
+    name: 'messages_add_aftermath_fields',
+    up(db) {
+      const cols = db.pragma('table_info(messages)')
+      if (!cols.some(c => c.name === 'is_aftermath')) {
+        db.exec('ALTER TABLE messages ADD COLUMN is_aftermath INTEGER NOT NULL DEFAULT 0')
+      }
+      if (!cols.some(c => c.name === 'message_type')) {
+        db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'normal'")
+        db.exec("UPDATE messages SET message_type = 'aftermath' WHERE is_aftermath = 1")
+      }
+      if (!cols.some(c => c.name === 'event_impact')) {
+        db.exec('ALTER TABLE messages ADD COLUMN event_impact TEXT')
+      }
+    }
+  }
+]
+
 export class DatabaseManager {
   constructor() {
     // 缓存所有数据库连接
@@ -178,154 +321,30 @@ export class DatabaseManager {
   }
 
   /**
-   * 执行数据库迁移
+   * 执行数据库迁移（版本号追踪）
+   * 每个迁移通过版本号管理，已应用的迁移跳过，避免重复 PRAGMA 查询
    * @param {Database} db - 数据库连接
    * @param {string} groupId - 群组 ID
    */
   runMigrations(db, groupId) {
-    // 检查 messages 表是否有 reasoning_content 字段
-    const tableInfo = db.pragma('table_info(messages)')
-    const hasReasoningContent = tableInfo.some(col => col.name === 'reasoning_content')
+    // 创建迁移记录表（幂等）
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )`)
 
-    if (!hasReasoningContent) {
-      console.log(`[Database][${groupId}] 迁移：添加 messages.reasoning_content`)
-      db.exec('ALTER TABLE messages ADD COLUMN reasoning_content TEXT')
-    }
+    // 获取已应用的迁移版本（单次查询替代 13+ 次 PRAGMA）
+    const applied = new Set(
+      db.prepare('SELECT version FROM schema_migrations').all().map(r => r.version)
+    )
 
-    // 检查 characters 表是否有 position 字段
-    const charTableInfo = db.pragma('table_info(characters)')
-    const hasPosition = charTableInfo.some(col => col.name === 'position')
-
-    if (!hasPosition) {
-      console.log(`[Database][${groupId}] 迁移：添加 characters.position`)
-      db.exec('ALTER TABLE characters ADD COLUMN position INTEGER DEFAULT 0')
-
-      // 为当前群组的已有 AI 角色设置 position（按创建时间排序，排除用户角色）
-      const aiCharacters = db.prepare(
-        'SELECT id FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY created_at'
-      ).all(groupId)
-
-      aiCharacters.forEach((char, index) => {
-        db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
-      })
-    } else {
-      // position 字段已存在，检查是否需要规范化当前群组的角色
-      const aiCharacters = db.prepare(
-        'SELECT id, position FROM characters WHERE group_id = ? AND is_user = 0 ORDER BY position ASC, created_at ASC'
-      ).all(groupId)
-
-      let needsNormalize = false
-      const seenPositions = new Set()
-
-      for (const char of aiCharacters) {
-        if (seenPositions.has(char.position)) {
-          console.log(`[Database][${groupId}] 检测到重复的 position 值: ${char.position}`)
-          needsNormalize = true
-          break
-        }
-        seenPositions.add(char.position)
-      }
-
-      if (needsNormalize) {
-        aiCharacters.forEach((char, index) => {
-          db.prepare('UPDATE characters SET position = ? WHERE id = ?').run(index, char.id)
-        })
-        console.log(`[Database][${groupId}] 迁移：规范化 characters.position`)
-      }
-    }
-
-    // 检查 characters 表是否有 thinking_enabled 字段
-    const hasThinkingEnabled = charTableInfo.some(col => col.name === 'thinking_enabled')
-
-    if (!hasThinkingEnabled) {
-      db.exec('ALTER TABLE characters ADD COLUMN thinking_enabled INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移：添加 characters.thinking_enabled`)
-    }
-
-    // 检查 groups 表是否有 random_order 字段
-    const groupsTableInfo = db.pragma('table_info(groups)')
-    const hasRandomOrder = groupsTableInfo.some(col => col.name === 'random_order')
-
-    if (!hasRandomOrder) {
-      db.exec('ALTER TABLE groups ADD COLUMN random_order INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移：添加 groups.random_order`)
-    }
-
-    // 检查 messages 表是否有 prompt_tokens 字段
-    const hasPromptTokens = tableInfo.some(col => col.name === 'prompt_tokens')
-    if (!hasPromptTokens) {
-      db.exec('ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER')
-      db.exec('ALTER TABLE messages ADD COLUMN completion_tokens INTEGER')
-      console.log(`[Database][${groupId}] 迁移：添加 messages.prompt_tokens/completion_tokens`)
-    }
-
-    // 检查 characters 表是否有 custom_llm_profile_id 字段
-    const hasCustomLLMProfileId = charTableInfo.some(col => col.name === 'custom_llm_profile_id')
-    if (!hasCustomLLMProfileId) {
-      db.exec('ALTER TABLE characters ADD COLUMN custom_llm_profile_id TEXT')
-      console.log(`[Database][${groupId}] 迁移：添加 characters.custom_llm_profile_id`)
-    }
-
-    // 检查 messages 表是否有 model 字段
-    const hasModel = tableInfo.some(col => col.name === 'model')
-    if (!hasModel) {
-      db.exec('ALTER TABLE messages ADD COLUMN model TEXT')
-      console.log(`[Database][${groupId}] 迁移：添加 messages.model`)
-    }
-
-    // 检查 groups 表是否有 auto_memory_extract 字段
-    const hasAutoMemoryExtract = groupsTableInfo.some(col => col.name === 'auto_memory_extract')
-    if (!hasAutoMemoryExtract) {
-      db.exec('ALTER TABLE groups ADD COLUMN auto_memory_extract INTEGER DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移：添加 groups.auto_memory_extract`)
-    }
-
-    // --- 叙事引擎相关迁移 ---
-
-    // 添加 narrative_enabled 字段
-    const hasNarrativeEnabled = groupsTableInfo.some(col => col.name === 'narrative_enabled')
-    if (!hasNarrativeEnabled) {
-      db.exec('ALTER TABLE groups ADD COLUMN narrative_enabled INTEGER NOT NULL DEFAULT 1')
-      console.log(`[Database][${groupId}] 迁移：添加 groups.narrative_enabled`)
-    }
-
-    // 添加 aftermath_enabled 字段
-    const hasAftermathEnabled = groupsTableInfo.some(col => col.name === 'aftermath_enabled')
-    if (!hasAftermathEnabled) {
-      db.exec('ALTER TABLE groups ADD COLUMN aftermath_enabled INTEGER NOT NULL DEFAULT 1')
-      console.log(`[Database][${groupId}] 迁移：添加 groups.aftermath_enabled`)
-    }
-
-    // 添加 event_scene_type 字段
-    const hasEventSceneType = groupsTableInfo.some(col => col.name === 'event_scene_type')
-    if (!hasEventSceneType) {
-      db.exec("ALTER TABLE groups ADD COLUMN event_scene_type TEXT DEFAULT 'general'")
-      console.log(`[Database][${groupId}] 迁移：添加 groups.event_scene_type`)
-    }
-
-    // --- messages 表迁移 ---
-
-    // 添加 is_aftermath 字段（标记余波消息）
-    const messagesTableInfo = db.pragma('table_info(messages)')
-    const hasIsAftermath = messagesTableInfo.some(col => col.name === 'is_aftermath')
-    if (!hasIsAftermath) {
-      db.exec('ALTER TABLE messages ADD COLUMN is_aftermath INTEGER NOT NULL DEFAULT 0')
-      console.log(`[Database][${groupId}] 迁移：添加 messages.is_aftermath`)
-    }
-
-    // 添加 message_type 字段（区分 normal/event/aftermath）
-    const hasMessageType = messagesTableInfo.some(col => col.name === 'message_type')
-    if (!hasMessageType) {
-      db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'normal'")
-      db.exec("UPDATE messages SET message_type = 'aftermath' WHERE is_aftermath = 1")
-      console.log(`[Database][${groupId}] 迁移：添加 messages.message_type`)
-    }
-
-    // 添加 event_impact 字段（事件影响标签，如"惊慌"、"欢乐"）
-    const hasEventImpact = messagesTableInfo.some(col => col.name === 'event_impact')
-    if (!hasEventImpact) {
-      db.exec('ALTER TABLE messages ADD COLUMN event_impact TEXT')
-      console.log(`[Database][${groupId}] 迁移：添加 messages.event_impact`)
+    // 按版本号顺序执行未应用的迁移
+    for (const m of MIGRATIONS) {
+      if (applied.has(m.version)) continue
+      m.up(db, groupId)
+      db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(m.version, m.name)
+      console.log(`[Database][${groupId}] 迁移 v${m.version}: ${m.name}`)
     }
   }
 

@@ -126,21 +126,23 @@ export class RelationshipManager {
   }
 
   /**
-   * 更新或创建好感度值
+   * 更新或创建好感度值（事务保护）
    */
   _updateFavorabilityValue(db, fromId, toId, existing, newFavor) {
-    if (existing) {
-      db.prepare(`
-        UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
-        WHERE from_id = ? AND to_id = ?
-      `).run(newFavor, fromId, toId)
-    } else {
-      this.setRelationship(db, fromId, toId, 'stranger', '')
-      db.prepare(`
-        UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
-        WHERE from_id = ? AND to_id = ?
-      `).run(newFavor, fromId, toId)
-    }
+    db.transaction(() => {
+      if (existing) {
+        db.prepare(`
+          UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
+          WHERE from_id = ? AND to_id = ?
+        `).run(newFavor, fromId, toId)
+      } else {
+        this.setRelationship(db, fromId, toId, 'stranger', '')
+        db.prepare(`
+          UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
+          WHERE from_id = ? AND to_id = ?
+        `).run(newFavor, fromId, toId)
+      }
+    })()
   }
 
   decayInactive(db, characterId, activeCharacterIds) {

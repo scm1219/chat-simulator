@@ -72,8 +72,13 @@ export function createClientForCharacter(character, group, llmProfiles, apiKey) 
     }
   }
 
-  // 使用群组默认配置
+  // 使用群组默认配置：优先精确匹配（含 baseURL 和 apiKey），回退到 provider+model 匹配
   const currentProfile = llmProfiles.find(p =>
+    p.provider === group.llm_provider &&
+    p.model === group.llm_model &&
+    (p.baseURL || '') === (group.llm_base_url || '') &&
+    (p.apiKey || '') === (apiKey || '')
+  ) || llmProfiles.find(p =>
     p.provider === group.llm_provider && p.model === group.llm_model
   )
   const streamEnabled = currentProfile?.streamEnabled !== undefined
