@@ -3,6 +3,9 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('LLMProfiles')
 import { useGroupsStore } from './groups.js'
 
 export const useLLMProfilesStore = defineStore('llmProfiles', () => {
@@ -24,11 +27,11 @@ export const useLLMProfilesStore = defineStore('llmProfiles', () => {
         profiles.value = result.data
         return true
       } else {
-        console.error('Failed to load profiles:', result.error)
+        log.error('加载配置列表失败:', result.error)
         return false
       }
     } catch (error) {
-      console.error('Failed to load profiles:', error)
+      log.error('加载配置列表失败:', error)
       return false
     } finally {
       loading.value = false
@@ -48,7 +51,7 @@ export const useLLMProfilesStore = defineStore('llmProfiles', () => {
         return { success: false, error: result.error }
       }
     } catch (error) {
-      console.error('Failed to add profile:', error)
+      log.error('添加配置失败:', error)
       return { success: false, error: error.message }
     }
   }
@@ -65,14 +68,14 @@ export const useLLMProfilesStore = defineStore('llmProfiles', () => {
         const groupsStore = useGroupsStore()
         await groupsStore.loadGroups()
         if (result.syncedGroups > 0) {
-          console.log(`[LLM Profiles] 已同步 ${result.syncedGroups} 个群组`)
+          log.info(`已同步 ${result.syncedGroups} 个群组`)
         }
         return { success: true, data: result.data, syncedGroups: result.syncedGroups || 0 }
       } else {
         return { success: false, error: result.error }
       }
     } catch (error) {
-      console.error('Failed to update profile:', error)
+      log.error('更新配置失败:', error)
       return { success: false, error: error.message }
     }
   }
@@ -90,7 +93,7 @@ export const useLLMProfilesStore = defineStore('llmProfiles', () => {
         return { success: false, error: result.error }
       }
     } catch (error) {
-      console.error('Failed to delete profile:', error)
+      log.error('删除配置失败:', error)
       return { success: false, error: error.message }
     }
   }

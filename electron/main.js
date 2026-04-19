@@ -1,5 +1,8 @@
 import { app, BrowserWindow, dialog } from 'electron'
 import path from 'path'
+import { createLogger, destroyAllLoggers } from './utils/logger.js'
+
+const log = createLogger('Main')
 
 // 保持对窗口对象的全局引用
 let mainWindow = null
@@ -112,7 +115,7 @@ app.whenReady().then(async () => {
     }
   })
 }).catch(error => {
-  console.error('[Main] 应用初始化失败:', error)
+  log.error('应用初始化失败:', error)
   dialog.showErrorBox('初始化失败', `应用启动失败：${error.message}`)
   app.quit()
 })
@@ -138,4 +141,6 @@ app.on('before-quit', () => {
   if (memoryManager) {
     memoryManager.close()
   }
+  // 关闭所有 Logger 文件流
+  destroyAllLoggers()
 })

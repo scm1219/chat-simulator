@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useGroupsStore } from './groups.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Messages')
 
 export const useMessagesStore = defineStore('messages', () => {
   // 状态
@@ -31,7 +34,7 @@ export const useMessagesStore = defineStore('messages', () => {
         messages.value = result.data
       }
     } catch (error) {
-      console.error('Failed to load messages:', error)
+      log.error('加载消息失败:', error)
     } finally {
       loading.value = false
     }
@@ -42,7 +45,7 @@ export const useMessagesStore = defineStore('messages', () => {
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
-      console.error('[Messages] No group selected')
+      log.error('未选择群组')
       throw new Error('No group selected')
     }
 
@@ -54,13 +57,13 @@ export const useMessagesStore = defineStore('messages', () => {
       const result = await window.electronAPI.llm.generate(groupId, content, options)
 
       if (!result.success) {
-        console.error('[Messages] LLM 调用失败', result.error)
+        log.error('LLM 调用失败', result.error)
         throw new Error(result.error)
       }
 
       return result.data
     } catch (error) {
-      console.error('[Messages] 发送消息异常', error)
+      log.error('发送消息异常', error)
       throw error
     } finally {
       sending.value = false
@@ -72,7 +75,7 @@ export const useMessagesStore = defineStore('messages', () => {
     const groupId = groupsStore.currentGroupId
 
     if (!groupId) {
-      console.error('[Messages] No group selected')
+      log.error('未选择群组')
       throw new Error('No group selected')
     }
 
@@ -84,13 +87,13 @@ export const useMessagesStore = defineStore('messages', () => {
       const result = await window.electronAPI.llm.generateCharacterCommand(groupId, characterId, instruction)
 
       if (!result.success) {
-        console.error('[Messages] LLM 调用失败', result.error)
+        log.error('LLM 调用失败', result.error)
         throw new Error(result.error)
       }
 
       return result.data
     } catch (error) {
-      console.error('[Messages] 发送角色指令异常', error)
+      log.error('发送角色指令异常', error)
       throw error
     } finally {
       sending.value = false
@@ -104,7 +107,7 @@ export const useMessagesStore = defineStore('messages', () => {
   function setupMessageListener(callback) {
     // 安全检查：确保 electronAPI 存在
     if (!window.electronAPI?.message) {
-      console.warn('[Messages] electronAPI.message not available')
+      log.warn('electronAPI.message 不可用')
       return
     }
 
@@ -117,7 +120,7 @@ export const useMessagesStore = defineStore('messages', () => {
   // 设置流式消息监听器
   function setupStreamListeners() {
     if (!window.electronAPI?.message) {
-      console.warn('[Messages] electronAPI.message not available')
+      log.warn('electronAPI.message 不可用')
       return
     }
 
@@ -190,7 +193,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式错误
     streamErrorListener = window.electronAPI.message.onStreamError((data) => {
-      console.error('[Messages] 流式消息错误', data)
+      log.error('流式消息错误', data)
       // 移除临时消息
       messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
     })
@@ -214,7 +217,7 @@ export const useMessagesStore = defineStore('messages', () => {
     }
 
     if (!groupId) {
-      console.error('[Messages] No group selected')
+      log.error('未选择群组')
       throw new Error('No group selected')
     }
 
@@ -226,7 +229,7 @@ export const useMessagesStore = defineStore('messages', () => {
         throw new Error(result.error)
       }
     } catch (error) {
-      console.error('[Messages] Failed to clear messages:', error)
+      log.error('清空消息失败:', error)
       throw error
     }
   }
@@ -250,7 +253,7 @@ export const useMessagesStore = defineStore('messages', () => {
         throw new Error(result.error)
       }
     } catch (error) {
-      console.error('[Messages] Failed to update message:', error)
+      log.error('更新消息失败:', error)
       throw error
     }
   }
@@ -270,7 +273,7 @@ export const useMessagesStore = defineStore('messages', () => {
         throw new Error(result.error)
       }
     } catch (error) {
-      console.error('[Messages] Failed to delete message:', error)
+      log.error('删除消息失败:', error)
       throw error
     }
   }
@@ -293,7 +296,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
       return { success: true }
     } catch (error) {
-      console.error('[Messages] Failed to resend message:', error)
+      log.error('重发消息失败:', error)
       throw error
     }
   }

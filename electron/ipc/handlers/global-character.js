@@ -3,6 +3,9 @@
  */
 import { ipcMain } from 'electron'
 import { createHandler } from '../handler-wrapper.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('GlobalChar')
 
 export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
   // 获取所有全局角色
@@ -190,7 +193,7 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
           syncedGroups.push({ groupId, groupName: null })
         }
       } catch (err) {
-        console.error(`同步角色到群组 ${groupId} 失败:`, err)
+        log.error(`同步角色到群组 ${groupId} 失败:`, err)
       }
     }
 

@@ -4,6 +4,9 @@
  */
 import axios from 'axios'
 import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Ollama')
 
 export class OllamaNativeClient {
   constructor(config) {
@@ -47,7 +50,7 @@ export class OllamaNativeClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('[Ollama Native] 请求失败:', error.message, error.response?.status)
+        log.error('请求失败:', error.message, error.response?.status)
         return Promise.reject(error)
       }
     )
@@ -176,7 +179,7 @@ export class OllamaNativeClient {
                 return
               }
             } catch (e) {
-              console.warn('[Ollama Native] 解析流式数据失败', e.message, 'Line:', line.substring(0, 100))
+              log.warn('解析流式数据失败', e.message, 'Line:', line.substring(0, 100))
             }
           }
         })
@@ -196,7 +199,7 @@ export class OllamaNativeClient {
                 return
               }
             } catch (e) {
-              console.warn('[Ollama Native] 解析最后数据失败', e.message)
+              log.warn('解析最后数据失败', e.message)
             }
           }
 

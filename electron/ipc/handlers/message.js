@@ -3,6 +3,9 @@
  */
 import { ipcMain } from 'electron'
 import fs from 'fs'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Message')
 import path from 'path'
 import archiver from 'archiver'
 import { app, dialog, BrowserWindow } from 'electron'
@@ -225,7 +228,7 @@ export function setupMessageHandlers(dbManager) {
         if (jsonFilePath && fs.existsSync(jsonFilePath)) fs.unlinkSync(jsonFilePath)
         if (zipFilePath && fs.existsSync(zipFilePath)) fs.unlinkSync(zipFilePath)
       } catch (cleanupError) {
-        console.error('清理临时文件失败:', cleanupError)
+        log.error('清理临时文件失败:', cleanupError)
       }
       return { success: false, error: error.message }
     }

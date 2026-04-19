@@ -171,6 +171,9 @@
 import { ref, computed, reactive, onMounted } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Gacha')
 
 const emit = defineEmits(['close', 'created'])
 
@@ -232,7 +235,7 @@ async function handleGenerate() {
       toast.error('生成失败：' + result.error)
     }
   } catch (error) {
-    console.error('生成角色失败', error)
+    log.error('生成角色失败', error)
     toast.error('生成失败：' + error.message)
   } finally {
     generating.value = false
@@ -278,7 +281,7 @@ async function loadGachaConfig() {
       savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
     }
   } catch (error) {
-    console.error('加载抽卡配置失败', error)
+    log.error('加载抽卡配置失败', error)
   } finally {
     promptLoading.value = false
   }

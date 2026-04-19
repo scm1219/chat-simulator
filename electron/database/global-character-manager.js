@@ -8,6 +8,9 @@ import path from 'path'
 import fs from 'fs'
 import { generateUUID } from '../utils/uuid.js'
 import { buildDynamicUpdate } from '../ipc/handler-wrapper.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('GlobalChar')
 
 // 数据库 Schema
 const GLOBAL_CHARACTER_SCHEMA = `
@@ -123,7 +126,7 @@ export class GlobalCharacterManager {
       for (const tag of DEFAULT_TAGS) {
         insert.run(tag)
       }
-      console.log('[GlobalCharacterManager] 默认标签初始化完成')
+      log.info('默认标签初始化完成')
     }
   }
 

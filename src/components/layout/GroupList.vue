@@ -89,6 +89,7 @@ import { useGroupsStore } from '../../stores/groups.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
+import { createLogger } from '../../utils/logger.js'
 import CreateGroupDialog from '../config/CreateGroupDialog.vue'
 import QuickGroupDialog from '../config/QuickGroupDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
@@ -98,6 +99,7 @@ const groupsStore = useGroupsStore()
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
+const log = createLogger('GroupList')
 const showCreateDialog = ref(false)
 const showQuickGroupDialog = ref(false)
 const hoveredGroupId = ref(null)
@@ -173,7 +175,7 @@ async function handleDuplicate(group) {
     // 自动选中新复制的群组
     groupsStore.selectGroup(newGroup.id)
   } catch (error) {
-    console.error('复制群组失败:', error)
+    log.error('复制群组失败:', error)
     toast.error('复制群组失败：' + error.message)
   }
 }
@@ -191,7 +193,7 @@ async function handleDelete(group) {
   try {
     await groupsStore.deleteGroup(group.id)
   } catch (error) {
-    console.error('删除群组失败:', error)
+    log.error('删除群组失败:', error)
     toast.error('删除群组失败：' + error.message)
   }
 }

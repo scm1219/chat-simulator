@@ -367,6 +367,9 @@ import EditCharacterDialog from '../config/EditCharacterDialog.vue'
 import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 import EmotionTag from './EmotionTag.vue'
 import RelationshipPanel from './RelationshipPanel.vue'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('CharPanel')
 
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
@@ -538,7 +541,7 @@ async function moveCharacter(char, direction) {
   try {
     await charactersStore.reorderCharacter(char.id, direction)
   } catch (error) {
-    console.error('[CharacterPanel] 移动角色失败:', error)
+    log.error('移动角色失败:', error)
     toast.error(`移动角色失败: ${error.message}`)
   }
 }
@@ -602,7 +605,7 @@ async function updateThinkingMode(event) {
           thinkingEnabled: enabled
         })
       } catch (err) {
-        console.error(`更新角色 ${char.name} 思考模式失败:`, err)
+        log.error(`更新角色 ${char.name} 思考模式失败:`, err)
       }
     }
 

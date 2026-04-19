@@ -9,6 +9,9 @@ import { EventTrigger } from './event-trigger.js'
 import { NarrativePromptBuilder } from './prompt-builder.js'
 import { extractJSON } from '../utils/json-extractor.js'
 import { generateUUID } from '../utils/uuid.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Narrative')
 
 export class NarrativeEngine {
   constructor() {
@@ -63,7 +66,7 @@ export class NarrativeEngine {
         db, characterId, char.id, responseContent, emotion, characterNameMap
       )
       if (result.change !== 0) {
-        console.log(`[Narrative] 好感度变化: ${characterId} → ${char.id} (${result.reason}) ${result.change > 0 ? '+' : ''}${result.change}${result.reverseChange ? ` (反向${result.reverseChange > 0 ? '+' : ''}${result.reverseChange})` : ''}`)
+        log.debug(`好感度变化: ${characterId} → ${char.id} (${result.reason}) ${result.change > 0 ? '+' : ''}${result.change}${result.reverseChange ? ` (反向${result.reverseChange > 0 ? '+' : ''}${result.reverseChange})` : ''}`)
       }
     }
 
@@ -95,7 +98,7 @@ export class NarrativeEngine {
           }
         }
       } catch (err) {
-        console.error('[Narrative] LLM 情绪推断失败，降级为关键词规则:', err.message)
+        log.warn('LLM 情绪推断失败，降级为关键词规则:', err.message)
       }
     }
 
@@ -123,7 +126,7 @@ export class NarrativeEngine {
       const eligibleChars = allCharacters.filter(c => !c.is_user)
       if (eligibleChars.length === 0) return []
       const triggerChar = this._selectAftermathTrigger(db, eligibleChars)
-      console.log(`[Narrative] 余波触发角色: ${triggerChar.name}`)
+      log.info(`余波触发角色: ${triggerChar.name}`)
 
       const { client } = createClientForCharacter(triggerChar, group, llmProfiles, apiKey)
       const recentMessages = db.prepare(`
@@ -143,7 +146,7 @@ export class NarrativeEngine {
         completionTokens: result.usage?.completion_tokens || 0
       })
     } catch (err) {
-      console.error('[Narrative] 余波生成失败:', err.message)
+      log.error('余波生成失败:', err.message)
       return []
     }
   }
@@ -174,7 +177,7 @@ export class NarrativeEngine {
       db.prepare('DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
       db.prepare('DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
     })()
-    console.log(`[Narrative] 已清理角色 ${characterId} 的叙事数据`)
+    log.info(`已清理角色 ${characterId} 的叙事数据`)
   }
 
   /**

@@ -3,6 +3,9 @@
  * 统一管理 LLM 客户端的创建、代理解析和 API Key 获取
  */
 import { LLMClient } from '../../llm/client.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('LLM')
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getProviderConfig } from '../../llm/providers/index.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
@@ -68,7 +71,7 @@ export function createClientForCharacter(character, group, llmProfiles, apiKey) 
       })
       return { client, profileId: profile.id }
     } else {
-      console.warn(`[LLM] 角色 ${character.name} 的独立 LLM Profile ${character.custom_llm_profile_id} 未找到，回退到群组配置`)
+      log.warn(`角色 ${character.name} 的独立 LLM Profile ${character.custom_llm_profile_id} 未找到，回退到群组配置`)
     }
   }
 

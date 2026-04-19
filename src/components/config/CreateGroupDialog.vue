@@ -160,6 +160,9 @@ import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import LLMProfileDialog from './LLMProfileDialog.vue'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('CreateGroup')
 
 const emit = defineEmits(['close', 'created'])
 const toast = useToastStore()
@@ -219,7 +222,7 @@ async function loadTemplates() {
       templates.value = result.data
     }
   } catch (error) {
-    console.error('[CreateGroup] 加载模板失败', error)
+    log.error('加载模板失败', error)
   } finally {
     loadingTemplates.value = false
   }
@@ -297,7 +300,7 @@ async function handleCreate() {
     const group = await groupsStore.createGroup(groupData)
     emit('created', group)
   } catch (error) {
-    console.error('[CreateGroup] 创建失败', error)
+    log.error('创建群组失败', error)
     toast.error('创建群组失败: ' + error.message)
   }
 }

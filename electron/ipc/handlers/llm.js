@@ -3,6 +3,9 @@
  * 负责 IPC 注册 + 高层对话编排
  */
 import { ipcMain } from 'electron'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('LLM')
 import { getAllProviders, getProviderConfig } from '../../llm/providers/index.js'
 import { getGlobalLLMConfig, getGachaConfig, getQuickGroupConfig } from '../../config/manager.js'
 import { getLLMProfiles } from '../../config/llm-profiles.js'
@@ -60,7 +63,7 @@ async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxToken
 
   const jsonResult = extractJSON(result.content)
   if (!jsonResult.success) {
-    console.error('[LLM] JSON 解析失败:', jsonResult.error)
+    log.error('JSON 解析失败:', jsonResult.error)
     return { success: false, error: 'LLM 返回的格式不正确，请重试' }
   }
 
@@ -189,8 +192,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
               allCharacters, narrativeClientCtx
             )
           } catch (err) {
-            console.error(`[Narrative] postCharacterResponse 失败 (${resp.characterName}):`, err.message)
-          }
+            log.error(`postCharacterResponse 失败 (${resp.characterName}):`, err.message)          }
         }
       }
     } else {
@@ -223,7 +225,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
               allCharacters, narrativeClientCtx
             )
           } catch (err) {
-            console.error(`[Narrative] postCharacterResponse 失败 (${character.name}):`, err.message)
+            log.error(`postCharacterResponse 失败 (${character.name}):`, err.message)
           }
         }
 
@@ -250,7 +252,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
           event.sender.send('narrative:aftermath', msg)
         }
       } catch (err) {
-        console.error('[Narrative] 余波编排失败:', err.message)
+        log.error('余波编排失败:', err.message)
       }
     }
 

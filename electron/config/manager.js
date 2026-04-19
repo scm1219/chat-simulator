@@ -5,6 +5,9 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Config')
 
 const LLM_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'llm-config.json')
 const GACHA_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'gacha-config.json')
@@ -30,7 +33,7 @@ export function getGlobalLLMConfig() {
       return { ...DEFAULT_LLM_CONFIG, ...JSON.parse(data) }
     }
   } catch (error) {
-    console.error('[Config] 加载 LLM 配置失败', error)
+    log.error('加载 LLM 配置失败', error)
   }
   return { ...DEFAULT_LLM_CONFIG }
 }
@@ -44,7 +47,7 @@ export function saveGlobalLLMConfig(config) {
     fs.writeFileSync(LLM_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
-    console.error('Failed to save LLM config:', error)
+    log.error('保存 LLM 配置失败', error)
     return false
   }
 }
@@ -96,7 +99,7 @@ export function getGachaConfig() {
       return config
     }
   } catch (error) {
-    console.error('[Config] 加载抽卡配置失败', error)
+    log.error('加载抽卡配置失败', error)
   }
   return { ...DEFAULT_GACHA_CONFIG }
 }
@@ -110,7 +113,7 @@ export function saveGachaConfig(config) {
     fs.writeFileSync(GACHA_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
-    console.error('[Config] 保存抽卡配置失败', error)
+    log.error('保存抽卡配置失败', error)
     return false
   }
 }
@@ -174,7 +177,7 @@ export function getQuickGroupConfig() {
       return config
     }
   } catch (error) {
-    console.error('[Config] 加载快速建群配置失败', error)
+    log.error('加载快速建群配置失败', error)
   }
   return { ...DEFAULT_QUICK_GROUP_CONFIG }
 }
@@ -188,7 +191,7 @@ export function saveQuickGroupConfig(config) {
     fs.writeFileSync(QUICK_GROUP_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
-    console.error('[Config] 保存快速建群配置失败', error)
+    log.error('保存快速建群配置失败', error)
     return false
   }
 }

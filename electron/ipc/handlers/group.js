@@ -3,6 +3,9 @@
  */
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Group')
 import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
 
 // 群组 INSERT 列名和默认值常量（新增字段只需修改此处）
@@ -79,7 +82,7 @@ export function setupGroupHandlers(dbManager) {
           groups.push(group)
         }
       } catch (error) {
-        console.error(`Failed to load group ${id}:`, error)
+        log.error(`加载群组 ${id} 失败:`, error)
       }
     }
 

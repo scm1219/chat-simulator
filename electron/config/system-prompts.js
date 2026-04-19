@@ -5,6 +5,9 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('SystemPrompts')
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'system-prompts.json')
 
@@ -77,7 +80,7 @@ export function getSystemPromptTemplates() {
       return DEFAULT_TEMPLATES
     }
   } catch (error) {
-    console.error('[SystemPrompts] 加载模板配置失败', error)
+    log.error('加载模板配置失败', error)
     return DEFAULT_TEMPLATES
   }
 }
@@ -93,7 +96,7 @@ export function saveSystemPromptTemplates(templates) {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({ templates }, null, 2))
     return true
   } catch (error) {
-    console.error('[SystemPrompts] 保存模板配置失败', error)
+    log.error('保存模板配置失败', error)
     return false
   }
 }
@@ -125,7 +128,7 @@ export function addSystemPromptTemplate(template) {
     saveSystemPromptTemplates(templates)
     return newTemplate
   } catch (error) {
-    console.error('[SystemPrompts] 添加模板失败', error)
+    log.error('添加模板失败', error)
     return null
   }
 }
@@ -141,14 +144,14 @@ export function updateSystemPromptTemplate(id, data) {
     const templates = getSystemPromptTemplates()
     const index = templates.findIndex(t => t.id === id)
     if (index === -1) {
-      console.warn('[SystemPrompts] 未找到模板', id)
+      log.warn('未找到模板', id)
       return null
     }
     templates[index] = { ...templates[index], ...data }
     saveSystemPromptTemplates(templates)
     return templates[index]
   } catch (error) {
-    console.error('[SystemPrompts] 更新模板失败', error)
+    log.error('更新模板失败', error)
     return null
   }
 }
@@ -163,14 +166,14 @@ export function deleteSystemPromptTemplate(id) {
     const templates = getSystemPromptTemplates()
     const index = templates.findIndex(t => t.id === id)
     if (index === -1) {
-      console.warn('[SystemPrompts] 未找到模板', id)
+      log.warn('未找到模板', id)
       return false
     }
     templates.splice(index, 1)
     saveSystemPromptTemplates(templates)
     return true
   } catch (error) {
-    console.error('[SystemPrompts] 删除模板失败', error)
+    log.error('删除模板失败', error)
     return false
   }
 }

@@ -50,6 +50,8 @@
 
 <script setup>
 import { ref } from 'vue'
+import { createLogger } from '../../utils/logger.js'
+const log = createLogger('Search')
 
 const emit = defineEmits(['select-message', 'select-group'])
 
@@ -74,7 +76,7 @@ function handleInput() {
         results.value = res.data
       }
     } catch (err) {
-      console.error('搜索失败:', err)
+      log.error('搜索失败:', err)
     } finally {
       loading.value = false
     }

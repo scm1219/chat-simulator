@@ -5,6 +5,9 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Proxy')
 
 const PROXY_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'proxy-config.json')
 
@@ -30,7 +33,7 @@ export function getProxyConfig() {
       return { ...DEFAULT_PROXY_CONFIG, ...JSON.parse(data) }
     }
   } catch (error) {
-    console.error('Failed to load proxy config:', error)
+    log.error('加载代理配置失败', error)
   }
   return { ...DEFAULT_PROXY_CONFIG }
 }
@@ -44,7 +47,7 @@ export function saveProxyConfig(config) {
     fs.writeFileSync(PROXY_CONFIG_FILE, JSON.stringify(config, null, 2))
     return true
   } catch (error) {
-    console.error('Failed to save proxy config:', error)
+    log.error('保存代理配置失败', error)
     return false
   }
 }

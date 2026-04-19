@@ -5,6 +5,9 @@
 import axios from 'axios'
 import { getProviderConfig } from './providers/index.js'
 import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('LLM')
 
 export class LLMClient {
   constructor(config) {
@@ -48,7 +51,7 @@ export class LLMClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('[LLM Client] 请求失败:', error.message, error.response?.status)
+        log.error('请求失败:', error.message, error.response?.status)
         return Promise.reject(error)
       }
     )
@@ -248,7 +251,7 @@ export class LLMClient {
                   responseModel = parsed.model
                 }
               } catch (e) {
-                console.warn('[LLM] 解析流式数据失败', e.message)
+                log.warn('解析流式数据失败', e.message)
               }
             }
           }

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('GlobalChars')
 
 export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
   // 状态
@@ -56,10 +59,10 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       if (result.success) {
         characters.value = result.data
       } else {
-        console.error('Failed to load global characters:', result.error)
+        log.error('加载全局角色失败:', result.error)
       }
     } catch (error) {
-      console.error('Failed to load global characters:', error)
+      log.error('加载全局角色失败:', error)
     } finally {
       loading.value = false
     }
@@ -77,7 +80,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to get character:', error)
+      log.error('获取角色失败:', error)
       throw error
     }
   }
@@ -91,7 +94,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to create character:', error)
+      log.error('创建角色失败:', error)
       throw error
     }
   }
@@ -108,7 +111,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to update character:', error)
+      log.error('更新角色失败:', error)
       throw error
     }
   }
@@ -122,7 +125,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to delete character:', error)
+      log.error('删除角色失败:', error)
       throw error
     }
   }
@@ -141,7 +144,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to import character to group:', error)
+      log.error('导入角色到群组失败:', error)
       throw error
     }
   }
@@ -155,7 +158,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to sync character to group:', error)
+      log.error('同步角色到群组失败:', error)
       throw error
     }
   }
@@ -169,7 +172,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to sync character to all groups:', error)
+      log.error('同步角色到所有群组失败:', error)
       throw error
     }
   }
@@ -199,10 +202,10 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       if (result.success) {
         tags.value = result.data
       } else {
-        console.error('Failed to load tags:', result.error)
+        log.error('加载标签失败:', result.error)
       }
     } catch (error) {
-      console.error('Failed to load tags:', error)
+      log.error('加载标签失败:', error)
     }
   }
 
@@ -215,7 +218,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to create tag:', error)
+      log.error('创建标签失败:', error)
       throw error
     }
   }
@@ -232,7 +235,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to update tag:', error)
+      log.error('更新标签失败:', error)
       throw error
     }
   }
@@ -254,7 +257,7 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to delete tag:', error)
+      log.error('删除标签失败:', error)
       throw error
     }
   }

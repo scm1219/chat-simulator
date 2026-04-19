@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Config')
 
 export const useConfigStore = defineStore('config', () => {
   // 状态
@@ -16,7 +19,7 @@ export const useConfigStore = defineStore('config', () => {
         llmConfig.value = result.data
       }
     } catch (error) {
-      console.error('Failed to load LLM config:', error)
+      log.error('加载 LLM 配置失败:', error)
     } finally {
       loading.value = false
     }
@@ -30,7 +33,7 @@ export const useConfigStore = defineStore('config', () => {
       }
       return result.success
     } catch (error) {
-      console.error('Failed to save LLM config:', error)
+      log.error('保存 LLM 配置失败:', error)
       return false
     }
   }
@@ -43,7 +46,7 @@ export const useConfigStore = defineStore('config', () => {
         proxyConfig.value = result.data
       }
     } catch (error) {
-      console.error('Failed to load proxy config:', error)
+      log.error('加载代理配置失败:', error)
     } finally {
       loading.value = false
     }
@@ -57,7 +60,7 @@ export const useConfigStore = defineStore('config', () => {
       }
       return result.success
     } catch (error) {
-      console.error('Failed to save proxy config:', error)
+      log.error('保存代理配置失败:', error)
       return false
     }
   }

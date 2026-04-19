@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useGroupsStore } from './groups.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Characters')
 
 export const useCharactersStore = defineStore('characters', () => {
   // 状态
@@ -26,7 +29,7 @@ export const useCharactersStore = defineStore('characters', () => {
         characters.value = result.data
       }
     } catch (error) {
-      console.error('Failed to load characters:', error)
+      log.error('加载角色失败:', error)
     } finally {
       loading.value = false
     }
@@ -41,7 +44,7 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to create character:', error)
+      log.error('创建角色失败:', error)
       throw error
     }
   }
@@ -58,7 +61,7 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to update character:', error)
+      log.error('更新角色失败:', error)
       throw error
     }
   }
@@ -72,7 +75,7 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to delete character:', error)
+      log.error('删除角色失败:', error)
       throw error
     }
   }
@@ -89,7 +92,7 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to toggle character:', error)
+      log.error('切换角色状态失败:', error)
       throw error
     }
   }
@@ -104,7 +107,7 @@ export const useCharactersStore = defineStore('characters', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to reorder character:', error)
+      log.error('排序角色失败:', error)
       throw error
     }
   }

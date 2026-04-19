@@ -8,6 +8,9 @@ import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('LLMProfiles')
 
 const LLM_PROFILES_FILE = path.join(app.getPath('userData'), 'config', 'llm-profiles.json')
 
@@ -56,13 +59,13 @@ export function getLLMProfiles() {
       // 如果有迁移，保存更新后的配置
       if (migrated) {
         saveLLMProfiles(profiles)
-        console.log('[LLM Profiles] 已迁移配置，添加 streamEnabled 字段')
+        log.info('已迁移配置，添加 streamEnabled 字段')
       }
 
       return profiles
     }
   } catch (error) {
-    console.error('Failed to load LLM profiles:', error)
+    log.error('加载 LLM 配置列表失败', error)
   }
   return []
 }
@@ -76,7 +79,7 @@ function saveLLMProfiles(profiles) {
     fs.writeFileSync(LLM_PROFILES_FILE, JSON.stringify(profiles, null, 2))
     return true
   } catch (error) {
-    console.error('Failed to save LLM profiles:', error)
+    log.error('保存 LLM 配置列表失败', error)
     return false
   }
 }
@@ -108,7 +111,7 @@ export function addLLMProfile(profile) {
         return { success: false, error: '保存配置失败' }
       }
     } catch (error) {
-      console.error('Failed to add LLM profile:', error)
+      log.error('添加 LLM 配置失败', error)
       return { success: false, error: error.message }
     }
   })
@@ -144,7 +147,7 @@ export function updateLLMProfile(id, data) {
         return { success: false, error: '保存配置失败' }
       }
     } catch (error) {
-      console.error('Failed to update LLM profile:', error)
+      log.error('更新 LLM 配置失败', error)
       return { success: false, error: error.message }
     }
   })
@@ -171,7 +174,7 @@ export function deleteLLMProfile(id) {
         return { success: false, error: '保存配置失败' }
       }
     } catch (error) {
-      console.error('Failed to delete LLM profile:', error)
+      log.error('删除 LLM 配置失败', error)
       return { success: false, error: error.message }
     }
   })

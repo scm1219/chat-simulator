@@ -3,6 +3,9 @@
  */
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Character')
 import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
 
 /**
@@ -91,7 +94,7 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
       try {
         narrativeEngine.removeCharacter(db, id)
       } catch (err) {
-        console.error('[Character:delete] 清理叙事数据失败:', err.message)
+        log.error('清理叙事数据失败:', err.message)
       }
       // 维护索引缓存
       dbManager.unindexCharacter(id)

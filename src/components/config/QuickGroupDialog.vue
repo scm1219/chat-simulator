@@ -274,6 +274,9 @@ import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('QuickGroup')
 
 const emit = defineEmits(['close', 'created'])
 
@@ -400,7 +403,7 @@ async function handleGenerate() {
       toast.error('生成失败：' + result.error)
     }
   } catch (error) {
-    console.error('[QuickGroup] 生成失败', error)
+    log.error('AI 建群生成失败', error)
     toast.error('生成失败：' + error.message)
   } finally {
     generating.value = false
@@ -447,7 +450,7 @@ async function handleConfirm() {
         })
       }
     } catch (err) {
-      console.warn('[QuickGroup] 更新用户角色失败', err)
+      log.warn('更新用户角色失败', err)
     }
 
     // 3. 批量创建AI角色（逐个容错）
@@ -472,7 +475,7 @@ async function handleConfirm() {
         }
       } catch (err) {
         failedChars++
-        console.warn('[QuickGroup] 创建角色失败:', char.name, err)
+        log.warn('创建角色失败:', char.name, err)
       }
     }
 
@@ -488,7 +491,7 @@ async function handleConfirm() {
     emit('created', group)
     closeDialog()
   } catch (error) {
-    console.error('[QuickGroup] 创建失败', error)
+    log.error('创建群组失败', error)
     toast.error('创建失败：' + error.message)
   } finally {
     creating.value = false
@@ -510,7 +513,7 @@ async function loadPromptConfig() {
       savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
     }
   } catch (error) {
-    console.error('[QuickGroup] 加载提示词配置失败', error)
+    log.error('加载提示词配置失败', error)
   } finally {
     promptLoading.value = false
   }

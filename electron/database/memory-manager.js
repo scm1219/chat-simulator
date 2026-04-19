@@ -7,6 +7,9 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { generateUUID } from '../utils/uuid.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Memory')
 
 // 数据库 Schema
 const MEMORY_SCHEMA = `
@@ -66,7 +69,7 @@ export class MemoryManager {
       this.db = new Database(this.dbPath)
       this.db.pragma('foreign_keys = ON')
       this.db.exec(MEMORY_SCHEMA)
-      console.log('[MemoryManager] 数据库初始化完成')
+      log.info('数据库初始化完成')
     }
     return this.db
   }

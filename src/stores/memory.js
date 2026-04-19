@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Memory')
 
 export const useMemoryStore = defineStore('memory', () => {
   // 按角色名缓存的记忆 { characterName: Memory[] }
@@ -15,7 +18,7 @@ export const useMemoryStore = defineStore('memory', () => {
         memoriesMap.value[characterName] = result.data
       }
     } catch (error) {
-      console.error('Failed to load memories:', error)
+      log.error('加载记忆失败:', error)
     }
   }
 
@@ -32,7 +35,7 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to add memory:', error)
+      log.error('添加记忆失败:', error)
       throw error
     }
   }
@@ -53,7 +56,7 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to update memory:', error)
+      log.error('更新记忆失败:', error)
       throw error
     }
   }
@@ -71,7 +74,7 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to delete memory:', error)
+      log.error('删除记忆失败:', error)
       throw error
     }
   }

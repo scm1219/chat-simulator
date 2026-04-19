@@ -3,6 +3,9 @@
  */
 import { ipcMain } from 'electron'
 import { getGlobalLLMConfig, saveGlobalLLMConfig, getGachaConfig, saveGachaConfig, getDefaultGachaConfig, getQuickGroupConfig, saveQuickGroupConfig, getDefaultQuickGroupConfig } from '../../config/manager.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Config')
 import { getProxyConfig, saveProxyConfig } from '../../llm/proxy.js'
 import {
   getLLMProfiles,
@@ -97,7 +100,7 @@ export function setupConfigHandlers(dbManager) {
     // 同步更新所有使用旧配置的群组
     if (result.success && oldProfile && dbManager) {
       const syncedGroups = syncGroupsProfile(dbManager, oldProfile, data)
-      console.log(`[Config] Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
+      log.info(`Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
       result.syncedGroups = syncedGroups
     }
 
@@ -211,10 +214,10 @@ function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
           groupId
         )
         syncedCount++
-        console.log(`[Config] 群组 "${group.name}" 已同步更新`)
+        log.info(`群组 "${group.name}" 已同步更新`)
       }
     } catch (error) {
-      console.error(`[Config] 同步群组 ${groupId} 失败:`, error.message)
+      log.error(`同步群组 ${groupId} 失败:`, error.message)
     }
   }
 

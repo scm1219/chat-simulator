@@ -3,6 +3,9 @@
  * 支持跨群组搜索消息内容和角色名称
  */
 import { ipcMain } from 'electron'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('Search')
 import { createHandler } from '../handler-wrapper.js'
 
 /**
@@ -64,7 +67,7 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
       })
     }
   } catch (err) {
-    console.error(`[Search] 搜索群组 ${groupId} 消息失败:`, err.message)
+    log.error(`搜索群组 ${groupId} 消息失败:`, err.message)
   }
 
   // 搜索角色名称
@@ -83,7 +86,7 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
       })
     }
   } catch (err) {
-    console.error(`[Search] 搜索群组 ${groupId} 角色失败:`, err.message)
+    log.error(`搜索群组 ${groupId} 角色失败:`, err.message)
   }
 
   return results

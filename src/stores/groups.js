@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Groups')
 
 export const useGroupsStore = defineStore('groups', () => {
   // 状态
@@ -25,7 +28,7 @@ export const useGroupsStore = defineStore('groups', () => {
         }
       }
     } catch (error) {
-      console.error('Failed to load groups:', error)
+      log.error('加载群组失败:', error)
     } finally {
       loading.value = false
     }
@@ -40,7 +43,7 @@ export const useGroupsStore = defineStore('groups', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to create group:', error)
+      log.error('创建群组失败:', error)
       throw error
     }
   }
@@ -57,7 +60,7 @@ export const useGroupsStore = defineStore('groups', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to update group:', error)
+      log.error('更新群组失败:', error)
       throw error
     }
   }
@@ -74,7 +77,7 @@ export const useGroupsStore = defineStore('groups', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to delete group:', error)
+      log.error('删除群组失败:', error)
       throw error
     }
   }
@@ -88,7 +91,7 @@ export const useGroupsStore = defineStore('groups', () => {
       }
       throw new Error(result.error)
     } catch (error) {
-      console.error('Failed to duplicate group:', error)
+      log.error('复制群组失败:', error)
       throw error
     }
   }

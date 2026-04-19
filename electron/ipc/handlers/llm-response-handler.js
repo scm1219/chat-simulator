@@ -3,6 +3,9 @@
  * 负责单角色的流式回复生成、数据库保存和用户消息保存
  */
 import { generateUUID } from '../../utils/uuid.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('LLM')
 import { buildContextMessages, fetchCharacterMemories, extractMemoriesAsync } from './llm-context-builder.js'
 
 /**
@@ -148,7 +151,7 @@ export async function generateCharacterResponse(client, character, history, user
       // 自动提取记忆（异步，不阻塞主流程）
       if (memoryManager && autoMemoryExtract) {
         extractMemoriesAsync(client, character, userContent, result.content, groupId, memoryManager)
-          .catch(err => console.error(`[LLM] 自动提取角色 ${character.name} 记忆失败:`, err))
+          .catch(err => log.error(`自动提取角色 ${character.name} 记忆失败:`, err))
       }
 
       return {
@@ -160,7 +163,7 @@ export async function generateCharacterResponse(client, character, history, user
         usage: result.usage || null
       }
     } else {
-      console.error(`[LLM] ${character.name} - 回复生成失败`, result.error)
+      log.error(`${character.name} - 回复生成失败`, result.error)
 
       // 通知渲染进程：生成失败
       event.sender.send('message:stream:error', {
@@ -176,7 +179,7 @@ export async function generateCharacterResponse(client, character, history, user
       }
     }
   } catch (error) {
-    console.error(`[LLM] ${character.name} - 生成过程异常`, error)
+    log.error(`${character.name} - 生成过程异常`, error)
     return {
       success: false,
       characterId: character.id,

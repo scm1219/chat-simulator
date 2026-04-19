@@ -6,6 +6,9 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('Database')
 
 // 数据库 Schema（内联以避免打包后路径问题）
 const SCHEMA_SQL = `
@@ -344,7 +347,7 @@ export class DatabaseManager {
       if (applied.has(m.version)) continue
       m.up(db, groupId)
       db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(m.version, m.name)
-      console.log(`[Database][${groupId}] 迁移 v${m.version}: ${m.name}`)
+      log.info(`[${groupId}] 迁移 v${m.version}: ${m.name}`)
     }
   }
 

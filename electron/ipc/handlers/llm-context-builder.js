@@ -3,6 +3,9 @@
  * 负责将历史消息、角色设定、叙事上下文拼装为 LLM 可用的消息列表
  */
 import { extractJSON } from '../../utils/json-extractor.js'
+import { createLogger } from '../../utils/logger.js'
+
+const log = createLogger('LLM')
 
 /**
  * 查询角色全局记忆
@@ -15,7 +18,7 @@ export function fetchCharacterMemories(memoryManager, characterName) {
   try {
     return memoryManager.getMemoriesByCharacterName(characterName)
   } catch (err) {
-    console.error(`[LLM] 查询角色 ${characterName} 的全局记忆失败:`, err)
+    log.error(`查询角色 ${characterName} 的全局记忆失败:`, err)
     return []
   }
 }
@@ -207,8 +210,8 @@ export async function extractMemoriesAsync(client, character, userContent, assis
         })
       }
     }
-    console.log(`[LLM] 自动提取角色 ${character.name} 的记忆 ${memories.length} 条`)
+    log.info(`自动提取角色 ${character.name} 的记忆 ${memories.length} 条`)
   } catch (err) {
-    console.error(`[LLM] 自动提取记忆异常:`, err.message)
+    log.error('自动提取记忆异常:', err.message)
   }
 }
