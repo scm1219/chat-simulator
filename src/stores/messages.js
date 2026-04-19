@@ -117,6 +117,14 @@ export const useMessagesStore = defineStore('messages', () => {
     messageListener = window.electronAPI.message.onNewMessage(callback)
   }
 
+  // 清理流式监听器（供组件 onUnmounted 调用）
+  function cleanupStreamListeners() {
+    if (_cleanupStreamListeners) {
+      _cleanupStreamListeners()
+      _cleanupStreamListeners = null
+    }
+  }
+
   // 设置流式消息监听器
   function setupStreamListeners() {
     if (!window.electronAPI?.message) {
@@ -321,6 +329,7 @@ export const useMessagesStore = defineStore('messages', () => {
     appendMessage,
     setupMessageListener,
     setupStreamListeners,
+    cleanupStreamListeners,
     clearMessages,
     clearLocalMessages,
     updateMessage,

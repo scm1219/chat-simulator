@@ -342,12 +342,20 @@ export class DatabaseManager {
       db.prepare('SELECT version FROM schema_migrations').all().map(r => r.version)
     )
 
-    // 按版本号顺序执行未应用的迁移
+    // 按版本号顺序执行未应用的迁移（每个迁移用事务包裹）
     for (const m of MIGRATIONS) {
       if (applied.has(m.version)) continue
-      m.up(db, groupId)
-      db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(m.version, m.name)
-      log.info(`[${groupId}] 迁移 v${m.version}: ${m.name}`)
+      const runMigration = db.transaction(() => {
+        m.up(db, groupId)
+        db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(m.version, m.name)
+      })
+      try {
+        runMigration()
+        log.info(`[${groupId}] 迁移 v${m.version}: ${m.name}`)
+      } catch (err) {
+        log.error(`[${groupId}] 迁移 v${m.version} 失败: ${err.message}`)
+        throw err
+      }
     }
   }
 

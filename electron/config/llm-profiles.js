@@ -24,7 +24,8 @@ let _writeQueue = Promise.resolve()
  */
 function enqueueWrite(fn) {
   const result = _writeQueue.then(() => fn())
-  _writeQueue = result.catch(() => {})
+  // 确保队列链不因前一个操作失败而断裂，同时保留当前操作的错误传播
+  _writeQueue = result.catch(() => {}).then(() => {})
   return result
 }
 

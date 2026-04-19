@@ -13,6 +13,21 @@ import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('Narrative')
 
+/**
+ * 构建安全的 IN 子句占位符
+ * @param {Array} ids - ID 数组
+ * @returns {{ placeholders: string, params: Array }} 空数组时返回不可能匹配的条件
+ */
+function buildInClause(ids) {
+  if (!ids || ids.length === 0) {
+    return { placeholders: 'SELECT NULL WHERE FALSE', params: [] }
+  }
+  return {
+    placeholders: ids.map(() => '?').join(','),
+    params: [...ids]
+  }
+}
+
 export class NarrativeEngine {
   constructor() {
     this.emotion = new EmotionManager()
@@ -209,10 +224,11 @@ export class NarrativeEngine {
     if (activeIds.length === 0) return false
 
     // 高情绪必定触发（仅检查参与对话的角色）
+    const emoIn = buildInClause(activeIds)
     const highEmotions = db.prepare(
       `SELECT COUNT(*) as count FROM character_emotions
-       WHERE intensity > 0.7 AND character_id IN (${activeIds.map(() => '?').join(',')})`
-    ).get(...activeIds)
+       WHERE intensity > 0.7 AND character_id IN (${emoIn.placeholders})`
+    ).get(...emoIn.params)
     if (highEmotions.count > 0) return true
 
     // 角色提及必定触发
@@ -225,10 +241,11 @@ export class NarrativeEngine {
     }
 
     // 紧张关系必定触发
+    const relIn = buildInClause(activeIds)
     const tenseRels = db.prepare(`
       SELECT COUNT(*) as count FROM character_relationships
-      WHERE favorability < -20 AND from_id IN (${activeIds.map(() => '?').join(',')})
-    `).get(...activeIds)
+      WHERE favorability < -20 AND from_id IN (${relIn.placeholders})
+    `).get(...relIn.params)
     if (tenseRels.count > 0) return true
 
     // 默认 60% 随机触发

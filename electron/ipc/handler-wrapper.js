@@ -36,6 +36,9 @@ export function createHandler(handler, label) {
  */
 const ALLOWED_TABLES = new Set(['groups', 'characters', 'global_characters', 'tags', 'messages'])
 
+// 合法列名正则：仅允许字母、数字、下划线
+const SAFE_COL_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
 export function buildDynamicUpdate(db, table, data, fieldMap, id) {
   if (!ALLOWED_TABLES.has(table)) {
     throw new Error(`buildDynamicUpdate: 不允许的表名 "${table}"`)
@@ -47,6 +50,9 @@ export function buildDynamicUpdate(db, table, data, fieldMap, id) {
   for (const entry of fieldMap) {
     const [dataKey, colName, transform] = entry
     if (data[dataKey] !== undefined) {
+      if (!SAFE_COL_NAME.test(colName)) {
+        throw new Error(`buildDynamicUpdate: 非法列名 "${colName}"`)
+      }
       updates.push(`${colName} = ?`)
       values.push(transform ? transform(data[dataKey]) : data[dataKey])
     }

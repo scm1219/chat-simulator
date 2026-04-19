@@ -99,23 +99,27 @@ export class RelationshipManager {
 
     if (totalChange === 0) return { favorability: 0, change: 0, reason: '', reverseChange: 0 }
 
-    // 正向更新：sender → receiver
+    // 在一个大事务中完成正向 + 反向好感度更新，减少事务开销
     const existing = this.getRelationship(db, senderId, receiverId)
     const currentFavor = existing ? existing.favorability : 0
     const newFavor = Math.max(-100, Math.min(100, currentFavor + totalChange))
-    this._updateFavorabilityValue(db, senderId, receiverId, existing, newFavor)
 
-    // 反向更新：receiver → sender（被动感受，幅度减半）
     let reverseChange = 0
-    if (totalChange !== 0) {
-      const reverseExisting = this.getRelationship(db, receiverId, senderId)
-      const reverseCurrentFavor = reverseExisting ? reverseExisting.favorability : 0
-      reverseChange = Math.floor(totalChange * 0.5)
-      if (reverseChange !== 0) {
-        const reverseNewFavor = Math.max(-100, Math.min(100, reverseCurrentFavor + reverseChange))
-        this._updateFavorabilityValue(db, receiverId, senderId, reverseExisting, reverseNewFavor)
+    db.transaction(() => {
+      // 正向更新：sender → receiver
+      this._setFavorabilityValue(db, senderId, receiverId, existing, newFavor)
+
+      // 反向更新：receiver → sender（被动感受，幅度减半）
+      if (totalChange !== 0) {
+        const reverseExisting = this.getRelationship(db, receiverId, senderId)
+        const reverseCurrentFavor = reverseExisting ? reverseExisting.favorability : 0
+        reverseChange = Math.floor(totalChange * 0.5)
+        if (reverseChange !== 0) {
+          const reverseNewFavor = Math.max(-100, Math.min(100, reverseCurrentFavor + reverseChange))
+          this._setFavorabilityValue(db, receiverId, senderId, reverseExisting, reverseNewFavor)
+        }
       }
-    }
+    })()
 
     return {
       favorability: newFavor,
@@ -126,23 +130,21 @@ export class RelationshipManager {
   }
 
   /**
-   * 更新或创建好感度值（事务保护）
+   * 更新或创建好感度值（无事务保护，由调用方控制事务）
    */
-  _updateFavorabilityValue(db, fromId, toId, existing, newFavor) {
-    db.transaction(() => {
-      if (existing) {
-        db.prepare(`
-          UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
-          WHERE from_id = ? AND to_id = ?
-        `).run(newFavor, fromId, toId)
-      } else {
-        this.setRelationship(db, fromId, toId, 'stranger', '')
-        db.prepare(`
-          UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
-          WHERE from_id = ? AND to_id = ?
-        `).run(newFavor, fromId, toId)
-      }
-    })()
+  _setFavorabilityValue(db, fromId, toId, existing, newFavor) {
+    if (existing) {
+      db.prepare(`
+        UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
+        WHERE from_id = ? AND to_id = ?
+      `).run(newFavor, fromId, toId)
+    } else {
+      this.setRelationship(db, fromId, toId, 'stranger', '')
+      db.prepare(`
+        UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
+        WHERE from_id = ? AND to_id = ?
+      `).run(newFavor, fromId, toId)
+    }
   }
 
   decayInactive(db, characterId, activeCharacterIds) {
