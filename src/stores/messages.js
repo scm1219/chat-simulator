@@ -286,8 +286,7 @@ export const useMessagesStore = defineStore('messages', () => {
       }
 
       // 重新加载消息列表
-      const groupsStore = useGroupsStore()
-      await loadMessages(groupsStore.currentGroupId)
+      await loadMessages(groupId)
 
       // 重新发送消息
       await sendMessage(result.data.content)

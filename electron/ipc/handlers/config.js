@@ -84,7 +84,7 @@ export function setupConfigHandlers(dbManager) {
 
   // 添加 LLM 配置
   ipcMain.handle('llmProfile:add', createHandler(async (event, profile) => {
-    const result = addLLMProfile(profile)
+    const result = await addLLMProfile(profile)
     return result
   }))
 
@@ -92,7 +92,7 @@ export function setupConfigHandlers(dbManager) {
   ipcMain.handle('llmProfile:update', createHandler(async (event, id, data) => {
     // 获取旧配置，用于匹配需要同步的群组
     const oldProfile = getLLMProfiles().find(p => p.id === id) || null
-    const result = updateLLMProfile(id, data)
+    const result = await updateLLMProfile(id, data)
 
     // 同步更新所有使用旧配置的群组
     if (result.success && oldProfile && dbManager) {
@@ -106,7 +106,7 @@ export function setupConfigHandlers(dbManager) {
 
   // 删除 LLM 配置
   ipcMain.handle('llmProfile:delete', createHandler(async (event, id) => {
-    const result = deleteLLMProfile(id)
+    const result = await deleteLLMProfile(id)
     return result
   }))
 

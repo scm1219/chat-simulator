@@ -11,6 +11,20 @@ import { ensureConfigDir } from '../utils/config-dir.js'
 
 const LLM_PROFILES_FILE = path.join(app.getPath('userData'), 'config', 'llm-profiles.json')
 
+// 写操作串行化队列（防止并发 read-modify-write 竞态）
+let _writeQueue = Promise.resolve()
+
+/**
+ * 串行化写操作：确保完整的 read-modify-write 周期不被其他写操作打断
+ * @param {Function} fn - 返回结果的同步函数
+ * @returns {Promise} 操作结果
+ */
+function enqueueWrite(fn) {
+  const result = _writeQueue.then(() => fn())
+  _writeQueue = result.catch(() => {})
+  return result
+}
+
 /**
  * 获取所有 LLM 配置
  */
@@ -68,91 +82,97 @@ function saveLLMProfiles(profiles) {
 }
 
 /**
- * 添加新的 LLM 配置
+ * 添加新的 LLM 配置（串行化，防止并发冲突）
  */
 export function addLLMProfile(profile) {
-  try {
-    const profiles = getLLMProfiles()
+  return enqueueWrite(() => {
+    try {
+      const profiles = getLLMProfiles()
 
-    // 检查名称是否重复
-    if (profiles.some(p => p.name === profile.name)) {
-      return { success: false, error: '配置名称已存在' }
+      // 检查名称是否重复
+      if (profiles.some(p => p.name === profile.name)) {
+        return { success: false, error: '配置名称已存在' }
+      }
+
+      const newProfile = {
+        id: generateUUID(),
+        ...profile,
+        createdAt: new Date().toISOString()
+      }
+
+      profiles.push(newProfile)
+
+      if (saveLLMProfiles(profiles)) {
+        return { success: true, data: newProfile }
+      } else {
+        return { success: false, error: '保存配置失败' }
+      }
+    } catch (error) {
+      console.error('Failed to add LLM profile:', error)
+      return { success: false, error: error.message }
     }
-
-    const newProfile = {
-      id: generateUUID(),
-      ...profile,
-      createdAt: new Date().toISOString()
-    }
-
-    profiles.push(newProfile)
-
-    if (saveLLMProfiles(profiles)) {
-      return { success: true, data: newProfile }
-    } else {
-      return { success: false, error: '保存配置失败' }
-    }
-  } catch (error) {
-    console.error('Failed to add LLM profile:', error)
-    return { success: false, error: error.message }
-  }
+  })
 }
 
 /**
- * 更新 LLM 配置
+ * 更新 LLM 配置（串行化，防止并发冲突）
  */
 export function updateLLMProfile(id, data) {
-  try {
-    const profiles = getLLMProfiles()
-    const index = profiles.findIndex(p => p.id === id)
+  return enqueueWrite(() => {
+    try {
+      const profiles = getLLMProfiles()
+      const index = profiles.findIndex(p => p.id === id)
 
-    if (index === -1) {
-      return { success: false, error: '配置不存在' }
-    }
+      if (index === -1) {
+        return { success: false, error: '配置不存在' }
+      }
 
-    // 检查名称是否重复（排除自己）
-    if (data.name && profiles.some(p => p.id !== id && p.name === data.name)) {
-      return { success: false, error: '配置名称已存在' }
-    }
+      // 检查名称是否重复（排除自己）
+      if (data.name && profiles.some(p => p.id !== id && p.name === data.name)) {
+        return { success: false, error: '配置名称已存在' }
+      }
 
-    profiles[index] = {
-      ...profiles[index],
-      ...data,
-      id // 保持 ID 不变
-    }
+      profiles[index] = {
+        ...profiles[index],
+        ...data,
+        id // 保持 ID 不变
+      }
 
-    if (saveLLMProfiles(profiles)) {
-      return { success: true, data: profiles[index] }
-    } else {
-      return { success: false, error: '保存配置失败' }
+      if (saveLLMProfiles(profiles)) {
+        return { success: true, data: profiles[index] }
+      } else {
+        return { success: false, error: '保存配置失败' }
+      }
+    } catch (error) {
+      console.error('Failed to update LLM profile:', error)
+      return { success: false, error: error.message }
     }
-  } catch (error) {
-    console.error('Failed to update LLM profile:', error)
-    return { success: false, error: error.message }
-  }
+  })
 }
 
 /**
- * 删除 LLM 配置
+ * 删除 LLM 配置（串行化，防止并发冲突）
  */
 export function deleteLLMProfile(id) {
-  try {
-    const profiles = getLLMProfiles()
-    const index = profiles.findIndex(p => p.id === id)
+  return enqueueWrite(() => {
+    try {
+      const profiles = getLLMProfiles()
+      const index = profiles.findIndex(p => p.id === id)
 
-    if (index === -1) {
-      return { success: false, error: '配置不存在' }
+      if (index === -1) {
+        return { success: false, error: '配置不存在' }
+      }
+
+      profiles.splice(index, 1)
+
+      if (saveLLMProfiles(profiles)) {
+        return { success: true }
+      } else {
+        return { success: false, error: '保存配置失败' }
+      }
+    } catch (error) {
+      console.error('Failed to delete LLM profile:', error)
+      return { success: false, error: error.message }
     }
-
-    profiles.splice(index, 1)
-
-    if (saveLLMProfiles(profiles)) {
-      return { success: true }
-    } else {
-      return { success: false, error: '保存配置失败' }
-    }
-  } catch (error) {
-    console.error('Failed to delete LLM profile:', error)
-    return { success: false, error: error.message }
-  }
+  })
 }

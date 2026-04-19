@@ -44,12 +44,6 @@ export class LLMClient {
       })
     }
 
-    // 添加请求拦截器用于调试
-    this.client.interceptors.request.use(
-      (request) => request,
-      (error) => Promise.reject(error)
-    )
-
     // 添加响应拦截器用于调试
     this.client.interceptors.response.use(
       (response) => response,
@@ -94,6 +88,7 @@ export class LLMClient {
    * @param {Array} messages - 消息列表
    * @param {Object} options - 选项
    * @param {Function} options.onChunk - 流式输出回调函数
+   * @param {AbortSignal} options.signal - 用于取消请求的 AbortSignal
    */
   async chat(messages, options = {}) {
     // 确定是否使用流式输出：
@@ -102,6 +97,7 @@ export class LLMClient {
     const hasOnChunk = options.onChunk && typeof options.onChunk === 'function'
     const useStreaming = hasOnChunk || (this.streamEnabled && options.streaming !== false)
     const isStreaming = useStreaming && typeof options.onChunk === 'function'
+    const signal = options.signal || null
 
     try {
       const requestData = {
@@ -127,10 +123,13 @@ export class LLMClient {
 
       if (isStreaming) {
         // 流式请求
-        return await this.chatStream(requestData, options.onChunk)
+        return await this.chatStream(requestData, options.onChunk, signal)
       } else {
         // 非流式请求
-        const response = await this.client.post('/chat/completions', requestData)
+        const axiosOptions = {}
+        if (signal) axiosOptions.signal = signal
+
+        const response = await this.client.post('/chat/completions', requestData, axiosOptions)
 
         // 检查响应格式
         if (!response.data || !response.data.choices || response.data.choices.length === 0) {
@@ -160,23 +159,32 @@ export class LLMClient {
         }
       }
     } catch (error) {
+      // 处理取消请求
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return { success: false, error: '请求已取消' }
+      }
       return this.handleError(error)
     }
   }
 
   /**
    * 流式聊天请求
+   * @param {Object} requestData - 请求数据
+   * @param {Function} onChunk - 流式片段回调
+   * @param {AbortSignal} [signal] - 用于取消请求的 AbortSignal
    */
-  async chatStream(requestData, onChunk) {
+  async chatStream(requestData, onChunk, signal) {
     try {
-      const response = await this.client.post('/chat/completions', requestData, {
-        responseType: 'stream'
-      })
+      const axiosOptions = { responseType: 'stream' }
+      if (signal) axiosOptions.signal = signal
+
+      const response = await this.client.post('/chat/completions', requestData, axiosOptions)
 
       let fullContent = ''
       let fullReasoningContent = ''
       let usage = null
       let responseModel = null
+      let lineBuffer = '' // 跨 chunk 行缓冲区
 
       const buildResult = () => ({
         success: true,
@@ -187,12 +195,26 @@ export class LLMClient {
       })
 
       return new Promise((resolve, reject) => {
+        // 处理取消信号
+        if (signal && signal.aborted) {
+          response.data.destroy()
+          resolve({ success: false, error: '请求已取消' })
+          return
+        }
+
         response.data.on('data', (chunk) => {
-          const lines = chunk.toString().split('\n').filter(line => line.trim() !== '')
+          // 将新数据追加到行缓冲区，按换行符拆分
+          lineBuffer += chunk.toString()
+          const lines = lineBuffer.split('\n')
+          // 保留最后一个不完整的行（可能被 chunk 边界截断）
+          lineBuffer = lines.pop() || ''
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
+            const trimmed = line.trim()
+            if (trimmed === '') continue
+
+            if (trimmed.startsWith('data: ')) {
+              const data = trimmed.slice(6)
 
               if (data === '[DONE]') {
                 resolve(buildResult())
@@ -233,14 +255,38 @@ export class LLMClient {
         })
 
         response.data.on('end', () => {
+          // 处理缓冲区中可能残留的最后一条数据
+          if (lineBuffer.trim()) {
+            const trimmed = lineBuffer.trim()
+            if (trimmed.startsWith('data: ') && trimmed.slice(6) !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(trimmed.slice(6))
+                if (parsed.usage) usage = parsed.usage
+                if (parsed.model && !responseModel) responseModel = parsed.model
+              } catch (e) {
+                // 忽略缓冲区残留的不完整数据
+              }
+            }
+          }
           resolve(buildResult())
         })
 
         response.data.on('error', (error) => {
           reject(this.handleError(error))
         })
+
+        // 监听取消信号，销毁流
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            response.data.destroy()
+            resolve({ success: false, error: '请求已取消' })
+          }, { once: true })
+        }
       })
     } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return { success: false, error: '请求已取消' }
+      }
       return this.handleError(error)
     }
   }

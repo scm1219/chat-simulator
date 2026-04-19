@@ -24,14 +24,20 @@ export function createHandler(handler, label) {
  * 构建动态 UPDATE 语句并执行
  * 根据前端传入的字段自动生成 SET 子句，跳过 undefined 字段
  * @param {object} db - better-sqlite3 数据库实例
- * @param {string} table - 表名
+ * @param {string} table - 表名（必须在白名单内）
  * @param {object} data - 前端传入的数据（camelCase）
  * @param {Array<Array<string>>} fieldMap - 字段映射 [[前端key, 数据库列名], ...]
  *   支持 transform 回调：[前端key, 数据库列名, (val) => transformedVal]
  * @param {string} id - WHERE 条件的 ID 值
  * @returns {boolean} 是否有字段被更新
  */
+const ALLOWED_TABLES = new Set(['groups', 'characters', 'global_characters', 'tags', 'messages'])
+
 export function buildDynamicUpdate(db, table, data, fieldMap, id) {
+  if (!ALLOWED_TABLES.has(table)) {
+    throw new Error(`buildDynamicUpdate: 不允许的表名 "${table}"`)
+  }
+
   const updates = []
   const values = []
 

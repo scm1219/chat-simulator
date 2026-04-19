@@ -201,11 +201,17 @@ export class NarrativeEngine {
   }
 
   _shouldTriggerAftermath(responses, allCharacters, db, groupId) {
-    // 高情绪必定触发
+    // 空数组保护：先计算活跃角色 ID
+    const activeIds = responses.filter(r => r.success).map(r => r.characterId)
+    if (activeIds.length === 0) return false
+
+    // 高情绪必定触发（仅检查参与对话的角色）
     const highEmotions = db.prepare(
-      'SELECT COUNT(*) as count FROM character_emotions WHERE intensity > 0.7'
-    ).get()
+      `SELECT COUNT(*) as count FROM character_emotions
+       WHERE intensity > 0.7 AND character_id IN (${activeIds.map(() => '?').join(',')})`
+    ).get(...activeIds)
     if (highEmotions.count > 0) return true
+
     // 角色提及必定触发
     const characterNames = allCharacters.map(c => c.name)
     for (const resp of responses) {
@@ -214,14 +220,14 @@ export class NarrativeEngine {
         if (resp.content.includes(name) && resp.characterName !== name) return true
       }
     }
-    // 紧张关系必定触发（空数组保护）
-    const activeIds = responses.filter(r => r.success).map(r => r.characterId)
-    if (activeIds.length === 0) return false
+
+    // 紧张关系必定触发
     const tenseRels = db.prepare(`
       SELECT COUNT(*) as count FROM character_relationships
       WHERE favorability < -20 AND from_id IN (${activeIds.map(() => '?').join(',')})
     `).get(...activeIds)
     if (tenseRels.count > 0) return true
+
     // 默认 60% 随机触发
     return Math.random() < 0.6
   }
