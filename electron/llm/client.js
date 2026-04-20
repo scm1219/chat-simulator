@@ -2,59 +2,42 @@
  * LLM 客户端
  * 支持 OpenAI 协议兼容的 API
  */
-import axios from 'axios'
 import { getProviderConfig } from './providers/index.js'
-import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
-import { createLogger } from '../utils/logger.js'
+import { BaseLLMClient } from './base-client.js'
 
-const log = createLogger('LLM')
+// OpenAI 协议特有的 HTTP 错误码映射
+const OPENAI_STATUS_MAP = {
+  401: 'API Key 无效或已过期',
+  429: '请求过于频繁，请稍后再试',
+  500: '服务器内部错误'
+}
 
-export class LLMClient {
+export class LLMClient extends BaseLLMClient {
   constructor(config) {
-    this.provider = config.provider || 'openai'
-    this.apiKey = config.apiKey
-    this.baseURL = config.baseURL
-    this.model = config.model
-    this.timeout = config.timeout || 60000 // 默认 60 秒
-    this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true // 默认启用流式输出
+    // 计算基类所需参数（不能在 super() 前使用 this）
+    const provider = config.provider || 'openai'
+    const providerConfig = getProviderConfig(provider)
+    const baseURL = config.baseURL || (providerConfig && providerConfig.baseURL)
 
-    // 获取供应商默认配置
-    const providerConfig = getProviderConfig(this.provider)
-    if (providerConfig && !this.baseURL) {
-      this.baseURL = providerConfig.baseURL
+    const headers = { 'Content-Type': 'application/json' }
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`
     }
 
-    // 解析代理配置：优先使用 resolveProfileProxy 的结果，向后兼容旧的 proxy 格式
-    const proxyConfig = config.proxy ?? undefined
-    const bypassRules = config.bypassRules || ''
-
-    // 配置 Axios
-    this.client = axios.create({
-      baseURL: this.baseURL,
-      timeout: this.timeout,
-      headers: this.buildHeaders(),
-      proxy: proxyConfig
+    // 调用基类构造函数
+    super({
+      baseURL,
+      timeout: config.timeout || 60000,
+      proxy: config.proxy,
+      bypassRules: config.bypassRules,
+      headers
     })
 
-    // 代理绕过规则拦截器
-    if (bypassRules && proxyConfig) {
-      this.client.interceptors.request.use((request) => {
-        const targetURL = `${request.baseURL || ''}${request.url || ''}`
-        if (shouldBypassProxy(targetURL, bypassRules)) {
-          request.proxy = false
-        }
-        return request
-      })
-    }
-
-    // 添加响应拦截器用于调试
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        log.error('请求失败:', error.message, error.response?.status)
-        return Promise.reject(error)
-      }
-    )
+    // 设置子类属性
+    this._provider = provider
+    this.apiKey = config.apiKey
+    this.model = config.model
+    this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true
   }
 
   /**
@@ -71,20 +54,56 @@ export class LLMClient {
     requestData.enable_thinking = enabled
   }
 
-  /**
-   * 构建请求头
-   */
-  buildHeaders() {
-    const headers = {
-      'Content-Type': 'application/json'
-    }
+  // ============ BaseLLMClient 抽象方法实现 ============
 
-    if (this.apiKey) {
-      headers['Authorization'] = `Bearer ${this.apiKey}`
-    }
-
-    return headers
+  _getChatEndpoint() {
+    return '/chat/completions'
   }
+
+  /**
+   * 解析 SSE 格式的流式数据行
+   * 格式：`data: {json}` 或 `data: [DONE]`
+   */
+  _parseStreamLine(line, state, onChunk) {
+    if (!line.startsWith('data: ')) return { done: false }
+
+    const data = line.slice(6)
+    if (data === '[DONE]') return { done: true }
+
+    try {
+      const parsed = JSON.parse(data)
+      const delta = parsed.choices?.[0]?.delta
+
+      const content = delta?.content
+      const reasoningContent = delta?.reasoning_content
+
+      if (reasoningContent) {
+        state.fullReasoning += reasoningContent
+        onChunk({ type: 'reasoning', content: reasoningContent })
+      }
+
+      if (content) {
+        state.fullContent += content
+        onChunk({ type: 'content', content: content })
+      }
+
+      // 提取 usage（通常在最后一个 chunk 中）
+      if (parsed.usage) {
+        state.usage = parsed.usage
+      }
+
+      // 提取 model（从首个包含 model 的 chunk 中获取）
+      if (parsed.model && !state.responseModel) {
+        state.responseModel = parsed.model
+      }
+    } catch (e) {
+      // 忽略无法解析的行
+    }
+
+    return { done: false }
+  }
+
+  // ============ 业务方法 ============
 
   /**
    * 发送聊天请求
@@ -108,7 +127,7 @@ export class LLMClient {
         messages: messages,
         temperature: options.temperature || 0.7,
         max_tokens: options.maxTokens || 2000,
-        stream: isStreaming // 启用流式输出
+        stream: isStreaming
       }
 
       // 结构化输出：强制返回合法 JSON（GLM-5、OpenAI 等供应商支持）
@@ -125,7 +144,6 @@ export class LLMClient {
       this.applyThinkingMode(requestData, options.thinkingEnabled)
 
       if (isStreaming) {
-        // 流式请求
         return await this.chatStream(requestData, options.onChunk, signal)
       } else {
         // 非流式请求
@@ -166,131 +184,7 @@ export class LLMClient {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return { success: false, error: '请求已取消' }
       }
-      return this.handleError(error)
-    }
-  }
-
-  /**
-   * 流式聊天请求
-   * @param {Object} requestData - 请求数据
-   * @param {Function} onChunk - 流式片段回调
-   * @param {AbortSignal} [signal] - 用于取消请求的 AbortSignal
-   */
-  async chatStream(requestData, onChunk, signal) {
-    try {
-      const axiosOptions = { responseType: 'stream' }
-      if (signal) axiosOptions.signal = signal
-
-      const response = await this.client.post('/chat/completions', requestData, axiosOptions)
-
-      let fullContent = ''
-      let fullReasoningContent = ''
-      let usage = null
-      let responseModel = null
-      let lineBuffer = '' // 跨 chunk 行缓冲区
-
-      const buildResult = () => ({
-        success: true,
-        content: fullContent,
-        reasoningContent: fullReasoningContent || null,
-        model: responseModel || this.model,
-        usage: usage || undefined
-      })
-
-      return new Promise((resolve, reject) => {
-        // 处理取消信号
-        if (signal && signal.aborted) {
-          response.data.destroy()
-          resolve({ success: false, error: '请求已取消' })
-          return
-        }
-
-        response.data.on('data', (chunk) => {
-          // 将新数据追加到行缓冲区，按换行符拆分
-          lineBuffer += chunk.toString()
-          const lines = lineBuffer.split('\n')
-          // 保留最后一个不完整的行（可能被 chunk 边界截断）
-          lineBuffer = lines.pop() || ''
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed === '') continue
-
-            if (trimmed.startsWith('data: ')) {
-              const data = trimmed.slice(6)
-
-              if (data === '[DONE]') {
-                resolve(buildResult())
-                return
-              }
-
-              try {
-                const parsed = JSON.parse(data)
-                const delta = parsed.choices?.[0]?.delta
-
-                const content = delta?.content
-                const reasoningContent = delta?.reasoning_content
-
-                if (reasoningContent) {
-                  fullReasoningContent += reasoningContent
-                  onChunk({ type: 'reasoning', content: reasoningContent })
-                }
-
-                if (content) {
-                  fullContent += content
-                  onChunk({ type: 'content', content: content })
-                }
-
-                // 提取 usage（通常在最后一个 chunk 中）
-                if (parsed.usage) {
-                  usage = parsed.usage
-                }
-
-                // 提取 model（从首个包含 model 的 chunk 中获取）
-                if (parsed.model && !responseModel) {
-                  responseModel = parsed.model
-                }
-              } catch (e) {
-                log.warn('解析流式数据失败', e.message)
-              }
-            }
-          }
-        })
-
-        response.data.on('end', () => {
-          // 处理缓冲区中可能残留的最后一条数据
-          if (lineBuffer.trim()) {
-            const trimmed = lineBuffer.trim()
-            if (trimmed.startsWith('data: ') && trimmed.slice(6) !== '[DONE]') {
-              try {
-                const parsed = JSON.parse(trimmed.slice(6))
-                if (parsed.usage) usage = parsed.usage
-                if (parsed.model && !responseModel) responseModel = parsed.model
-              } catch (e) {
-                // 忽略缓冲区残留的不完整数据
-              }
-            }
-          }
-          resolve(buildResult())
-        })
-
-        response.data.on('error', (error) => {
-          reject(this.handleError(error))
-        })
-
-        // 监听取消信号，销毁流
-        if (signal) {
-          signal.addEventListener('abort', () => {
-            response.data.destroy()
-            resolve({ success: false, error: '请求已取消' })
-          }, { once: true })
-        }
-      })
-    } catch (error) {
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        return { success: false, error: '请求已取消' }
-      }
-      return this.handleError(error)
+      return this.handleError(error, OPENAI_STATUS_MAP)
     }
   }
 
@@ -299,7 +193,7 @@ export class LLMClient {
    */
   async testConnection() {
     try {
-      const response = await this.client.post('/chat/completions', {
+      await this.client.post('/chat/completions', {
         model: this.model,
         messages: [
           { role: 'user', content: 'Hi' }
@@ -313,12 +207,12 @@ export class LLMClient {
         model: this.model
       }
     } catch (error) {
-      return this.handleError(error)
+      return this.handleError(error, OPENAI_STATUS_MAP)
     }
   }
 
   /**
-   * 获取可用模型列表（用于 Ollama）
+   * 获取可用模型列表
    */
   async getModels() {
     try {
@@ -328,50 +222,14 @@ export class LLMClient {
         models: response.data.data.map(m => m.id)
       }
     } catch (error) {
-      return this.handleError(error)
+      return this.handleError(error, OPENAI_STATUS_MAP)
     }
   }
 
   /**
-   * 错误处理
+   * 错误处理（使用 OpenAI 状态码映射）
    */
-  handleError(error) {
-    if (error.response) {
-      // 服务器返回错误
-      const status = error.response.status
-      const message = error.response.data?.error?.message || error.message
-
-      let errorDetail = ''
-      switch (status) {
-        case 401:
-          errorDetail = 'API Key 无效或已过期'
-          break
-        case 429:
-          errorDetail = '请求过于频繁，请稍后再试'
-          break
-        case 500:
-          errorDetail = '服务器内部错误'
-          break
-        default:
-          errorDetail = message
-      }
-
-      return {
-        success: false,
-        error: `HTTP ${status}: ${errorDetail}`
-      }
-    } else if (error.request) {
-      // 请求发送但无响应
-      return {
-        success: false,
-        error: '网络连接失败，请检查网络设置或代理配置'
-      }
-    } else {
-      // 其他错误
-      return {
-        success: false,
-        error: error.message
-      }
-    }
+  handleError(error, statusMap = OPENAI_STATUS_MAP) {
+    return super.handleError(error, statusMap)
   }
 }

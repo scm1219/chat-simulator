@@ -15,3 +15,13 @@ export function ensureConfigDir(filePath) {
     fs.mkdirSync(configDir, { recursive: true })
   }
 }
+
+/**
+ * 确保指定目录存在（如不存在则递归创建）
+ * @param {string} dirPath - 目标目录路径
+ */
+export function ensureDataDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+}

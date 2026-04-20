@@ -5,9 +5,9 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
-import fs from 'fs'
 import { generateUUID } from '../utils/uuid.js'
 import { createLogger } from '../utils/logger.js'
+import { ensureDataDir } from '../utils/config-dir.js'
 
 const log = createLogger('Memory')
 
@@ -42,22 +42,13 @@ export class MemoryManager {
     this.dataDir = path.join(app.getPath('userData'), 'data', 'global')
 
     // 初始化目录
-    this.initDataDir()
+    ensureDataDir(this.dataDir)
 
     // 数据库路径
     this.dbPath = path.join(this.dataDir, 'character-memories.sqlite')
 
     // 数据库连接（懒加载）
     this.db = null
-  }
-
-  /**
-   * 初始化数据目录
-   */
-  initDataDir() {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true })
-    }
   }
 
   /**

@@ -1,5 +1,6 @@
 /**
  * 全局配置管理器
+ * 使用工厂函数统一管理配置的读取、保存和默认值
  */
 import fs from 'fs'
 import path from 'path'
@@ -9,9 +10,13 @@ import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('Config')
 
+// ============ 配置文件路径 ============
+
 const LLM_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'llm-config.json')
 const GACHA_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'gacha-config.json')
 const QUICK_GROUP_CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'quick-group-config.json')
+
+// ============ 默认配置 ============
 
 /**
  * 默认 LLM 配置
@@ -22,44 +27,6 @@ const DEFAULT_LLM_CONFIG = {
   model: 'gpt-3.5-turbo',
   baseURL: ''
 }
-
-/**
- * 获取全局 LLM 配置
- */
-export function getGlobalLLMConfig() {
-  try {
-    if (fs.existsSync(LLM_CONFIG_FILE)) {
-      const data = fs.readFileSync(LLM_CONFIG_FILE, 'utf-8')
-      return { ...DEFAULT_LLM_CONFIG, ...JSON.parse(data) }
-    }
-  } catch (error) {
-    log.error('加载 LLM 配置失败', error)
-  }
-  return { ...DEFAULT_LLM_CONFIG }
-}
-
-/**
- * 保存全局 LLM 配置
- */
-export function saveGlobalLLMConfig(config) {
-  try {
-    ensureConfigDir(LLM_CONFIG_FILE)
-    fs.writeFileSync(LLM_CONFIG_FILE, JSON.stringify(config, null, 2))
-    return true
-  } catch (error) {
-    log.error('保存 LLM 配置失败', error)
-    return false
-  }
-}
-
-/**
- * 获取默认 LLM 配置
- */
-export function getDefaultLLMConfig() {
-  return { ...DEFAULT_LLM_CONFIG }
-}
-
-// ============ 抽卡配置 ============
 
 /**
  * 默认抽卡提示词配置
@@ -89,45 +56,6 @@ systemPrompt 写法要求：
   userPromptTemplate: '请根据以下提示生成一个角色：{hint}',
   defaultUserPrompt: '请随机生成一个有趣的普通人角色'
 }
-
-/**
- * 获取抽卡配置
- */
-export function getGachaConfig() {
-  try {
-    if (fs.existsSync(GACHA_CONFIG_FILE)) {
-      const data = fs.readFileSync(GACHA_CONFIG_FILE, 'utf-8')
-      const config = { ...DEFAULT_GACHA_CONFIG, ...JSON.parse(data) }
-      return config
-    }
-  } catch (error) {
-    log.error('加载抽卡配置失败', error)
-  }
-  return { ...DEFAULT_GACHA_CONFIG }
-}
-
-/**
- * 保存抽卡配置
- */
-export function saveGachaConfig(config) {
-  try {
-    ensureConfigDir(GACHA_CONFIG_FILE)
-    fs.writeFileSync(GACHA_CONFIG_FILE, JSON.stringify(config, null, 2))
-    return true
-  } catch (error) {
-    log.error('保存抽卡配置失败', error)
-    return false
-  }
-}
-
-/**
- * 获取默认抽卡配置
- */
-export function getDefaultGachaConfig() {
-  return { ...DEFAULT_GACHA_CONFIG }
-}
-
-// ============ 快速建群配置 ============
 
 /**
  * 默认快速建群提示词配置
@@ -172,39 +100,64 @@ systemPrompt 写法要求：
   defaultUserPrompt: '请随机生成一个有趣的多人聊天群组，包含4-6个角色'
 }
 
+// ============ 通用配置工厂函数 ============
+
 /**
- * 获取快速建群配置
+ * 创建配置管理器
+ * 统一配置的读取、保存和默认值逻辑，消除重复代码
+ * @param {string} configFilePath - 配置文件路径
+ * @param {object} defaults - 默认配置对象
+ * @param {string} label - 配置名称（用于日志）
+ * @returns {{ get: () => object, save: (config: object) => boolean, getDefault: () => object }}
  */
-export function getQuickGroupConfig() {
-  try {
-    if (fs.existsSync(QUICK_GROUP_CONFIG_FILE)) {
-      const data = fs.readFileSync(QUICK_GROUP_CONFIG_FILE, 'utf-8')
-      const config = { ...DEFAULT_QUICK_GROUP_CONFIG, ...JSON.parse(data) }
-      return config
+function createConfigManager(configFilePath, defaults, label) {
+  return {
+    get() {
+      try {
+        if (fs.existsSync(configFilePath)) {
+          const data = fs.readFileSync(configFilePath, 'utf-8')
+          return { ...defaults, ...JSON.parse(data) }
+        }
+      } catch (error) {
+        log.error(`加载${label}配置失败`, error)
+      }
+      return { ...defaults }
+    },
+    save(config) {
+      try {
+        ensureConfigDir(configFilePath)
+        fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2))
+        return true
+      } catch (error) {
+        log.error(`保存${label}配置失败`, error)
+        return false
+      }
+    },
+    getDefault() {
+      return { ...defaults }
     }
-  } catch (error) {
-    log.error('加载快速建群配置失败', error)
-  }
-  return { ...DEFAULT_QUICK_GROUP_CONFIG }
-}
-
-/**
- * 保存快速建群配置
- */
-export function saveQuickGroupConfig(config) {
-  try {
-    ensureConfigDir(QUICK_GROUP_CONFIG_FILE)
-    fs.writeFileSync(QUICK_GROUP_CONFIG_FILE, JSON.stringify(config, null, 2))
-    return true
-  } catch (error) {
-    log.error('保存快速建群配置失败', error)
-    return false
   }
 }
 
-/**
- * 获取默认快速建群配置
- */
-export function getDefaultQuickGroupConfig() {
-  return { ...DEFAULT_QUICK_GROUP_CONFIG }
-}
+// ============ 创建配置实例 ============
+
+const llmConfigManager = createConfigManager(LLM_CONFIG_FILE, DEFAULT_LLM_CONFIG, 'LLM')
+const gachaConfigManager = createConfigManager(GACHA_CONFIG_FILE, DEFAULT_GACHA_CONFIG, '抽卡')
+const quickGroupConfigManager = createConfigManager(QUICK_GROUP_CONFIG_FILE, DEFAULT_QUICK_GROUP_CONFIG, '快速建群')
+
+// ============ 导出（保持原有函数签名，确保向后兼容） ============
+
+// LLM 配置
+export const getGlobalLLMConfig = () => llmConfigManager.get()
+export const saveGlobalLLMConfig = (config) => llmConfigManager.save(config)
+export const getDefaultLLMConfig = () => llmConfigManager.getDefault()
+
+// 抽卡配置
+export const getGachaConfig = () => gachaConfigManager.get()
+export const saveGachaConfig = (config) => gachaConfigManager.save(config)
+export const getDefaultGachaConfig = () => gachaConfigManager.getDefault()
+
+// 快速建群配置
+export const getQuickGroupConfig = () => quickGroupConfigManager.get()
+export const saveQuickGroupConfig = (config) => quickGroupConfigManager.save(config)
+export const getDefaultQuickGroupConfig = () => quickGroupConfigManager.getDefault()

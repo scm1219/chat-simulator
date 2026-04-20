@@ -7,6 +7,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { createLogger } from '../utils/logger.js'
+import { ensureDataDir } from '../utils/config-dir.js'
 
 const log = createLogger('Database')
 
@@ -271,16 +272,7 @@ export class DatabaseManager {
     this.dataDir = path.join(app.getPath('userData'), 'data', 'groups')
 
     // 初始化目录
-    this.initDataDir()
-  }
-
-  /**
-   * 初始化数据目录
-   */
-  initDataDir() {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true })
-    }
+    ensureDataDir(this.dataDir)
   }
 
   /**

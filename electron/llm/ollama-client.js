@@ -2,59 +2,80 @@
  * Ollama 原生 API 客户端
  * 使用 Ollama 原生 API 格式（/api/chat）而非 OpenAI 兼容格式
  */
-import axios from 'axios'
-import { buildAxiosProxyConfig, shouldBypassProxy } from './proxy.js'
-import { createLogger } from '../utils/logger.js'
+import { BaseLLMClient } from './base-client.js'
 
-const log = createLogger('Ollama')
+// Ollama 特有的 HTTP 错误码映射
+const OLLAMA_STATUS_MAP = {
+  404: '模型不存在或 API 端点错误',
+  500: 'Ollama 服务内部错误'
+}
 
-export class OllamaNativeClient {
+const OLLAMA_NETWORK_ERROR = '无法连接到 Ollama 服务，请确保 Ollama 正在运行'
+
+export class OllamaNativeClient extends BaseLLMClient {
   constructor(config) {
-    this.baseURL = config.baseURL || 'http://localhost:11434'
-    this.model = config.model
-    this.timeout = config.timeout || 120000 // Ollama 本地模型可能较慢，默认 2 分钟
-    this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true
-
-    // 解析代理配置：直接使用已解析的代理配置
-    const proxyConfig = config.proxy ?? undefined
-    const bypassRules = config.bypassRules || ''
-
-    // 配置 Axios
-    this.client = axios.create({
-      baseURL: this.baseURL,
-      timeout: this.timeout,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      proxy: proxyConfig
+    // 调用基类构造函数（不能在 super() 前使用 this）
+    super({
+      baseURL: config.baseURL || 'http://localhost:11434',
+      timeout: config.timeout || 120000,
+      proxy: config.proxy,
+      bypassRules: config.bypassRules,
+      headers: { 'Content-Type': 'application/json' }
     })
 
-    // 代理绕过规则拦截器
-    if (bypassRules && proxyConfig) {
-      this.client.interceptors.request.use((request) => {
-        const targetURL = `${request.baseURL || ''}${request.url || ''}`
-        if (shouldBypassProxy(targetURL, bypassRules)) {
-          request.proxy = false
+    // 设置子类属性
+    this.model = config.model
+    this.streamEnabled = config.streamEnabled !== undefined ? config.streamEnabled : true
+  }
+
+  // ============ BaseLLMClient 抽象方法实现 ============
+
+  _getChatEndpoint() {
+    return '/api/chat'
+  }
+
+  /**
+   * 解析 NDJSON 格式的流式数据行
+   * 格式：`{json}`，通过 `done` 字段判断结束
+   */
+  _parseStreamLine(line, state, onChunk) {
+    try {
+      const parsed = JSON.parse(line)
+
+      // 收集 model（从首个包含 model 的 chunk 中获取）
+      if (parsed.model && !state.responseModel) {
+        state.responseModel = parsed.model
+      }
+
+      // Ollama 原生格式
+      const message = parsed.message
+      if (message) {
+        const thinking = message.thinking
+        const content = message.content
+
+        if (thinking) {
+          state.fullReasoning += thinking
+          onChunk({ type: 'reasoning', content: thinking })
         }
-        return request
-      })
+
+        if (content) {
+          state.fullContent += content
+          onChunk({ type: 'content', content: content })
+        }
+      }
+
+      // 检查是否完成
+      if (parsed.done) {
+        return { done: true }
+      }
+    } catch (e) {
+      // 忽略无法解析的行
     }
 
-    // 添加请求拦截器用于调试
-    this.client.interceptors.request.use(
-      (request) => request,
-      (error) => Promise.reject(error)
-    )
-
-    // 添加响应拦截器用于调试
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        log.error('请求失败:', error.message, error.response?.status)
-        return Promise.reject(error)
-      }
-    )
+    return { done: false }
   }
+
+  // ============ 业务方法 ============
 
   /**
    * 发送聊天请求
@@ -119,113 +140,11 @@ export class OllamaNativeClient {
   }
 
   /**
-   * 流式聊天请求
-   * Ollama 原生流式输出格式为 NDJSON（每行一个 JSON 对象）
-   */
-  async chatStream(requestData, onChunk) {
-    try {
-      const response = await this.client.post('/api/chat', requestData, {
-        responseType: 'stream'
-      })
-
-      let fullContent = ''
-      let fullThinking = ''
-      let responseModel = null
-
-      return new Promise((resolve, reject) => {
-        let buffer = ''
-
-        response.data.on('data', (chunk) => {
-          buffer += chunk.toString()
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || '' // 保留不完整的行
-
-          for (const line of lines) {
-            if (line.trim() === '') continue
-
-            try {
-              const parsed = JSON.parse(line)
-
-              // 收集 model（从首个包含 model 的 chunk 中获取）
-              if (parsed.model && !responseModel) {
-                responseModel = parsed.model
-              }
-
-              // Ollama 原生格式
-              const message = parsed.message
-              if (message) {
-                const thinking = message.thinking
-                const content = message.content
-
-                if (thinking) {
-                  fullThinking += thinking
-                  onChunk({ type: 'reasoning', content: thinking })
-                }
-
-                if (content) {
-                  fullContent += content
-                  onChunk({ type: 'content', content: content })
-                }
-              }
-
-              // 检查是否完成
-              if (parsed.done) {
-                resolve({
-                  success: true,
-                  content: fullContent,
-                  reasoningContent: fullThinking || null,
-                  model: responseModel || this.model
-                })
-                return
-              }
-            } catch (e) {
-              log.warn('解析流式数据失败', e.message, 'Line:', line.substring(0, 100))
-            }
-          }
-        })
-
-        response.data.on('end', () => {
-          // 处理缓冲区中剩余的数据
-          if (buffer.trim()) {
-            try {
-              const parsed = JSON.parse(buffer)
-              if (parsed.done) {
-                resolve({
-                  success: true,
-                  content: fullContent,
-                  reasoningContent: fullThinking || null,
-                  model: responseModel || this.model
-                })
-                return
-              }
-            } catch (e) {
-              log.warn('解析最后数据失败', e.message)
-            }
-          }
-
-          resolve({
-            success: true,
-            content: fullContent,
-            reasoningContent: fullThinking || null,
-            model: responseModel || this.model
-          })
-        })
-
-        response.data.on('error', (error) => {
-          reject(this.handleError(error))
-        })
-      })
-    } catch (error) {
-      return this.handleError(error)
-    }
-  }
-
-  /**
    * 测试连接
    */
   async testConnection() {
     try {
-      const response = await this.client.post('/api/chat', {
+      await this.client.post('/api/chat', {
         model: this.model,
         messages: [
           { role: 'user', content: 'Hi' }
@@ -268,39 +187,9 @@ export class OllamaNativeClient {
   }
 
   /**
-   * 错误处理
+   * 错误处理（使用 Ollama 状态码映射）
    */
   handleError(error) {
-    if (error.response) {
-      const status = error.response.status
-      const message = error.response.data?.error || error.message
-
-      let errorDetail = ''
-      switch (status) {
-        case 404:
-          errorDetail = '模型不存在或 API 端点错误'
-          break
-        case 500:
-          errorDetail = 'Ollama 服务内部错误'
-          break
-        default:
-          errorDetail = message
-      }
-
-      return {
-        success: false,
-        error: `HTTP ${status}: ${errorDetail}`
-      }
-    } else if (error.request) {
-      return {
-        success: false,
-        error: '无法连接到 Ollama 服务，请确保 Ollama 正在运行'
-      }
-    } else {
-      return {
-        success: false,
-        error: error.message
-      }
-    }
+    return super.handleError(error, OLLAMA_STATUS_MAP, OLLAMA_NETWORK_ERROR)
   }
 }

@@ -5,10 +5,10 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
-import fs from 'fs'
 import { generateUUID } from '../utils/uuid.js'
 import { buildDynamicUpdate } from '../ipc/handler-wrapper.js'
 import { createLogger } from '../utils/logger.js'
+import { ensureDataDir } from '../utils/config-dir.js'
 
 const log = createLogger('GlobalChar')
 
@@ -79,7 +79,7 @@ export class GlobalCharacterManager {
     this.dataDir = path.join(app.getPath('userData'), 'data', 'global')
 
     // 初始化目录
-    this.initDataDir()
+    ensureDataDir(this.dataDir)
 
     // 数据库路径
     this.dbPath = path.join(this.dataDir, 'character-library.sqlite')
@@ -92,15 +92,6 @@ export class GlobalCharacterManager {
 
     // 初始化表结构
     this.initSchema()
-  }
-
-  /**
-   * 初始化数据目录
-   */
-  initDataDir() {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true })
-    }
   }
 
   /**
