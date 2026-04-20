@@ -66,6 +66,50 @@
                 {{ form.systemPrompt.length }} / 5000
               </span>
             </div>
+
+            <!-- 重新生成设定（仅编辑模式） -->
+            <div v-if="isEditing" class="regenerate-bar">
+              <div class="style-options">
+                <label
+                  v-for="s in promptStyles"
+                  :key="s.value"
+                  class="style-radio"
+                  :class="{ active: selectedStyle === s.value }"
+                >
+                  <input
+                    type="radio"
+                    :value="s.value"
+                    v-model="selectedStyle"
+                    class="style-radio-input"
+                  />
+                  <span class="style-radio-label">{{ s.label }}</span>
+                </label>
+              </div>
+              <div class="regenerate-action">
+                <select v-model="selectedProfileId" class="input profile-select">
+                  <option v-for="p in sortedProfiles" :key="p.id" :value="p.id">
+                    {{ p.provider }} / {{ p.model }}
+                  </option>
+                </select>
+                <div class="regenerate-buttons">
+                  <button
+                    class="btn btn-regenerate"
+                    :disabled="regenerating || !originalSystemPrompt"
+                    @click="handleRegenerate"
+                  >
+                    {{ regenerating ? '生成中...' : '生成' }}
+                  </button>
+                  <button
+                    class="btn btn-reset"
+                    :disabled="form.systemPrompt === originalSystemPrompt"
+                    @click="handleResetPrompt"
+                  >
+                    重置
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <textarea
               v-model="form.systemPrompt"
               class="input textarea"
@@ -173,6 +217,7 @@ import { ref, computed, onMounted, toRaw } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useMemoryStore } from '../../stores/memory.js'
 import { useToastStore } from '../../stores/toast'
+import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useDialog } from '../../composables/useDialog'
 import TagSelector from '../common/TagSelector.vue'
 
@@ -187,6 +232,7 @@ const emit = defineEmits(['close', 'saved'])
 
 const globalCharsStore = useGlobalCharactersStore()
 const memoryStore = useMemoryStore()
+const llmProfilesStore = useLLMProfilesStore()
 const toast = useToastStore()
 const { confirm } = useDialog()
 
@@ -203,7 +249,27 @@ const form = ref({
 
 const saving = ref(false)
 const syncing = ref(false)
+const regenerating = ref(false)
+const selectedStyle = ref('daily')
+const selectedProfileId = ref('')
+const originalSystemPrompt = ref('')
+
+const sortedProfiles = computed(() =>
+  [...llmProfilesStore.profiles].sort((a, b) => a.model.localeCompare(b.model))
+)
 const newMemoryContent = ref('')
+
+const promptStyles = [
+  { value: 'daily', label: '日常' },
+  { value: 'professional', label: '专业' },
+  { value: 'literary', label: '文学' },
+  { value: 'humorous', label: '搞笑' },
+  { value: 'chuunibyou', label: '中二' },
+  { value: 'artsy', label: '文艺' },
+  { value: 'dramatic', label: '戏剧' },
+  { value: 'concise', label: '简洁' },
+  { value: 'detailed', label: '详细' }
+]
 
 const isOverLimit = computed(() => form.value.systemPrompt.length > 5000)
 
@@ -274,6 +340,11 @@ async function deleteMemory(memoryId) {
 
 onMounted(async () => {
   await globalCharsStore.loadTags()
+  await llmProfilesStore.loadProfiles()
+
+  if (sortedProfiles.value.length > 0 && !selectedProfileId.value) {
+    selectedProfileId.value = sortedProfiles.value[0].id
+  }
 
   if (props.character) {
     form.value = {
@@ -283,6 +354,7 @@ onMounted(async () => {
       systemPrompt: props.character.system_prompt || '',
       tagIds: props.character.tags ? props.character.tags.map(t => t.id) : []
     }
+    originalSystemPrompt.value = form.value.systemPrompt
     await memoryStore.loadMemories(props.character.name)
   }
 })
@@ -366,6 +438,36 @@ async function handleSync() {
   } finally {
     syncing.value = false
   }
+}
+
+async function handleRegenerate() {
+  if (regenerating.value || !props.character || !originalSystemPrompt.value) return
+
+  const styleLabel = promptStyles.find(s => s.value === selectedStyle.value)?.label || selectedStyle.value
+
+  regenerating.value = true
+  try {
+    const result = await window.electronAPI.globalCharacter.regeneratePrompt(
+      props.character.id,
+      selectedStyle.value,
+      selectedProfileId.value,
+      originalSystemPrompt.value
+    )
+
+    if (result.success) {
+      form.value.systemPrompt = result.data.systemPrompt
+    } else {
+      toast.error('生成失败：' + result.error)
+    }
+  } catch (error) {
+    toast.error('生成失败：' + error.message)
+  } finally {
+    regenerating.value = false
+  }
+}
+
+function handleResetPrompt() {
+  form.value.systemPrompt = originalSystemPrompt.value
 }
 </script>
 
@@ -592,6 +694,116 @@ async function handleSync() {
   min-height: 160px;
   font-family: inherit;
   line-height: 1.6;
+}
+
+// ============ 重新生成设定 ============
+.regenerate-bar {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  margin-bottom: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  background: $bg-secondary;
+  border-radius: $border-radius-md;
+  flex-wrap: wrap;
+}
+
+.regenerate-action {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.regenerate-buttons {
+  display: flex;
+  gap: $spacing-xs;
+  justify-content: flex-end;
+}
+
+.profile-select {
+  width: 100%;
+  min-width: 160px;
+  padding: 3px 8px;
+  font-size: $font-size-xs;
+  height: auto;
+  cursor: pointer;
+}
+
+.style-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  flex: 1;
+}
+
+.style-radio {
+  cursor: pointer;
+}
+
+.style-radio-input {
+  display: none;
+}
+
+.style-radio-label {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+
+  &:hover {
+    color: $text-primary;
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.style-radio.active .style-radio-label {
+  color: $wechat-green;
+  background: rgba($wechat-green, 0.1);
+  border-color: rgba($wechat-green, 0.3);
+}
+
+.btn-regenerate {
+  flex-shrink: 0;
+  padding: 4px 14px;
+  font-size: $font-size-xs;
+  color: $wechat-green;
+  background: rgba($wechat-green, 0.1);
+  border: 1px solid rgba($wechat-green, 0.3);
+  border-radius: $border-radius-sm;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &:hover:not(:disabled) {
+    background: rgba($wechat-green, 0.18);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-reset {
+  flex-shrink: 0;
+  padding: 4px 14px;
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-sm;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &:hover {
+    color: $text-primary;
+    border-color: $text-secondary;
+  }
 }
 
 // ============ 已选标签预览 ============

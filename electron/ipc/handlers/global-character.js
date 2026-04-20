@@ -4,8 +4,24 @@
 import { ipcMain } from 'electron'
 import { createHandler } from '../handler-wrapper.js'
 import { createLogger } from '../../utils/logger.js'
+import { callLLMForJSON } from './llm.js'
 
 const log = createLogger('GlobalChar')
+
+/**
+ * 重新生成角色设定的风格提示词
+ */
+const STYLE_PROMPTS = {
+  daily: '用日常口语化的风格重新写这个人设。像跟朋友介绍这个人一样，写具体的习惯、口头禅、小毛病，不要用概括性描述。用"你是xxx"开头。',
+  professional: '用专业正式的风格写这个人设。保留角色核心身份，用精炼准确的语言描述，适合职场或正式场景。',
+  literary: '用文学性描写的方式写这个人设。注重意象和氛围营造，语言有质感和深度，像小说人物出场。',
+  humorous: '用轻松幽默的风格写这个人设。突出角色有趣的一面，可以加自嘲和搞笑的小细节，让人会心一笑。',
+  chuunibyou: '用中二热血的风格写这个人设。加入宿命感、觉醒、隐藏力量等元素，台词感十足，燃到爆炸。',
+  artsy: '用小清新文艺的风格写这个人设。语言像散文诗，注重氛围和情绪，有诗意但不过度矫情。',
+  dramatic: '用戏剧化的风格写这个人设。强调角色内心的冲突和张力，性格鲜明，像舞台剧角色。',
+  concise: '用极简的风格写这个人设，控制在50-100字。一句话抓住角色最核心的特点，不留废话。',
+  detailed: '用详尽细腻的风格写这个人设，300-500字。全面描写角色的方方面面，包括细微的习惯和深层动机。'
+}
 
 export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
   // 获取所有全局角色
@@ -302,4 +318,57 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
     const characters = globalCharManager.searchWithTags(keyword, tagIds)
     return { success: true, data: characters }
   }))
+
+  // 重新生成角色设定
+  ipcMain.handle('globalCharacter:regeneratePrompt', createHandler(async (event, characterId, style = 'daily', profileId = '', originalPrompt = '') => {
+    const character = globalCharManager.getById(characterId)
+    if (!character) {
+      return { success: false, error: '角色不存在' }
+    }
+
+    const sourcePrompt = originalPrompt || character.system_prompt
+
+    const styleGuide = STYLE_PROMPTS[style] || STYLE_PROMPTS.daily
+
+    const systemPrompt = `你是一个角色设定改写专家。根据角色原有的信息，用新的风格重新撰写人物设定。
+要求：
+- 用"你是xxx"开头
+- 保留角色的核心身份和关键特征（姓名、性别、年龄等不变）
+- 不要用"设定"、"背景"、"性格"这类分类标题，就是一段自然的描述
+- 不要写"你是一个xxx的角色"、"请扮演xxx"这类元叙事
+${styleGuide}
+
+请严格按照以下 JSON 格式返回，不要添加任何其他文字：
+{
+  "systemPrompt": "重新撰写的人物设定"
+}`
+
+    const userPrompt = `请用新的风格重新改写以下角色的设定：
+
+角色名称：${character.name}
+性别：${character.gender || '未设置'}
+年龄：${character.age || '未设置'}
+当前设定：${sourcePrompt}`
+
+    const result = await callLLMForJSON({
+      profileId: profileId || undefined,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.8,
+      maxTokens: 1500
+    })
+
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
+
+    const newPrompt = result.data.systemPrompt
+    if (!newPrompt || !newPrompt.trim()) {
+      return { success: false, error: '生成结果为空，请重试' }
+    }
+
+    return { success: true, data: { systemPrompt: newPrompt.trim() } }
+  }, 'GlobalCharacter:regeneratePrompt'))
 }

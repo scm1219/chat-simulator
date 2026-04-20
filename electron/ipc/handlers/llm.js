@@ -24,7 +24,7 @@ import { saveUserMessage, generateCharacterResponse } from './llm-response-handl
  * @param {number} [options.maxTokens=1000] - 最大 token
  * @returns {Promise<{ success: boolean, data?: object, error?: string }>}
  */
-async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxTokens = 1000 }) {
+export async function callLLMForJSON({ profileId, messages, temperature = 0.9, maxTokens = 1000 }) {
   const llmProfiles = getLLMProfiles()
   if (llmProfiles.length === 0) {
     return { success: false, error: '请先在 LLM 配置管理中添加配置' }
