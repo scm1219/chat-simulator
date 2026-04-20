@@ -75,15 +75,35 @@
           <p class="hint">输入消息后，AI 角色会自动回复</p>
         </div>
 
-        <!-- 气泡视图 -->
-        <template v-if="displayMode === 'bubble'">
-          <MessageBubble
-            v-for="msg in messagesStore.messages"
-            :key="msg.id"
-            :message="msg"
-            :character="getCharacter(msg.character_id)"
-            :data-message-id="msg.id"
-          />
+        <!-- 气泡视图（虚拟滚动） -->
+        <template v-if="displayMode === 'bubble' && messagesStore.messages.length > 0">
+          <div
+            :style="{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }"
+          >
+            <div
+              v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+              :key="virtualRow.key"
+              :data-index="virtualRow.index"
+              :data-message-id="messagesStore.messages[virtualRow.index]?.id"
+              :ref="(el) => { if (el) measureElementRef(el, virtualRow.index) }"
+              :style="{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+              }"
+            >
+              <MessageBubble
+                :message="messagesStore.messages[virtualRow.index]"
+                :character="charactersStore.getCharacterById(messagesStore.messages[virtualRow.index]?.character_id)"
+              />
+            </div>
+          </div>
         </template>
 
         <!-- 表格视图 -->
@@ -176,6 +196,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
@@ -205,6 +226,25 @@ const toggleRightPanel = inject('toggleRightPanel')
 
 const messagesContainer = ref(null)
 const currentGroup = computed(() => groupsStore.currentGroup)
+
+// 虚拟滚动：动态高度消息列表
+// 注意：count 必须用 getter 而非 computed()，否则 TanStack 内部展开 options 时
+// 无法建立响应式依赖，导致 count 变化时虚拟化器不更新
+const rowVirtualizer = useVirtualizer({
+  get count() { return messagesStore.messages.length },
+  getScrollElement: () => messagesContainer.value,
+  estimateSize: () => 100,
+  overscan: 5,
+})
+
+// measureElement 回调（动态测量消息高度）
+function measureElementRef(el) {
+  // @tanstack/vue-virtual 的 measureElement 需要元素带 data-index 属性
+  // 直接通过 virtualizer API 测量
+  if (el) {
+    rowVirtualizer.value.measureElement(el)
+  }
+}
 
 // 展示模式：bubble（气泡）| table（表格）
 const displayMode = ref('bubble')
@@ -290,26 +330,22 @@ async function handleModelChange() {
   }
 }
 
-// 获取角色信息
-function getCharacter(characterId) {
-  if (!characterId) return null
-  return charactersStore.characters.find(c => c.id === characterId)
+// 获取角色名称（表格视图用）
+function getCharacterName(msg) {
+  if (msg.role === 'user') {
+    const userChar = charactersStore.getCharacterById(
+      charactersStore.characters.find(c => c.is_user === 1)?.id
+    )
+    return userChar?.name || '用户'
+  }
+  const char = charactersStore.getCharacterById(msg.character_id)
+  return char?.name || msg.characterName || '角色'
 }
 
 // 切换展示模式
 function toggleDisplayMode() {
   displayMode.value = displayMode.value === 'bubble' ? 'table' : 'bubble'
   editingId.value = null
-}
-
-// 获取角色名称（表格视图用）
-function getCharacterName(msg) {
-  if (msg.role === 'user') {
-    const userChar = charactersStore.characters.find(c => c.is_user === 1)
-    return userChar?.name || '用户'
-  }
-  const char = getCharacter(msg.character_id)
-  return char?.name || msg.characterName || '角色'
 }
 
 // 格式化时间（表格视图用）
@@ -437,22 +473,14 @@ async function handleEventDeleted() {
   }
 }
 
-// 滚动到底部（使用平滑滚动）
+// 滚动到底部（虚拟滚动版本）
 async function scrollToBottom(smooth = true) {
   await nextTick()
-  // 使用 requestAnimationFrame 确保 DOM 完全渲染
-  requestAnimationFrame(() => {
-    if (messagesContainer.value) {
-      const container = messagesContainer.value
-      if (smooth) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth'
-        })
-      } else {
-        container.scrollTop = container.scrollHeight
-      }
-    }
+  const count = messagesStore.messages.length
+  if (count === 0) return
+  rowVirtualizer.value.scrollToIndex(count - 1, {
+    align: 'end',
+    behavior: smooth ? 'smooth' : 'instant'
   })
 }
 
@@ -493,28 +521,12 @@ watch(() => messagesStore.messages.length, async () => {
 watch(() => messagesStore.highlightMessageId, async (messageId) => {
   if (!messageId) return
 
-  // 等待消息加载和渲染完成（可能需要等待群组切换后的消息加载）
-  await nextTick()
   await nextTick()
 
-  // 尝试查找目标消息，如果还没渲染出来则轮询等待
-  let el = null
-  let attempts = 0
-  while (!el && attempts < 20) {
-    await nextTick()
-    if (messagesContainer.value) {
-      el = messagesContainer.value.querySelector(`[data-message-id="${messageId}"]`)
-    }
-    if (!el) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      attempts++
-    }
-  }
-
-  if (el) {
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
+  // 直接通过索引定位（替代 DOM 轮询）
+  const index = messagesStore.messages.findIndex(m => m.id === messageId)
+  if (index !== -1) {
+    rowVirtualizer.value.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
   }
 
   // 3秒后清除高亮
@@ -523,21 +535,12 @@ watch(() => messagesStore.highlightMessageId, async (messageId) => {
   }, 3000)
 })
 
-// 监听流式消息内容变化，实时滚动（使用深度 watch）
+// 监听流式消息内容变化，实时滚动
+// 使用 Map.size 替代 O(n) 遍历，新 chunk 到达时 Map 中消息引用的属性已直接更新
 watch(
+  () => messagesStore.streamingMessages.size,
   () => {
-    // 计算所有流式消息的内容总长度
-    return messagesStore.messages
-      .filter(m => m.isStreaming)
-      .reduce((total, m) => {
-        return total + (m.streamContent?.length || 0) + (m.streamReasoningContent?.length || 0)
-      }, 0)
-  },
-  async (newLen, oldLen) => {
-    // 只有长度变化时才滚动
-    if (newLen !== oldLen) {
-      await scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
-    }
+    scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
   },
   { flush: 'post' }
 )
@@ -739,12 +742,9 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: $spacing-lg;
-  display: flex;
-  flex-direction: column;
 
-  // 表格视图时取消 flex 列布局，让表格自适应宽度
+  // 表格视图时取消 padding，让表格自适应宽度
   &:has(.table-view) {
-    display: block;
     padding: 0;
   }
 }

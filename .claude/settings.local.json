@@ -27,7 +27,10 @@
       "Bash(node -c electron/ipc/handlers/llm.js)",
       "Bash(npm view:*)",
       "mcp__zread__get_repo_structure",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npm ls *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   }
 }

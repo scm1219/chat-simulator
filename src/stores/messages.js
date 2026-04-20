@@ -152,28 +152,26 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式开始
     streamStartListener = window.electronAPI.message.onStreamStart((data) => {
-      // 添加临时消息
-      messages.value.push({
+      const tempMsg = {
         ...data,
+        tempId: data.tempId,
         isStreaming: true,
-        streamContent: '', // 存储流式内容
-        streamReasoningContent: '' // 存储流式思考内容
-      })
+        streamContent: '',
+        streamReasoningContent: ''
+      }
+      messages.value.push(tempMsg)
+      // O(1) 索引：tempId → 消息引用
+      streamingMessages.value.set(data.tempId, tempMsg)
     })
 
     // 监听流式内容片段
     streamChunkListener = window.electronAPI.message.onStreamChunk((data) => {
-      // 更新临时消息的流式内容
-      const message = messages.value.find(msg => msg.id === data.tempId || msg.tempId === data.tempId)
+      // O(1) 查找替代 Array.find()
+      const message = streamingMessages.value.get(data.tempId)
       if (message) {
         if (data.type === 'reasoning') {
-          // 思考内容片段
           message.streamReasoningContent = (message.streamReasoningContent || '') + data.content
-        } else if (data.type === 'content') {
-          // 回答内容片段
-          message.streamContent = (message.streamContent || '') + data.content
         } else {
-          // 兼容旧格式（没有 type 字段）
           message.streamContent = (message.streamContent || '') + data.content
         }
       }
@@ -181,8 +179,13 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式结束
     streamEndListener = window.electronAPI.message.onStreamEnd((data) => {
-      // 移除临时消息
-      messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
+      // O(1) 查找 + O(n) splice（仅执行一次）
+      const tempMsg = streamingMessages.value.get(data.tempId)
+      if (tempMsg) {
+        const idx = messages.value.indexOf(tempMsg)
+        if (idx !== -1) messages.value.splice(idx, 1)
+        streamingMessages.value.delete(data.tempId)
+      }
       // 添加最终消息（包含思考内容）
       messages.value.push({
         id: data.finalId,
@@ -202,8 +205,12 @@ export const useMessagesStore = defineStore('messages', () => {
     // 监听流式错误
     streamErrorListener = window.electronAPI.message.onStreamError((data) => {
       log.error('流式消息错误', data)
-      // 移除临时消息
-      messages.value = messages.value.filter(msg => msg.id !== data.tempId && msg.tempId !== data.tempId)
+      const tempMsg = streamingMessages.value.get(data.tempId)
+      if (tempMsg) {
+        const idx = messages.value.indexOf(tempMsg)
+        if (idx !== -1) messages.value.splice(idx, 1)
+        streamingMessages.value.delete(data.tempId)
+      }
     })
 
     // 保存清理函数，供下次调用或组件卸载时使用
@@ -323,6 +330,7 @@ export const useMessagesStore = defineStore('messages', () => {
     messages,
     loading,
     sending,
+    streamingMessages,
     loadMessages,
     sendMessage,
     sendMessageToCharacter,

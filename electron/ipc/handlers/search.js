@@ -92,6 +92,17 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
   return results
 }
 
+/**
+ * 异步搜索单个群组（通过 setImmediate 让出事件循环，防止 UI 冻结）
+ */
+function searchGroupDBAsync(db, groupId, groupName, keyword, maxResults = 10) {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      resolve(searchGroupDB(db, groupId, groupName, keyword, maxResults))
+    })
+  })
+}
+
 export function setupSearchHandlers(dbManager) {
   // 全局搜索
   ipcMain.handle('search:global', createHandler(async (event, keyword) => {
@@ -118,7 +129,7 @@ export function setupSearchHandlers(dbManager) {
       }
 
       const remaining = MAX_TOTAL - allResults.length
-      const results = searchGroupDB(db, groupId, groupName, trimmedKeyword, Math.min(10, remaining))
+      const results = await searchGroupDBAsync(db, groupId, groupName, trimmedKeyword, Math.min(10, remaining))
       allResults.push(...results)
     }
 

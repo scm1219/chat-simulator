@@ -15,6 +15,15 @@ export const useCharactersStore = defineStore('characters', () => {
     return characters.value.filter(c => c.enabled === 1)
   })
 
+  // 角色 ID → 角色对象映射（O(1) 查找）
+  const characterMap = computed(() => {
+    const map = new Map()
+    for (const c of characters.value) {
+      map.set(c.id, c)
+    }
+    return map
+  })
+
   // 方法
   async function loadCharacters(groupId) {
     if (!groupId) {
@@ -112,15 +121,23 @@ export const useCharactersStore = defineStore('characters', () => {
     }
   }
 
+  // O(1) 角色查找（替代 Array.find）
+  function getCharacterById(id) {
+    if (!id) return null
+    return characterMap.value.get(id) || null
+  }
+
   return {
     characters,
     enabledCharacters,
+    characterMap,
     loading,
     loadCharacters,
     createCharacter,
     updateCharacter,
     deleteCharacter,
     toggleCharacter,
-    reorderCharacter
+    reorderCharacter,
+    getCharacterById
   }
 })
