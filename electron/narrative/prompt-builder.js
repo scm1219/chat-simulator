@@ -60,7 +60,7 @@ ${triggerChar.name}的追评：`
       const toneHint = TONE_HINTS[e.emotion] || '请根据情绪调整语气'
       return `- ${name}（当前情绪：${e.emotion} ${e.intensity.toFixed(1)}）— ${toneHint}`
     })
-    return `【角色情绪状态】\n${lines.join('\n')}`
+    return `现在大家的情绪：\n${lines.join('\n')}`
   }
 
   _buildRelationshipSection(db, characterId, allCharacters) {
@@ -75,7 +75,7 @@ ${triggerChar.name}的追评：`
       const typeConfig = getRelationshipType(r.type)
       return `- ${characterMap.get(characterId) || '你'} → ${toName}：${typeConfig.label}（好感度 ${r.favorability}，${level.label}）— ${level.hint}`
     })
-    return `【角色关系】\n${lines.join('\n')}`
+    return `你和他们的关系：\n${lines.join('\n')}`
   }
 
   _buildEventSection(db, groupId) {
@@ -86,6 +86,6 @@ ${triggerChar.name}的追评：`
     `).all(groupId)
     if (events.length === 0) return ''
     const lines = events.map(e => `[${e.event_type === 'user_triggered' ? '事件' : '自动事件'}] ${e.content}`)
-    return `【当前事件】\n${lines.join('\n')}\n（请根据自己的人设、情绪和关系做出反应）`
+    return `刚刚发生了这些事：\n${lines.join('\n')}`
   }
 }

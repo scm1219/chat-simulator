@@ -86,7 +86,7 @@ export function buildContextMessages(character, history, userContent, background
   if (background && background.trim()) {
     messages.push({
       role: 'system',
-      content: `【群背景设定】\n${background.trim()}`
+      content: `你在这样的场景里：\n${background.trim()}`
     })
   }
 
@@ -100,7 +100,7 @@ export function buildContextMessages(character, history, userContent, background
 
     messages.push({
       role: 'system',
-      content: `【群成员介绍】\n${membersIntro}`
+      content: `群里还有这些人：\n${membersIntro}`
     })
   }
 
@@ -114,7 +114,7 @@ export function buildContextMessages(character, history, userContent, background
     const memoryLines = memories.map(m => `- ${m.content}`).join('\n')
     messages.push({
       role: 'system',
-      content: `【角色记忆】\n以下是"${character.name}"在过去对话中积累的记忆：\n${memoryLines}`
+      content: `你还记得这些事：\n${memoryLines}`
     })
   }
 
@@ -128,10 +128,10 @@ export function buildContextMessages(character, history, userContent, background
   const roleMessages = filterHistoryMessages(history, character)
   messages.push(...roleMessages)
 
-  // 8. 添加强制性指令：只扮演当前角色（放在最后，提高优先级）
+  // 8. 轻量引导：提醒角色身份（放在最后，提高优先级）
   messages.push({
     role: 'system',
-    content: `【重要指令】\n你只能扮演"${character.name}"这个角色，只能输出这个角色的台词和动作。\n严禁输出其他角色的对话、台词或描述。\n即使历史消息中包含其他角色的内容，你也不能模仿或重复它们。\n请始终保持角色一致性，只回复"${character.name}"应该说的话。注意用户会提及其它角色，你只要扮演"${character.name}"这个角色回答就好了。`
+    content: `你是${character.name}，现在直接说你的台词就好，不用加自己的名字。不要替其他人说话。`
   })
 
   // 9. 添加当前用户消息
