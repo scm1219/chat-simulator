@@ -9,6 +9,8 @@
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
+      <slot name="header-extra" />
+
       <div class="dialog-body">
         <slot />
       </div>

@@ -1,12 +1,10 @@
 <template>
-  <div class="dialog-overlay" @click.self="$emit('close')">
-    <div class="dialog">
-      <div class="dialog-header">
-        <h3>{{ isEditing ? '编辑角色' : '新建角色' }}</h3>
-        <button class="btn-close" @click="$emit('close')">×</button>
-      </div>
-
-      <!-- Tab 导航 -->
+  <BaseDialog
+    :title="isEditing ? '编辑角色' : '新建角色'"
+    maxWidth="520px"
+    @close="$emit('close')"
+  >
+    <template #header-extra>
       <div class="tab-nav">
         <button
           v-for="tab in visibleTabs"
@@ -19,197 +17,195 @@
           <span v-if="tab.badge !== undefined" class="tab-badge">{{ tab.badge }}</span>
         </button>
       </div>
+    </template>
 
-      <!-- Tab 内容 -->
-      <div class="dialog-body">
-        <!-- 基本信息 Tab -->
-        <div v-show="activeTab === 'basic'" class="tab-panel">
-          <div class="form-group">
-            <label class="form-label required">姓名</label>
-            <input
-              v-model="form.name"
-              type="text"
-              class="input"
-              placeholder="请输入角色姓名"
-              maxlength="50"
-            />
-          </div>
+    <!-- Tab 内容 -->
+    <!-- 基本信息 Tab -->
+    <div v-show="activeTab === 'basic'" class="tab-panel">
+      <div class="form-group">
+        <label class="form-label required">姓名</label>
+        <input
+          v-model="form.name"
+          type="text"
+          class="input"
+          placeholder="请输入角色姓名"
+          maxlength="50"
+        />
+      </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">性别</label>
-              <select v-model="form.gender" class="input">
-                <option value="">请选择</option>
-                <option value="male">男</option>
-                <option value="female">女</option>
-                <option value="other">其他</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">年龄</label>
-              <input
-                v-model.number="form.age"
-                type="number"
-                class="input"
-                placeholder="请输入年龄"
-                min="1"
-                max="999"
-              />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <div class="label-row">
-              <label class="form-label required">人物设定</label>
-              <span class="char-count" :class="{ 'over-limit': isOverLimit }">
-                {{ form.systemPrompt.length }} / 5000
-              </span>
-            </div>
-
-            <!-- 重新生成设定（仅编辑模式） -->
-            <div v-if="isEditing" class="regenerate-bar">
-              <div class="style-options">
-                <label
-                  v-for="s in promptStyles"
-                  :key="s.value"
-                  class="style-radio"
-                  :class="{ active: selectedStyle === s.value }"
-                >
-                  <input
-                    type="radio"
-                    :value="s.value"
-                    v-model="selectedStyle"
-                    class="style-radio-input"
-                  />
-                  <span class="style-radio-label">{{ s.label }}</span>
-                </label>
-              </div>
-              <div class="regenerate-action">
-                <select v-model="selectedProfileId" class="input profile-select">
-                  <option v-for="p in sortedProfiles" :key="p.id" :value="p.id">
-                    {{ p.provider }} / {{ p.model }}
-                  </option>
-                </select>
-                <div class="regenerate-buttons">
-                  <button
-                    class="btn btn-regenerate"
-                    :disabled="regenerating || !originalSystemPrompt"
-                    @click="handleRegenerate"
-                  >
-                    {{ regenerating ? '生成中...' : '生成' }}
-                  </button>
-                  <button
-                    class="btn btn-reset"
-                    :disabled="form.systemPrompt === originalSystemPrompt"
-                    @click="handleResetPrompt"
-                  >
-                    重置
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <textarea
-              v-model="form.systemPrompt"
-              class="input textarea"
-              placeholder="请输入角色的人物设定，包括性格特点、背景故事、说话风格等..."
-              rows="10"
-              maxlength="5000"
-            ></textarea>
-          </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">性别</label>
+          <select v-model="form.gender" class="input">
+            <option value="">请选择</option>
+            <option value="male">男</option>
+            <option value="female">女</option>
+            <option value="other">其他</option>
+          </select>
         </div>
 
-        <!-- 标签 Tab -->
-        <div v-show="activeTab === 'tags'" class="tab-panel">
-          <div class="tab-panel-header">
-            <p class="tab-desc">为角色添加标签，方便分类和检索</p>
-          </div>
-          <TagSelector
-            v-model="form.tagIds"
-            :tags="globalCharsStore.tags"
-            :show-add-tag="true"
-            @create-tag="handleCreateTag"
+        <div class="form-group">
+          <label class="form-label">年龄</label>
+          <input
+            v-model.number="form.age"
+            type="number"
+            class="input"
+            placeholder="请输入年龄"
+            min="1"
+            max="999"
           />
+        </div>
+      </div>
 
-          <!-- 已选标签预览 -->
-          <div v-if="form.tagIds.length > 0" class="selected-tags-preview">
-            <div class="preview-header">已选标签 ({{ form.tagIds.length }})</div>
-            <div class="preview-tags">
-              <span
-                v-for="tag in selectedTags"
-                :key="tag.id"
-                class="preview-tag"
-                :style="{ '--tag-color': tag.color }"
-              >
-                {{ tag.name }}
-              </span>
-            </div>
-          </div>
+      <div class="form-group">
+        <div class="label-row">
+          <label class="form-label required">人物设定</label>
+          <span class="char-count" :class="{ 'over-limit': isOverLimit }">
+            {{ form.systemPrompt.length }} / 5000
+          </span>
         </div>
 
-        <!-- 记忆 Tab -->
-        <div v-if="isEditing" v-show="activeTab === 'memory'" class="tab-panel">
-          <div class="tab-panel-header">
-            <p class="tab-desc">管理角色的记忆，AI 对话时会参考这些记忆内容</p>
-          </div>
-
-          <div class="memory-panel">
-            <div v-if="memories.length > 0" class="memory-list">
-              <div
-                v-for="mem in memories"
-                :key="mem.id"
-                class="memory-item"
-              >
-                <span class="memory-source" :class="mem.source">
-                  {{ mem.source === 'manual' ? '手动' : '自动' }}
-                </span>
-                <span class="memory-content">{{ mem.content }}</span>
-                <button class="btn-delete-memory" @click="deleteMemory(mem.id)" title="删除">×</button>
-              </div>
-            </div>
-            <div v-else class="memory-empty">
-              <span class="empty-icon">📝</span>
-              <p>暂无记忆</p>
-              <p class="empty-hint">添加记忆可以让角色更了解自己的经历和背景</p>
-            </div>
-            <div class="memory-add">
+        <!-- 重新生成设定（仅编辑模式） -->
+        <div v-if="isEditing" class="regenerate-bar">
+          <div class="style-options">
+            <label
+              v-for="s in promptStyles"
+              :key="s.value"
+              class="style-radio"
+              :class="{ active: selectedStyle === s.value }"
+            >
               <input
-                v-model="newMemoryContent"
-                class="input memory-input"
-                placeholder="输入记忆内容..."
-                @keyup.enter="addMemory"
+                type="radio"
+                :value="s.value"
+                v-model="selectedStyle"
+                class="style-radio-input"
               />
-              <button class="btn btn-primary btn-sm" @click="addMemory" :disabled="!newMemoryContent.trim()">
-                添加
+              <span class="style-radio-label">{{ s.label }}</span>
+            </label>
+          </div>
+          <div class="regenerate-action">
+            <select v-model="selectedProfileId" class="input profile-select">
+              <option v-for="p in sortedProfiles" :key="p.id" :value="p.id">
+                {{ p.provider }} / {{ p.model }}
+              </option>
+            </select>
+            <div class="regenerate-buttons">
+              <button
+                class="btn btn-regenerate"
+                :disabled="regenerating || !originalSystemPrompt"
+                @click="handleRegenerate"
+              >
+                {{ regenerating ? '生成中...' : '生成' }}
+              </button>
+              <button
+                class="btn btn-reset"
+                :disabled="form.systemPrompt === originalSystemPrompt"
+                @click="handleResetPrompt"
+              >
+                重置
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="dialog-footer">
-        <button class="btn btn-secondary" @click="$emit('close')">
-          取消
-        </button>
-        <button
-          v-if="isEditing"
-          class="btn btn-outline"
-          :disabled="syncing"
-          @click="handleSync"
-        >
-          {{ syncing ? '同步中...' : '同步到群组' }}
-        </button>
-        <button
-          class="btn btn-primary"
-          :disabled="!isFormValid || saving"
-          @click="handleSave"
-        >
-          {{ saving ? '保存中...' : '保存' }}
-        </button>
+        <textarea
+          v-model="form.systemPrompt"
+          class="input textarea"
+          placeholder="请输入角色的人物设定，包括性格特点、背景故事、说话风格等..."
+          rows="10"
+          maxlength="5000"
+        ></textarea>
       </div>
     </div>
-  </div>
+
+    <!-- 标签 Tab -->
+    <div v-show="activeTab === 'tags'" class="tab-panel">
+      <div class="tab-panel-header">
+        <p class="tab-desc">为角色添加标签，方便分类和检索</p>
+      </div>
+      <TagSelector
+        v-model="form.tagIds"
+        :tags="globalCharsStore.tags"
+        :show-add-tag="true"
+        @create-tag="handleCreateTag"
+      />
+
+      <!-- 已选标签预览 -->
+      <div v-if="form.tagIds.length > 0" class="selected-tags-preview">
+        <div class="preview-header">已选标签 ({{ form.tagIds.length }})</div>
+        <div class="preview-tags">
+          <span
+            v-for="tag in selectedTags"
+            :key="tag.id"
+            class="preview-tag"
+            :style="{ '--tag-color': tag.color }"
+          >
+            {{ tag.name }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 记忆 Tab -->
+    <div v-if="isEditing" v-show="activeTab === 'memory'" class="tab-panel">
+      <div class="tab-panel-header">
+        <p class="tab-desc">管理角色的记忆，AI 对话时会参考这些记忆内容</p>
+      </div>
+
+      <div class="memory-panel">
+        <div v-if="memories.length > 0" class="memory-list">
+          <div
+            v-for="mem in memories"
+            :key="mem.id"
+            class="memory-item"
+          >
+            <span class="memory-source" :class="mem.source">
+              {{ mem.source === 'manual' ? '手动' : '自动' }}
+            </span>
+            <span class="memory-content">{{ mem.content }}</span>
+            <button class="btn-delete-memory" @click="deleteMemory(mem.id)" title="删除">×</button>
+          </div>
+        </div>
+        <div v-else class="memory-empty">
+          <span class="empty-icon">📝</span>
+          <p>暂无记忆</p>
+          <p class="empty-hint">添加记忆可以让角色更了解自己的经历和背景</p>
+        </div>
+        <div class="memory-add">
+          <input
+            v-model="newMemoryContent"
+            class="input memory-input"
+            placeholder="输入记忆内容..."
+            @keyup.enter="addMemory"
+          />
+          <button class="btn btn-primary btn-sm" @click="addMemory" :disabled="!newMemoryContent.trim()">
+            添加
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <button class="btn btn-secondary" @click="$emit('close')">
+        取消
+      </button>
+      <button
+        v-if="isEditing"
+        class="btn btn-outline"
+        :disabled="syncing"
+        @click="handleSync"
+      >
+        {{ syncing ? '同步中...' : '同步到群组' }}
+      </button>
+      <button
+        class="btn btn-primary"
+        :disabled="!isFormValid || saving"
+        @click="handleSave"
+      >
+        {{ saving ? '保存中...' : '保存' }}
+      </button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup>
@@ -220,6 +216,7 @@ import { useToastStore } from '../../stores/toast'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useDialog } from '../../composables/useDialog'
 import TagSelector from '../common/TagSelector.vue'
+import BaseDialog from '../common/BaseDialog.vue'
 
 const props = defineProps({
   character: {
@@ -472,59 +469,9 @@ function handleResetPrompt() {
 </script>
 
 <style lang="scss" scoped>
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog {
-  background: $bg-primary;
-  border-radius: $border-radius-lg;
-  width: 520px;
-  max-width: 90vw;
-  height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: $shadow-lg;
-}
-
-.dialog-header {
-  padding: $spacing-lg $spacing-xl;
-  border-bottom: 1px solid $border-color;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h3 {
-    font-size: $font-size-lg;
-    font-weight: $font-weight-medium;
-  }
-}
-
-.btn-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  font-size: 24px;
-  color: $text-secondary;
-  cursor: pointer;
-  border-radius: $border-radius-sm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  &:hover {
-    background: $bg-secondary;
-  }
+// ============ Dialog body padding override ============
+:deep(.dialog-body) {
+  padding: 0;
 }
 
 // ============ Tab 导航 ============
@@ -599,13 +546,6 @@ function handleResetPrompt() {
 }
 
 // ============ Tab 面板 ============
-.dialog-body {
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
 .tab-panel {
   padding: $spacing-lg $spacing-xl;
 }
@@ -956,32 +896,23 @@ function handleResetPrompt() {
 }
 
 // ============ 底部按钮 ============
-.dialog-footer {
-  padding: $spacing-lg $spacing-xl;
-  border-top: 1px solid $border-color;
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-md;
-  flex-shrink: 0;
+.btn-outline {
+  background: transparent;
+  border: 1px solid $color-primary;
+  color: $color-primary;
+  padding: $spacing-sm $spacing-lg;
+  border-radius: $border-radius-md;
+  cursor: pointer;
+  font-size: $font-size-sm;
+  transition: background 0.2s, opacity 0.2s;
 
-  .btn-outline {
-    background: transparent;
-    border: 1px solid $color-primary;
-    color: $color-primary;
-    padding: $spacing-sm $spacing-lg;
-    border-radius: $border-radius-md;
-    cursor: pointer;
-    font-size: $font-size-sm;
-    transition: background 0.2s, opacity 0.2s;
+  &:hover:not(:disabled) {
+    background: rgba($color-primary, 0.08);
+  }
 
-    &:hover:not(:disabled) {
-      background: rgba($color-primary, 0.08);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 </style>
