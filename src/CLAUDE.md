@@ -2,11 +2,21 @@
 
 [根目录](../CLAUDE.md) > **src**
 
-> 最后更新：2026-04-18
+> 最后更新：2026-04-22
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-22
+- **重构**：8 个对话框组件迁移到 `BaseDialog.vue` 通用组件（overlay/header/body/footer/header-extra 插槽）
+- **重构**：所有 Store 迁移到 `useApi` composable 统一 IPC 调用模式（load/call/silent）
+- **新增**：`BaseDialog.vue` 通用对话框组件（含 header-extra 插槽支持 Tab 导航）
+- **新增**：`FormGroup.vue` 通用表单组组件（label/hint/error 插槽）
+- **新增**：`useApi.js` composable（load/call/silent 三种 IPC 调用模式）
+- **新增**：`validators.js` 表单验证工具（required/maxLength/compose/validate）
+- **优化**：Store 平均减少 47% 代码量，对话框平均减少 34-54% 代码量
+- **优化**：消除 `.form-group`、`.dialog-overlay`、`.dialog-header` 等 CSS 重复定义
 
 ### 2026-04-18
 - **更新**：Pinia Store 从 8 个扩展为 9 个（新增 `narrative.js` Store 详情）
@@ -103,7 +113,8 @@ src/
 ├── main.js                    # 入口
 ├── App.vue                    # 根组件（含全局 Toast）
 ├── composables/
-│   └── useDialog.js           # 确认对话框 composable
+│   ├── useDialog.js           # 确认对话框
+│   └── useApi.js              # 统一 IPC 调用（load/call/silent） composable
 ├── components/
 │   ├── layout/                # 布局组件
 │   │   ├── MainLayout.vue     # 主布局（四栏 grid）
@@ -132,6 +143,8 @@ src/
 │   │   ├── GlobalCharacterDialog.vue  # 角色库角色创建/编辑
 │   │   └── CharacterGachaDialog.vue   # AI 角色抽卡
 │   └── common/                # 通用组件
+│       ├── BaseDialog.vue     # 通用对话框（插槽：header-extra/body/footer）
+│       ├── FormGroup.vue      # 通用表单组（插槽：label/hint/error）
 │       ├── Toast.vue          # 全局消息提示
 │       ├── ConfirmDialog.vue  # 确认对话框
 │       ├── TagFilter.vue      # 标签筛选
@@ -147,7 +160,8 @@ src/
 │   ├── toast.js               # 消息提示
 │   └── narrative.js           # 叙事引擎（情绪/关系/事件/余波）
 ├── composables/
-│   └── useDialog.js           # 确认对话框
+│   ├── useDialog.js           # 确认对话框
+│   └── useApi.js              # 统一 IPC 调用（load/call/silent）
 └── styles/
     ├── variables.scss          # 设计变量
     └── global.scss             # 全局样式
@@ -634,6 +648,8 @@ const confirmed = await confirm({
 - `src/components/config/CharacterGachaDialog.vue`：AI 角色抽卡
 
 ### 通用组件
+- `src/components/common/BaseDialog.vue`：通用对话框（overlay/header/body/footer/header-extra 插槽）
+- `src/components/common/FormGroup.vue`：通用表单组（label/hint/error 插槽）
 - `src/components/common/Toast.vue`：全局消息提示
 - `src/components/common/ConfirmDialog.vue`：确认对话框
 - `src/components/common/TagFilter.vue`：标签筛选
@@ -652,6 +668,7 @@ const confirmed = await confirm({
 
 ### Composables
 - `src/composables/useDialog.js`：确认对话框
+- `src/composables/useApi.js`：统一 IPC API 调用（`load`/`call`/`silent` 三种模式，自动管理 loading 状态和错误日志）
 
 ### 样式
 - `src/styles/variables.scss`：设计变量
@@ -659,5 +676,5 @@ const confirmed = await confirm({
 
 ---
 
-**文档版本**：2.2.0
+**文档版本**：2.3.0
 **维护者**：AI 架构师（自适应版）

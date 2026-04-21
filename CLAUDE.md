@@ -1,10 +1,22 @@
 # Chat - LLM 角色扮演聊天模拟器
 
-> 最后更新：2026-04-18
+> 最后更新：2026-04-22
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-04-22
+- **重构**：提取 `BaseDialog.vue` 通用对话框组件（overlay/header/body/footer/header-extra 插槽），8 个对话框全部迁移
+- **重构**：提取 `FormGroup.vue` 通用表单组件（label/hint/error 插槽），消除 `.form-group` 重复模板
+- **重构**：提取 `useApi.js` composable（load/call/silent 三种模式），7 个 Store 统一 IPC 调用模式
+- **新增**：`validators.js` 表单验证工具（required/maxLength/compose/validate）
+- **优化**：Store 代码量平均减少 47%（groups 51%、characters 56%、global-characters 55%）
+- **优化**：标准对话框代码量减少 34-54%（CreateCharacterDialog 54%、EditCharacterDialog 46%、GroupSettingsDialog 44%）
+- **优化**：构建产物 CSS -7.7 kB、JS -3.9 kB
+- **更新**：通用组件从 4 个扩展为 6 个（新增 BaseDialog、FormGroup）
+- **更新**：Composables 从 1 个扩展为 2 个（新增 useApi）
+- **更新**：工具模块新增 `validators.js`
 
 ### 2026-04-18
 - **重构**：叙事引擎提取共享常量到 `constants.js`（统一情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示）
@@ -244,6 +256,8 @@ graph TD
     ConfigC --> LLMProfileForm["LLMProfileForm.vue"];
     ConfigC --> LLMConfigPanel["LLMConfigPanel.vue"];
 
+    Common --> BaseDialog["BaseDialog.vue<br/>通用对话框"];
+    Common --> FormGroup["FormGroup.vue<br/>通用表单组"];
     Common --> Toast["Toast.vue"];
     Common --> ConfirmDialog["ConfirmDialog.vue"];
     Common --> TagFilter["TagFilter.vue"];
@@ -260,6 +274,7 @@ graph TD
     Stores --> NarrativeStore["narrative.js"];
 
     Composables --> UseDialog["useDialog.js"];
+    Composables --> UseApi["useApi.js<br/>统一IPC调用"];
 
     Styles --> Variables["variables.scss"];
     Styles --> Global["global.scss"];
@@ -531,6 +546,19 @@ npm run build:linux
 3. 使用 SCSS Scoped 样式
 4. 在父组件中导入并使用
 
+#### 添加新的对话框组件
+1. 使用 `BaseDialog.vue` 作为外壳：`<BaseDialog title="..." maxWidth="..." @close="...">`
+2. 如需 Tab 导航，使用 `#header-extra` 插槽
+3. 表单字段使用 `FormGroup.vue`：`<FormGroup label="..." hint="...">`
+4. 验证逻辑使用 `validators.js`：`import { required, compose, validate } from '../../utils/validators.js'`
+5. 底部按钮放入 `#footer` 插槽
+
+#### 添加新的 Store
+1. 使用 `useApi` composable 统一 IPC 调用：`const { loading, load, call } = useApi('Label')`
+2. 加载方法用 `load()`（自动管理 loading，不抛异常）
+3. 增删改方法用 `call()`（失败时抛异常，由调用方 catch）
+4. 轻量方法用 `silent()`（仅检查 success，不抛异常不 log）
+
 #### 添加数据库字段
 1. 修改 `electron/database/manager.js` 中的 `SCHEMA_SQL` 和 `runMigrations()`
 2. 更新相关 IPC Handlers 和 Vue 组件
@@ -604,6 +632,40 @@ npm run build:linux
 - 共享常量：所有模块通过 `constants.js` 共享配置
 - 可通过群设置中的叙事配置开关控制
 
+### 11. 如何使用 BaseDialog 和 FormGroup？
+- **BaseDialog**：所有对话框统一使用 `<BaseDialog>` 组件，提供 overlay/header/body/footer 插槽
+- `#header-extra` 插槽用于 Tab 导航等头部扩展内容
+- `<FormGroup label="..." hint="...">` 替代手动编写 `.form-group` + `<label>` 结构
+- 示例：
+  ```vue
+  <BaseDialog title="新建" @close="$emit('close')">
+    <FormGroup label="名称"><input v-model="form.name" class="input" /></FormGroup>
+    <template #footer>
+      <button class="btn btn-secondary" @click="$emit('close')">取消</button>
+      <button class="btn btn-primary" @click="submit">确认</button>
+    </template>
+  </BaseDialog>
+  ```
+
+### 12. 如何使用 useApi composable？
+- Store 内统一使用 `useApi()` 替代手动 try/catch + loading 管理
+- `load(fn)`：加载型，自动管理 loading，失败不抛异常
+- `call(fn)`：操作型，失败抛异常由调用方 catch
+- `silent(fn)`：轻量型，仅检查 success
+- 示例：
+  ```javascript
+  const { loading, load, call } = useApi('MyStore')
+  async function loadItems() {
+    const data = await load(() => window.electronAPI.item.getAll())
+    if (data) items.value = data
+  }
+  async function createItem(data) {
+    const result = await call(() => window.electronAPI.item.create(data))
+    items.value.push(result)
+    return result
+  }
+  ```
+
 ---
 
 ## 相关资源
@@ -616,6 +678,6 @@ npm run build:linux
 
 ---
 
-**文档版本**：2.2.0
+**文档版本**：2.3.0
 **维护者**：AI 架构师（自适应版）
 **项目状态**：活跃开发中
