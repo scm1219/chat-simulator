@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { useApi } from '../composables/useApi.js'
 
 export const useNarrativeStore = defineStore('narrative', () => {
   const emotions = ref([])
@@ -8,15 +9,16 @@ export const useNarrativeStore = defineStore('narrative', () => {
   const recentEvents = ref([])
   const staleness = ref({ stale: false, reason: null })
   const aftermathMessages = ref([])
+  const { silent } = useApi('Narrative')
 
   async function fetchEmotions(groupId) {
-    const result = await window.electronAPI.narrative.getEmotions(groupId)
-    if (result.success) emotions.value = result.data
+    const r = await silent(() => window.electronAPI.narrative.getEmotions(groupId))
+    if (r?.success) emotions.value = r.data
   }
 
   async function fetchRelationships(groupId) {
-    const result = await window.electronAPI.narrative.getRelationships(groupId)
-    if (result.success) relationships.value = result.data
+    const r = await silent(() => window.electronAPI.narrative.getRelationships(groupId))
+    if (r?.success) relationships.value = r.data
   }
 
   async function setRelationship(groupId, fromId, toId, type, description = '') {
@@ -32,13 +34,13 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function fetchEventSuggestions(groupId, sceneType) {
-    const result = await window.electronAPI.narrative.getEventSuggestions(groupId, sceneType)
-    if (result.success) eventSuggestions.value = result.data
+    const r = await silent(() => window.electronAPI.narrative.getEventSuggestions(groupId, sceneType))
+    if (r?.success) eventSuggestions.value = r.data
   }
 
   async function fetchRecentEvents(groupId) {
-    const result = await window.electronAPI.narrative.getRecentEvents(groupId)
-    if (result.success) recentEvents.value = result.data
+    const r = await silent(() => window.electronAPI.narrative.getRecentEvents(groupId))
+    if (r?.success) recentEvents.value = r.data
   }
 
   async function triggerEvent(groupId, eventKey, content, impact) {
@@ -48,8 +50,8 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function checkStaleness(groupId) {
-    const result = await window.electronAPI.narrative.checkStaleness(groupId)
-    if (result.success) staleness.value = result.data
+    const r = await silent(() => window.electronAPI.narrative.checkStaleness(groupId))
+    if (r?.success) staleness.value = r.data
   }
 
   async function deleteEvent(groupId, eventId) {

@@ -1,66 +1,53 @@
 <template>
-  <div class="dialog-overlay" @click.self="$emit('close')">
-    <div class="dialog">
-      <div class="dialog-header">
-        <div class="header-left">
-          <h3>编辑角色</h3>
-          <span v-if="character.is_user === 1" class="type-badge type-user">用户角色</span>
-          <span v-else class="type-badge type-ai">AI 角色</span>
-        </div>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
-      </div>
+  <BaseDialog title="编辑角色" @close="$emit('close')">
+    <template #header-badges>
+      <span v-if="character.is_user === 1" class="type-badge type-user">用户角色</span>
+      <span v-else class="type-badge type-ai">AI 角色</span>
+    </template>
 
-      <div class="dialog-body">
-        <div class="form-group">
-          <label>角色名称</label>
-          <input v-model="form.name" class="input" placeholder="例如：诸葛亮" />
-        </div>
+    <FormGroup label="角色名称">
+      <input v-model="form.name" class="input" placeholder="例如：诸葛亮" />
+    </FormGroup>
 
-        <div class="form-group">
-          <div class="label-row">
-            <label>角色设定</label>
-            <span class="char-count" :class="{ 'over-limit': isOverLimit }">
-              {{ charCount }} / {{ maxChars }}
-            </span>
-          </div>
-          <textarea
-            ref="textareaRef"
-            v-model="form.systemPrompt"
-            class="textarea auto-resize"
-            :placeholder="placeholderText"
-            @input="autoResize"
-          />
-          <div class="hint">
-            <template v-if="character.is_user === 1">
-              这是你在聊天中的身份设定，AI 会根据这个设定来理解你
-            </template>
-            <template v-else>
-              设定越详细，角色的回复越符合预期。支持描述性格、背景、说话方式、口头禅等
-            </template>
-          </div>
-        </div>
-      </div>
+    <FormGroup>
+      <template #label-extra>
+        <span class="char-count" :class="{ 'over-limit': isOverLimit }">
+          {{ charCount }} / {{ maxChars }}
+        </span>
+      </template>
+      <textarea
+        ref="textareaRef"
+        v-model="form.systemPrompt"
+        class="textarea auto-resize"
+        :placeholder="placeholderText"
+        @input="autoResize"
+      />
+      <template #hint>
+        <template v-if="character.is_user === 1">
+          这是你在聊天中的身份设定，AI 会根据这个设定来理解你
+        </template>
+        <template v-else>
+          设定越详细，角色的回复越符合预期。支持描述性格、背景、说话方式、口头禅等
+        </template>
+      </template>
+    </FormGroup>
 
-      <div class="dialog-footer">
-        <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-        <button class="btn btn-primary" @click="handleSave" :disabled="!canSave">
-          保存
-        </button>
-      </div>
-    </div>
-  </div>
+    <template #footer>
+      <button class="btn btn-secondary" @click="$emit('close')">取消</button>
+      <button class="btn btn-primary" @click="handleSave" :disabled="!canSave">保存</button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useToastStore } from '../../stores/toast'
+import BaseDialog from '../common/BaseDialog.vue'
+import FormGroup from '../common/FormGroup.vue'
 
 const props = defineProps({
-  character: {
-    type: Object,
-    required: true
-  }
+  character: { type: Object, required: true }
 })
 
 const emit = defineEmits(['close', 'saved'])
@@ -122,71 +109,6 @@ async function handleSave() {
 </script>
 
 <style lang="scss" scoped>
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.dialog {
-  background: $bg-primary;
-  border-radius: $border-radius-lg;
-  width: 90%;
-  max-width: 520px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: $shadow-lg;
-}
-
-.dialog-header {
-  padding: $spacing-lg $spacing-xl;
-  border-bottom: 1px solid $border-color;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: $spacing-sm;
-  }
-
-  h3 {
-    font-size: $font-size-lg;
-    font-weight: $font-weight-medium;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: $text-secondary;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: $border-radius-sm;
-    transition: background 0.2s;
-
-    &:hover {
-      background: $bg-secondary;
-      color: $text-primary;
-    }
-  }
-}
-
 .type-badge {
   font-size: $font-size-xs;
   padding: 2px 8px;
@@ -205,76 +127,26 @@ async function handleSave() {
   }
 }
 
-.dialog-body {
-  padding: $spacing-xl;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
+.char-count {
+  font-size: $font-size-xs;
+  color: $text-placeholder;
+  transition: color 0.2s;
 
-.form-group {
-  margin-bottom: $spacing-lg;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  label {
-    display: block;
-    margin-bottom: $spacing-sm;
-    font-size: $font-size-sm;
-    color: $text-secondary;
+  &.over-limit {
+    color: $color-danger;
     font-weight: $font-weight-medium;
   }
-
-  .label-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: $spacing-sm;
-
-    label {
-      margin-bottom: 0;
-    }
-  }
-
-  .char-count {
-    font-size: $font-size-xs;
-    color: $text-placeholder;
-    transition: color 0.2s;
-
-    &.over-limit {
-      color: $color-danger;
-      font-weight: $font-weight-medium;
-    }
-  }
-
-  .textarea {
-    width: 100%;
-    line-height: 1.6;
-    font-size: $font-size-md;
-  }
-
-  .auto-resize {
-    resize: vertical;
-    min-height: 120px;
-    overflow-y: auto;
-  }
-
-  .hint {
-    font-size: $font-size-xs;
-    color: $text-placeholder;
-    margin-top: $spacing-sm;
-    line-height: 1.5;
-  }
 }
 
-.dialog-footer {
-  padding: $spacing-lg $spacing-xl;
-  border-top: 1px solid $border-color;
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-md;
-  flex-shrink: 0;
+.textarea {
+  width: 100%;
+  line-height: 1.6;
+  font-size: $font-size-md;
+}
+
+.auto-resize {
+  resize: vertical;
+  min-height: 120px;
+  overflow-y: auto;
 }
 </style>

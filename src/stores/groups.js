@@ -1,99 +1,49 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { createLogger } from '../utils/logger.js'
-
-const log = createLogger('Groups')
+import { useApi } from '../composables/useApi.js'
 
 export const useGroupsStore = defineStore('groups', () => {
-  // 状态
   const groups = ref([])
   const currentGroupId = ref(null)
-  const loading = ref(false)
+  const { loading, load, call } = useApi('Groups')
 
-  // 计算属性
   const currentGroup = computed(() => {
     return groups.value.find(g => g.id === currentGroupId.value)
   })
 
-  // 方法
   async function loadGroups() {
-    loading.value = true
-    try {
-      const result = await window.electronAPI.group.getAll()
-      if (result.success) {
-        groups.value = result.data
-        // 启动时自动选中第一个群
-        if (groups.value.length > 0 && !currentGroupId.value) {
-          currentGroupId.value = groups.value[0].id
-        }
+    const data = await load(() => window.electronAPI.group.getAll())
+    if (data) {
+      groups.value = data
+      if (groups.value.length > 0 && !currentGroupId.value) {
+        currentGroupId.value = groups.value[0].id
       }
-    } catch (error) {
-      log.error('加载群组失败:', error)
-    } finally {
-      loading.value = false
     }
   }
 
   async function createGroup(data) {
-    try {
-      const result = await window.electronAPI.group.create(data)
-      if (result.success) {
-        groups.value.push(result.data)
-        return result.data
-      }
-      throw new Error(result.error)
-    } catch (error) {
-      log.error('创建群组失败:', error)
-      throw error
-    }
+    const result = await call(() => window.electronAPI.group.create(data))
+    groups.value.push(result)
+    return result
   }
 
   async function updateGroup(id, data) {
-    try {
-      const result = await window.electronAPI.group.update(id, data)
-      if (result.success) {
-        const index = groups.value.findIndex(g => g.id === id)
-        if (index !== -1) {
-          groups.value[index] = result.data
-        }
-        return result.data
-      }
-      throw new Error(result.error)
-    } catch (error) {
-      log.error('更新群组失败:', error)
-      throw error
-    }
+    const result = await call(() => window.electronAPI.group.update(id, data))
+    const index = groups.value.findIndex(g => g.id === id)
+    if (index !== -1) groups.value[index] = result
+    return result
   }
 
   async function deleteGroup(id) {
-    try {
-      const result = await window.electronAPI.group.delete(id)
-      if (result.success) {
-        groups.value = groups.value.filter(g => g.id !== id)
-        if (currentGroupId.value === id) {
-          currentGroupId.value = null
-        }
-        return
-      }
-      throw new Error(result.error)
-    } catch (error) {
-      log.error('删除群组失败:', error)
-      throw error
-    }
+    await call(() => window.electronAPI.group.delete(id))
+    groups.value = groups.value.filter(g => g.id !== id)
+    if (currentGroupId.value === id) currentGroupId.value = null
   }
 
   async function duplicateGroup(id) {
-    try {
-      const result = await window.electronAPI.group.duplicate(id)
-      if (result.success) {
-        groups.value.push(result.data)
-        return result.data
-      }
-      throw new Error(result.error)
-    } catch (error) {
-      log.error('复制群组失败:', error)
-      throw error
-    }
+    const result = await call(() => window.electronAPI.group.duplicate(id))
+    groups.value.push(result)
+    return result
   }
 
   function selectGroup(id) {
@@ -101,15 +51,7 @@ export const useGroupsStore = defineStore('groups', () => {
   }
 
   return {
-    groups,
-    currentGroupId,
-    currentGroup,
-    loading,
-    loadGroups,
-    createGroup,
-    updateGroup,
-    deleteGroup,
-    duplicateGroup,
-    selectGroup
+    groups, currentGroupId, currentGroup, loading,
+    loadGroups, createGroup, updateGroup, deleteGroup, duplicateGroup, selectGroup
   }
 })
