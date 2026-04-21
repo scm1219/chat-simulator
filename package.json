@@ -13,7 +13,7 @@
     "build:win": "electron-vite build && npx electron-builder --win",
     "build:mac": "electron-vite build && npx electron-builder --mac",
     "build:linux": "electron-vite build && npx electron-builder --linux",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "build": {
     "appId": "com.chatsimulator.app",
