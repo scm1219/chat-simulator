@@ -102,7 +102,7 @@ export function setupMessageHandlers(dbManager) {
     return { success: true, data: { content: message.content, groupId } }
   }, 'Message:deleteFrom'))
 
-  // 导出群组聊天记录为 ZIP（保留手动 try/catch，因含临时文件清理逻辑）
+  // 导出群组聊天记录为 ZIP（异步文件 I/O，避免阻塞主线程）
   ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
     let jsonFilePath = null
     let zipFilePath = null
@@ -177,18 +177,16 @@ export function setupMessageHandlers(dbManager) {
         exported_at: new Date().toISOString()
       }
 
-      // 创建临时目录
+      // 创建临时目录（异步）
       const tempDir = path.join(app.getPath('temp'), 'chat-simulator-exports')
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true })
-      }
+      await fs.promises.mkdir(tempDir, { recursive: true })
 
       // 创建 JSON 文件路径
       const jsonFileName = `${groupName}_聊天记录.json`
       jsonFilePath = path.join(tempDir, jsonFileName)
 
-      // 写入 JSON 文件
-      fs.writeFileSync(jsonFilePath, JSON.stringify(exportData, null, 2), 'utf-8')
+      // 写入 JSON 文件（异步）
+      await fs.promises.writeFile(jsonFilePath, JSON.stringify(exportData, null, 2), 'utf-8')
 
       // 创建 ZIP 文件（先写到临时路径，完成后移动到目标路径）
       const tempZipPath = path.join(tempDir, `temp_${Date.now()}.zip`)
@@ -209,24 +207,24 @@ export function setupMessageHandlers(dbManager) {
         archive.finalize()
       })
 
-      // 移动到用户选择的路径
-      fs.renameSync(tempZipPath, savePath)
+      // 移动到用户选择的路径（异步）
+      await fs.promises.rename(tempZipPath, savePath)
       zipFilePath = null // 已移走，无需清理
 
-      const fileSize = fs.statSync(savePath).size
+      const stat = await fs.promises.stat(savePath)
 
       return {
         success: true,
         data: {
           filename: path.basename(savePath),
-          size: fileSize
+          size: stat.size
         }
       }
     } catch (error) {
-      // 清理临时文件
+      // 清理临时文件（异步，不阻塞错误返回）
       try {
-        if (jsonFilePath && fs.existsSync(jsonFilePath)) fs.unlinkSync(jsonFilePath)
-        if (zipFilePath && fs.existsSync(zipFilePath)) fs.unlinkSync(zipFilePath)
+        if (jsonFilePath) await fs.promises.unlink(jsonFilePath).catch(() => {})
+        if (zipFilePath) await fs.promises.unlink(zipFilePath).catch(() => {})
       } catch (cleanupError) {
         log.error('清理临时文件失败:', cleanupError)
       }

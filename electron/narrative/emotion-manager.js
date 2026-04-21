@@ -8,25 +8,52 @@ import { EMOTION_KEYWORDS, mapEventImpactToEmotion } from './constants.js'
 export class EmotionManager {
   constructor() {
     this.keywords = { ...EMOTION_KEYWORDS }
+
+    // 预编译合并正则：将所有关键词合并为一条正则，一次匹配全部
+    const allWords = []
+    this._wordToEmotion = new Map()
+    for (const [emotion, config] of Object.entries(this.keywords)) {
+      for (const word of config.words) {
+        allWords.push(escapeRegExp(word))
+        this._wordToEmotion.set(word, { emotion, intensity: config.intensity })
+      }
+    }
+    // 按长度降序排列，优先匹配长词（避免短词截断长词匹配）
+    allWords.sort((a, b) => b.length - a.length)
+    this._combinedRegex = new RegExp(allWords.join('|'), 'g')
   }
 
   matchFromContent(content) {
     if (!content) return { emotion: null, intensity: 0 }
-    let bestMatch = null
-    let bestScore = 0
-    for (const [emotion, config] of Object.entries(this.keywords)) {
-      for (const word of config.words) {
-        if (content.includes(word)) {
-          const count = (content.match(new RegExp(escapeRegExp(word), 'g')) || []).length
-          const score = config.intensity * Math.min(count, 3)
-          if (score > bestScore) {
-            bestScore = score
-            bestMatch = { emotion, intensity: Math.min(score, 1.0) }
-          }
-        }
+
+    // 统计每种情绪的命中次数
+    const hitMap = new Map()
+    this._combinedRegex.lastIndex = 0
+    const matches = content.matchAll(this._combinedRegex)
+    for (const m of matches) {
+      const word = m[0]
+      const info = this._wordToEmotion.get(word)
+      if (info) {
+        const key = info.emotion
+        hitMap.set(key, (hitMap.get(key) || 0) + 1)
       }
     }
-    return bestMatch || { emotion: null, intensity: 0 }
+    if (hitMap.size === 0) return { emotion: null, intensity: 0 }
+
+    // 选择得分最高的情绪
+    let bestEmotion = null
+    let bestScore = 0
+    for (const [emotion, count] of hitMap) {
+      const config = this.keywords[emotion]
+      const score = config.intensity * Math.min(count, 3)
+      if (score > bestScore) {
+        bestScore = score
+        bestEmotion = emotion
+      }
+    }
+    return bestEmotion
+      ? { emotion: bestEmotion, intensity: Math.min(bestScore, 1.0) }
+      : { emotion: null, intensity: 0 }
   }
 
   updateFromMessage(db, characterId, content) {

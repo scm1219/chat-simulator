@@ -79,9 +79,6 @@ export const SCENE_LABELS = {
   general: '通用'
 }
 
-// 事件场景选项列表（用于前端 select 渲染）
-export const SCENE_OPTIONS = Object.entries(SCENE_LABELS).map(([value, label]) => ({ value, label }))
-
 // 语气提示映射
 export const TONE_HINTS = {
   '开心': '请用轻快、主动的语气回复',

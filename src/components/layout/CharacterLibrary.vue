@@ -19,7 +19,8 @@
         type="text"
         class="input search-input"
         placeholder="搜索角色..."
-        @input="handleSearch"
+        @input="handleSearchInput"
+        @keydown.enter="handleSearchEnter"
       />
     </div>
 
@@ -217,8 +218,19 @@ function isCharacterInGroup(characterName) {
 }
 
 
-// 搜索
-function handleSearch() {
+// 搜索防抖
+let searchInputTimer = null
+function handleSearchInput() {
+  if (searchInputTimer) clearTimeout(searchInputTimer)
+  searchInputTimer = setTimeout(() => {
+    globalCharsStore.searchKeyword = searchKeyword.value
+  }, 300)
+}
+
+// 立即搜索（Enter 键触发）
+function handleSearchEnter() {
+  if (searchInputTimer) clearTimeout(searchInputTimer)
+  searchInputTimer = null
   globalCharsStore.searchKeyword = searchKeyword.value
 }
 

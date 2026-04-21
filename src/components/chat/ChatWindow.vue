@@ -514,9 +514,14 @@ watch(() => currentGroup.value, (newGroup) => {
   }
 }, { deep: true })
 
-// 监听消息变化，自动滚动到底部
+// 监听消息变化，仅在用户接近底部时自动滚动
 watch(() => messagesStore.messages.length, async () => {
-  await scrollToBottom()
+  const el = messagesContainer.value
+  if (!el) return
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+  if (nearBottom) {
+    await scrollToBottom()
+  }
 }, { flush: 'post' })
 
 // 监听高亮消息，滚动到对应位置

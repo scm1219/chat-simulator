@@ -11,6 +11,9 @@ import { ensureDataDir } from '../utils/config-dir.js'
 
 const log = createLogger('Database')
 
+// 数据库连接缓存上限（LRU 策略）
+const MAX_CACHED_CONNECTIONS = 10
+
 // 数据库 Schema（内联以避免打包后路径问题）
 const SCHEMA_SQL = `
 -- ============ 群信息表 ============
@@ -276,14 +279,17 @@ export class DatabaseManager {
   }
 
   /**
-   * 获取群组的数据库连接
+   * 获取群组的数据库连接（LRU 缓存策略）
    * @param {string} groupId - 群组 ID
    * @returns {Database} SQLite 数据库实例
    */
   getGroupDB(groupId) {
-    // 如果连接已存在，直接返回
+    // 如果连接已存在，移到末尾（LRU 标记为最近使用）
     if (this.connections.has(groupId)) {
-      return this.connections.get(groupId)
+      const db = this.connections.get(groupId)
+      this.connections.delete(groupId)
+      this.connections.set(groupId, db)
+      return db
     }
 
     // 创建新的数据库连接
@@ -301,6 +307,15 @@ export class DatabaseManager {
 
     // 填充角色索引缓存
     this._indexGroupCharacters(db, groupId)
+
+    // LRU 淘汰：超过上限时关闭最早未使用的连接
+    if (this.connections.size > MAX_CACHED_CONNECTIONS) {
+      const oldest = this.connections.keys().next().value
+      const oldestDb = this.connections.get(oldest)
+      oldestDb.close()
+      this.connections.delete(oldest)
+      log.info(`[LRU] 关闭不活跃连接: ${oldest}`)
+    }
 
     return db
   }

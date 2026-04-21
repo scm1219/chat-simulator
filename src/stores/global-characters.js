@@ -130,12 +130,6 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
     }
   }
 
-  async function searchCharacters(keyword) {
-    searchKeyword.value = keyword
-    // 使用本地筛选，不再调用 API
-    return filteredCharacters.value
-  }
-
   async function importToGroup(characterId, groupId) {
     try {
       const result = await window.electronAPI.globalCharacter.importToGroup(characterId, groupId)
@@ -191,6 +185,10 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
   }
 
   function clearSearch() {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
     searchKeyword.value = ''
   }
 
@@ -293,7 +291,6 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
     createCharacter,
     updateCharacter,
     deleteCharacter,
-    searchCharacters,
     importToGroup,
     syncToGroup,
     syncToAllGroups,

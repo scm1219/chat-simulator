@@ -223,12 +223,14 @@ export class NarrativeEngine {
     const activeIds = responses.filter(r => r.success).map(r => r.characterId)
     if (activeIds.length === 0) return false
 
+    // 复用同一 IN 子句（避免重复构建）
+    const activeIn = buildInClause(activeIds)
+
     // 高情绪必定触发（仅检查参与对话的角色）
-    const emoIn = buildInClause(activeIds)
     const highEmotions = db.prepare(
       `SELECT COUNT(*) as count FROM character_emotions
-       WHERE intensity > 0.7 AND character_id IN (${emoIn.placeholders})`
-    ).get(...emoIn.params)
+       WHERE intensity > 0.7 AND character_id IN (${activeIn.placeholders})`
+    ).get(...activeIn.params)
     if (highEmotions.count > 0) return true
 
     // 角色提及必定触发
@@ -240,12 +242,11 @@ export class NarrativeEngine {
       }
     }
 
-    // 紧张关系必定触发
-    const relIn = buildInClause(activeIds)
+    // 紧张关系必定触发（复用 activeIn）
     const tenseRels = db.prepare(`
       SELECT COUNT(*) as count FROM character_relationships
-      WHERE favorability < -20 AND from_id IN (${relIn.placeholders})
-    `).get(...relIn.params)
+      WHERE favorability < -20 AND from_id IN (${activeIn.placeholders})
+    `).get(...activeIn.params)
     if (tenseRels.count > 0) return true
 
     // 默认 60% 随机触发

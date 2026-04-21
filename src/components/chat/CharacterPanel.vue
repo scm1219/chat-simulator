@@ -597,17 +597,13 @@ async function updateThinkingMode(event) {
       thinkingEnabled: enabled
     })
 
-    // 同步更新所有 AI 角色的思考模式
+    // 批量更新所有 AI 角色的思考模式（并行）
     const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-    for (const char of aiCharacters) {
-      try {
-        await charactersStore.updateCharacter(char.id, {
-          thinkingEnabled: enabled
-        })
-      } catch (err) {
+    await Promise.all(aiCharacters.map(char =>
+      charactersStore.updateCharacter(char.id, { thinkingEnabled: enabled }).catch(err => {
         log.error(`更新角色 ${char.name} 思考模式失败:`, err)
-      }
-    }
+      })
+    ))
 
     // 重新加载角色列表以确保 UI 正确刷新
     await charactersStore.loadCharacters(currentGroup.value.id)
