@@ -27,7 +27,7 @@ export class RelationshipManager {
         type = excluded.type,
         description = excluded.description,
         updated_at = excluded.updated_at
-    `).run(fromId, toId, type, description || config.promptHint)
+    `).run(fromId, toId, type, config.defaultFavor ?? 0, description || config.promptHint)
     return this.getRelationship(db, fromId, toId)
   }
 
