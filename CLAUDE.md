@@ -300,27 +300,27 @@ graph TD
 
 ### 前置要求
 - Node.js >= 18
-- npm >= 9（或 pnpm）
+- pnpm >= 9
 
 ### 开发模式
 ```bash
 # 安装依赖
-npm install
+pnpm install
 
 # 启动开发模式（自动设置控制台 UTF-8 编码）
-npm run dev
+pnpm dev
 ```
 
 ### 打包
 ```bash
 # Windows
-npm run build:win
+pnpm build:win
 
 # macOS
-npm run build:mac
+pnpm build:mac
 
 # Linux
-npm run build:linux
+pnpm build:linux
 ```
 
 ### 环境变量

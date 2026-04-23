@@ -67,31 +67,31 @@
 ### 前置要求
 
 - Node.js >= 18
-- npm >= 9
+- pnpm >= 9
 
 ### 安装依赖
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 开发模式
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ### 打包
 
 ```bash
 # Windows
-npm run build:win
+pnpm build:win
 
 # macOS
-npm run build:mac
+pnpm build:mac
 
 # Linux
-npm run build:linux
+pnpm build:linux
 ```
 
 ## 使用说明
