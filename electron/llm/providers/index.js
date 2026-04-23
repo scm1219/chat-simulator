@@ -79,10 +79,11 @@ export const LLM_PROVIDERS = {
   minimax: {
     id: 'minimax',
     name: 'MiniMax',
-    baseURL: 'https://api.minimaxi.com/v1',
+    baseURL: 'https://api.minimaxi.com/anthropic',
     models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.1', 'MiniMax-M2.1-highspeed', 'MiniMax-M2'],
     needApiKey: true,
-    needBaseUrl: false
+    needBaseUrl: false,
+    protocol: 'anthropic' // 使用 Anthropic API 兼容协议
   },
   custom: {
     id: 'custom',

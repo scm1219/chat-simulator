@@ -122,26 +122,37 @@ export class LLMClient extends BaseLLMClient {
     const signal = options.signal || null
 
     try {
+      const providerConfig = getProviderConfig(this._provider)
+      const caps = providerConfig?.capabilities || {}
+
       const requestData = {
         model: this.model,
         messages: messages,
         temperature: options.temperature || 0.7,
-        max_tokens: options.maxTokens || 2000,
         stream: isStreaming
       }
 
-      // 结构化输出：强制返回合法 JSON（GLM-5、OpenAI 等供应商支持）
-      if (options.responseFormat) {
+      // Token 上限参数：部分供应商使用 max_completion_tokens（如 MiniMaxi）
+      if (caps.maxCompletionTokens) {
+        requestData.max_completion_tokens = options.maxTokens || 2000
+      } else {
+        requestData.max_tokens = options.maxTokens || 2000
+      }
+
+      // 结构化输出（默认支持，除非供应商明确不支持）
+      if (options.responseFormat && caps.responseFormat !== false) {
         requestData.response_format = options.responseFormat
       }
 
-      // 流式请求时请求 usage 数据
-      if (isStreaming) {
+      // 流式请求时请求 usage 数据（默认支持，除非供应商明确不支持）
+      if (isStreaming && caps.streamOptions !== false) {
         requestData.stream_options = { include_usage: true }
       }
 
-      // 处理思考模式参数：同时传递三种格式，兼容所有供应商
-      this.applyThinkingMode(requestData, options.thinkingEnabled)
+      // 思考模式参数（默认支持，除非供应商明确不支持）
+      if (caps.thinking !== false) {
+        this.applyThinkingMode(requestData, options.thinkingEnabled)
+      }
 
       if (isStreaming) {
         return await this.chatStream(requestData, options.onChunk, signal)
@@ -193,12 +204,16 @@ export class LLMClient extends BaseLLMClient {
    */
   async testConnection() {
     try {
+      const providerConfig = getProviderConfig(this._provider)
+      const caps = providerConfig?.capabilities || {}
+      const maxTokensKey = caps.maxCompletionTokens ? 'max_completion_tokens' : 'max_tokens'
+
       await this.client.post('/chat/completions', {
         model: this.model,
         messages: [
           { role: 'user', content: 'Hi' }
         ],
-        max_tokens: 10
+        [maxTokensKey]: 10
       })
 
       return {

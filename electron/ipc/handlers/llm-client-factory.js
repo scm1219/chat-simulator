@@ -3,6 +3,7 @@
  * 统一管理 LLM 客户端的创建、代理解析和 API Key 获取
  */
 import { LLMClient } from '../../llm/client.js'
+import { AnthropicClient } from '../../llm/anthropic-client.js'
 import { createLogger } from '../../utils/logger.js'
 
 const log = createLogger('LLM')
@@ -29,13 +30,23 @@ export function resolveClientProxy(profile, baseURL) {
  */
 export function createLLMClient(config) {
   const { provider, useNativeApi, baseURL, proxy, bypassRules, ...rest } = config
+  const providerConfig = getProviderConfig(provider)
 
   // 如果是 Ollama 且启用原生 API，使用原生客户端
   if (provider === 'ollama' && useNativeApi) {
-    const providerConfig = getProviderConfig('ollama')
     return new OllamaNativeClient({
       ...rest,
       baseURL: baseURL || providerConfig.nativeBaseURL || 'http://localhost:11434',
+      proxy,
+      bypassRules
+    })
+  }
+
+  // Anthropic 协议供应商（如 MiniMaxi）
+  if (providerConfig?.protocol === 'anthropic') {
+    return new AnthropicClient({
+      ...rest,
+      baseURL: baseURL || providerConfig.baseURL,
       proxy,
       bypassRules
     })
