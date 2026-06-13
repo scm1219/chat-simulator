@@ -5,7 +5,7 @@ import { useGroupsStore } from './groups.js'
 
 export const useLLMProfilesStore = defineStore('llmProfiles', () => {
   const profiles = ref([])
-  const { loading, load, call } = useApi('LLMProfiles')
+  const { loading, load } = useApi('LLMProfiles')
 
   const profileCount = computed(() => profiles.value.length)
 

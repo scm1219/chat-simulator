@@ -10,7 +10,6 @@ const log = createLogger('LLM')
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getProviderConfig } from '../../llm/providers/index.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
-import { getLLMProfiles } from '../../config/llm-profiles.js'
 
 /**
  * 解析 Profile 代理配置为客户端可用的 proxy + bypassRules

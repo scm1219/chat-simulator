@@ -142,7 +142,7 @@ export class AnthropicClient extends BaseLLMClient {
         case 'message_stop':
           return { done: true }
       }
-    } catch (e) {
+    } catch {
       // 忽略无法解析的行
     }
 

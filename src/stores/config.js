@@ -5,7 +5,7 @@ import { useApi } from '../composables/useApi.js'
 export const useConfigStore = defineStore('config', () => {
   const llmConfig = ref(null)
   const proxyConfig = ref(null)
-  const { loading, load, call } = useApi('Config')
+  const { loading, load } = useApi('Config')
 
   async function loadLLMConfig() {
     const data = await load(() => window.electronAPI.config.getLLMConfig())

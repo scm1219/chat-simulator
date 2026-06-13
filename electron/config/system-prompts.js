@@ -13,6 +13,7 @@ const CONFIG_FILE = path.join(app.getPath('userData'), 'config', 'system-prompts
 
 /**
  * 默认系统提示词模板
+ */
 const DEFAULT_TEMPLATES = [
   {
     id: 'multi-role-basic',

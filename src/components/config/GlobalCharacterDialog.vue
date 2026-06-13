@@ -440,7 +440,7 @@ async function handleSync() {
 async function handleRegenerate() {
   if (regenerating.value || !props.character || !originalSystemPrompt.value) return
 
-  const styleLabel = promptStyles.find(s => s.value === selectedStyle.value)?.label || selectedStyle.value
+  const _styleLabel = promptStyles.find(s => s.value === selectedStyle.value)?.label || selectedStyle.value
 
   regenerating.value = true
   try {

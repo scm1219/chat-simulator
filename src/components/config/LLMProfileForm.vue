@@ -319,13 +319,6 @@ const proxyType = ref(props.modelValue?.proxy?.type || 'none')
 const customProxyUrl = ref(props.modelValue?.proxy?.customUrl || '')
 const bypassRules = ref(props.modelValue?.proxy?.bypassRules || 'localhost,127.0.0.1,::1')
 
-// 默认代理配置常量
-const DEFAULT_PROXY = {
-  type: 'none',
-  customUrl: '',
-  bypassRules: 'localhost,127.0.0.1,::1'
-}
-
 // 同步代理配置到 form.proxy
 function syncProxyToForm() {
   form.value.proxy = {

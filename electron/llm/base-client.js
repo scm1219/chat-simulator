@@ -75,7 +75,7 @@ export class BaseLLMClient {
    * @param {Function} onChunk - 流式片段回调
    * @returns {{ done: boolean }} done=true 表示流结束
    */
-  _parseStreamLine(line, state, onChunk) {
+  _parseStreamLine(_line, _state, _onChunk) {
     throw new Error('子类必须实现 _parseStreamLine()')
   }
 

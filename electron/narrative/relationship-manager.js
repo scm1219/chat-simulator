@@ -3,7 +3,7 @@
  * 双向动态关系 + 好感度系统
  */
 
-import { RELATIONSHIP_TYPES, FAVORABILITY_LEVELS, INTERACTION_PATTERNS, getFavorabilityLevel } from './constants.js'
+import { RELATIONSHIP_TYPES, INTERACTION_PATTERNS, getFavorabilityLevel } from './constants.js'
 
 export class RelationshipManager {
   constructor() {

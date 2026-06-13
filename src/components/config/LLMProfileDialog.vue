@@ -67,7 +67,7 @@ import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import LLMProfileForm from './LLMProfileForm.vue'
 
-const emit = defineEmits(['close'])
+defineEmits(['close'])
 
 const store = useLLMProfilesStore()
 const toast = useToastStore()

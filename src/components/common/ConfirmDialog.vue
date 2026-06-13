@@ -24,9 +24,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
-const props = defineProps({
+defineProps({
   title: {
     type: String,
     default: '确认操作'

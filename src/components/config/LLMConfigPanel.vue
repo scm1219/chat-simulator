@@ -164,7 +164,7 @@ async function loadProfiles() {
 }
 
 // 获取供应商名称
-function getProviderName(providerId) {
+function _getProviderName(providerId) {
   const provider = LLM_PROVIDERS[providerId]
   return provider ? provider.name : providerId
 }

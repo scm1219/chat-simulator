@@ -96,7 +96,7 @@ export class LLMClient extends BaseLLMClient {
       if (parsed.model && !state.responseModel) {
         state.responseModel = parsed.model
       }
-    } catch (e) {
+    } catch {
       // 忽略无法解析的行
     }
 

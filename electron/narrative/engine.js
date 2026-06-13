@@ -218,7 +218,7 @@ export class NarrativeEngine {
     return eligibleChars[Math.floor(Math.random() * eligibleChars.length)]
   }
 
-  _shouldTriggerAftermath(responses, allCharacters, db, groupId) {
+  _shouldTriggerAftermath(responses, allCharacters, db, _groupId) {
     // 空数组保护：先计算活跃角色 ID
     const activeIds = responses.filter(r => r.success).map(r => r.characterId)
     if (activeIds.length === 0) return false

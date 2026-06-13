@@ -104,7 +104,7 @@ function clear() {
 }
 
 // 点击外部关闭
-function handleClickOutside(e) {
+function handleClickOutside(_e) {
   if (showPicker.value) showPicker.value = false
 }
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))

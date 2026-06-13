@@ -124,7 +124,7 @@ export function setupSearchHandlers(dbManager) {
       try {
         const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId)
         if (group) groupName = group.name
-      } catch (_) {
+      } catch {
         // 忽略，使用 ID 作为名称
       }
 

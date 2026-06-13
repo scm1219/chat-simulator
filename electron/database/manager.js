@@ -382,7 +382,7 @@ export class DatabaseManager {
    * 关闭所有数据库连接
    */
   closeAll() {
-    for (const [groupId, db] of this.connections.entries()) {
+    for (const [_groupId, db] of this.connections.entries()) {
       db.close()
     }
     this.connections.clear()

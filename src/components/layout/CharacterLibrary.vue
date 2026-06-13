@@ -250,7 +250,7 @@ async function handleImport(character) {
   if (!confirmed) return
 
   try {
-    const newChar = await globalCharsStore.importToGroup(
+    await globalCharsStore.importToGroup(
       character.id,
       groupsStore.currentGroupId
     )

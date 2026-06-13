@@ -110,7 +110,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
-import { useApi } from '../../composables/useApi.js'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import FormGroup from '../common/FormGroup.vue'
@@ -120,7 +119,6 @@ const emit = defineEmits(['close', 'created'])
 const toast = useToastStore()
 const groupsStore = useGroupsStore()
 const profilesStore = useLLMProfilesStore()
-const { load: loadApi } = useApi('CreateGroup')
 
 const form = ref({
   name: '',

@@ -421,7 +421,7 @@ const profileGroups = computed(() => {
 })
 
 // 获取供应商名称
-function getProviderName(providerId) {
+function _getProviderName(providerId) {
   const provider = LLM_PROVIDERS[providerId]
   return provider ? provider.name : providerId
 }
@@ -455,7 +455,7 @@ watch(() => currentGroup.value?.id, async (newId) => {
 })
 
 // 获取非用户角色的数量
-const aiCharacterCount = computed(() => {
+const _aiCharacterCount = computed(() => {
   return charactersStore.characters.filter(c => c.is_user !== 1).length
 })
 

@@ -68,7 +68,7 @@ export class OllamaNativeClient extends BaseLLMClient {
       if (parsed.done) {
         return { done: true }
       }
-    } catch (e) {
+    } catch {
       // 忽略无法解析的行
     }
 
