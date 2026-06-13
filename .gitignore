@@ -42,3 +42,4 @@ Thumbs.db
 electron/config/llm-config.json
 electron/config/proxy-config.json
 !electron/config/*.example.json
+settings.json
