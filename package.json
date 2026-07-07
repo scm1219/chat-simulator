@@ -50,12 +50,12 @@
     ]
   },
   "dependencies": {
-    "@tanstack/vue-virtual": "^3.13.28",
+    "@tanstack/vue-virtual": "^3.13.31",
     "archiver": "^7.0.1",
-    "axios": "^1.17.0",
+    "axios": "^1.18.1",
     "pinia": "^3.0.4",
     "uuid": "^13.0.2",
-    "vue": "^3.5.38"
+    "vue": "^3.5.39"
   },
   "pnpm": {
     "overrides": {
@@ -63,16 +63,16 @@
     }
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
+    "@electron/rebuild": "^4.1.0",
     "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^6.0.7",
-    "better-sqlite3": "^12.10.0",
-    "electron": "^41.7.2",
+    "better-sqlite3": "^12.11.1",
+    "electron": "^41.10.0",
     "electron-vite": "^5.0.0",
-    "eslint": "^10.5.0",
+    "eslint": "^10.6.0",
     "eslint-plugin-vue": "^10.9.2",
-    "globals": "^17.6.0",
+    "globals": "^17.7.0",
     "sass": "^1.101.0",
-    "vite": "^8.0.16"
+    "vite": "^8.1.3"
   }
 }
