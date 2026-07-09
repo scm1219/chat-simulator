@@ -85,6 +85,19 @@ export const LLM_PROVIDERS = {
     needBaseUrl: false,
     protocol: 'anthropic' // 使用 Anthropic API 兼容协议
   },
+  google: {
+    id: 'google',
+    name: '谷歌',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    models: ['gemini-2.5-flash', 'gemini-3.5-flash'],
+    needApiKey: true,
+    needBaseUrl: false,
+    capabilities: {
+      responseFormat: false,
+      streamOptions: false,
+      thinking: false
+    }
+  },
   custom: {
     id: 'custom',
     name: '自定义',
