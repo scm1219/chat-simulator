@@ -106,12 +106,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
-import LLMProfileForm from './LLMProfileForm.vue'
+
+// 表单组件按需异步加载，减小首屏 bundle 体积
+const LLMProfileForm = defineAsyncComponent(() => import('./LLMProfileForm.vue'))
 
 const store = useLLMProfilesStore()
 const toast = useToastStore()

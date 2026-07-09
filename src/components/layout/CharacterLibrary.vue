@@ -151,16 +151,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
-import GlobalCharacterDialog from '../config/GlobalCharacterDialog.vue'
-import CharacterGachaDialog from '../config/CharacterGachaDialog.vue'
 import TagFilter from '../common/TagFilter.vue'
+
+// 对话框组件按需异步加载，减小首屏 bundle 体积
+const GlobalCharacterDialog = defineAsyncComponent(() => import('../config/GlobalCharacterDialog.vue'))
+const CharacterGachaDialog = defineAsyncComponent(() => import('../config/CharacterGachaDialog.vue'))
 
 const globalCharsStore = useGlobalCharactersStore()
 const groupsStore = useGroupsStore()

@@ -4,6 +4,8 @@
  */
 import { generateUUID } from '../../utils/uuid.js'
 import { createLogger } from '../../utils/logger.js'
+import { StreamBatcher } from '../../utils/stream-batcher.js'
+import { prepareCached } from '../../utils/statement-cache.js'
 
 const log = createLogger('LLM')
 import { buildContextMessages, fetchCharacterMemories, extractMemoriesAsync } from './llm-context-builder.js'
@@ -22,7 +24,7 @@ import { buildContextMessages, fetchCharacterMemories, extractMemoriesAsync } fr
 export function saveUserMessage(db, groupId, content, userCharacter, event, messageType = 'normal', eventImpact = null) {
   const userMsgId = generateUUID()
 
-  db.prepare(`
+  prepareCached(db, `
     INSERT INTO messages (id, group_id, character_id, role, content, message_type, event_impact)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(userMsgId, groupId, userCharacter?.id || null, 'user', content, messageType, eventImpact)
@@ -74,6 +76,12 @@ export async function generateCharacterResponse(client, character, history, user
     narrativeContext = []
   } = options
 
+  // 批处理器：聚合流式 chunk，按 50ms 间隔批量发送，减少 IPC 次数
+  // 在 try 外声明，确保 catch 中也能安全清理
+  const batcher = new StreamBatcher((payload) => {
+    event.sender.send('message:stream:chunk', payload)
+  })
+
   try {
     // 优先使用角色的思考模式设置，如果没有则使用群组的设置
     const characterThinkingEnabled = character.thinking_enabled === 1 || thinkingEnabled
@@ -103,31 +111,22 @@ export async function generateCharacterResponse(client, character, history, user
       thinkingEnabled: characterThinkingEnabled,
       onChunk: (chunk) => {
         // chunk 格式: { type: 'reasoning' | 'content', content: string }
-        if (chunk.type === 'reasoning') {
-          // 推送思考过程片段
-          event.sender.send('message:stream:chunk', {
-            tempId: tempMessageId,
-            type: 'reasoning',
-            content: chunk.content
-          })
-        } else if (chunk.type === 'content') {
-          // 推送回答内容片段
-          event.sender.send('message:stream:chunk', {
-            tempId: tempMessageId,
-            type: 'content',
-            content: chunk.content
-          })
+        if (chunk.type === 'reasoning' || chunk.type === 'content') {
+          batcher.add(tempMessageId, chunk.type, chunk.content)
         }
       }
     })
 
     if (result.success) {
+      // 确保最后一批 chunk 已发送（避免丢失尾部数据）
+      batcher.flush()
+
       // 保存完整回复到数据库（包含思考内容、token 用量和模型信息）
       const assistantMsgId = generateUUID()
       const promptTokens = result.usage?.prompt_tokens ?? null
       const completionTokens = result.usage?.completion_tokens ?? null
       const responseModel = result.model || null
-      db.prepare(`
+      prepareCached(db, `
         INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel)
@@ -165,6 +164,9 @@ export async function generateCharacterResponse(client, character, history, user
     } else {
       log.error(`${character.name} - 回复生成失败`, result.error)
 
+      // 流式已中断，刷新剩余 chunk 后再发送错误事件
+      batcher.flush()
+
       // 通知渲染进程：生成失败
       event.sender.send('message:stream:error', {
         tempId: tempMessageId,
@@ -180,6 +182,9 @@ export async function generateCharacterResponse(client, character, history, user
     }
   } catch (error) {
     log.error(`${character.name} - 生成过程异常`, error)
+    // 清理批处理器定时器；尝试刷新已累积的 chunk 后通知前端移除临时消息
+    batcher.flush()
+    batcher.destroy()
     return {
       success: false,
       characterId: character.id,

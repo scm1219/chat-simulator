@@ -84,16 +84,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, defineAsyncComponent } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import { createLogger } from '../../utils/logger.js'
-import CreateGroupDialog from '../config/CreateGroupDialog.vue'
-import QuickGroupDialog from '../config/QuickGroupDialog.vue'
-import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 import GroupSearch from './GroupSearch.vue'
+
+// 对话框组件按需异步加载，减小首屏 bundle 体积
+const CreateGroupDialog = defineAsyncComponent(() => import('../config/CreateGroupDialog.vue'))
+const QuickGroupDialog = defineAsyncComponent(() => import('../config/QuickGroupDialog.vue'))
+const GroupSettingsDialog = defineAsyncComponent(() => import('../config/GroupSettingsDialog.vue'))
 
 const groupsStore = useGroupsStore()
 const messagesStore = useMessagesStore()

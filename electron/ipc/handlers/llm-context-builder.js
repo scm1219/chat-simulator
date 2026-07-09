@@ -24,45 +24,58 @@ export function fetchCharacterMemories(memoryManager, characterName) {
 }
 
 /**
- * 过滤和格式化历史消息
+ * 过滤和格式化历史消息（角色相关部分）
  * 规则：过滤系统消息、空内容、角色指令、其他角色的定向指令
+ *
+ * 性能优化：角色无关的预过滤（系统消息/空内容/角色指令）已由
+ * prefilterHistoryMessages() 提前完成，此处仅处理格式化和角色相关的
+ * @定向指令过滤。
+ *
  * @param {Array} history - 原始历史消息列表
  * @param {object} character - 当前角色（用于定向指令过滤）
  * @returns {Array} 过滤后的 { role, content } 消息列表
  */
 export function filterHistoryMessages(history, character) {
-  return history
-    .filter(msg => {
-      if (msg.role === 'system') return false
-      if (!msg.content) return false
+  const result = []
+  for (const msg of history) {
+    // 角色相关过滤：给其他角色的定向用户指令
+    if (msg.role === 'user') {
+      const content = msg.content
+      const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
+      if (atMatch && atMatch[1] !== character.name) continue
+    }
 
-      const content = msg.content.trim()
+    let content = msg.content
+    if (msg.character_name) {
+      content = `${msg.character_name}：${content}`
+    }
+    result.push({ role: msg.role, content })
+  }
+  return result
+}
 
-      // 过滤掉【角色指令】消息（一次性指令，不应出现在历史中）
-      if (content.includes('【角色指令】')) return false
-
-      // 过滤掉给其他角色的定向用户指令
-      if (msg.role === 'user') {
-        const atMatch = content.match(/^@([^\s\u3000]+)[:\s]/)
-        if (atMatch && atMatch[1] !== character.name) return false
-      }
-
-      return true
-    })
-    .map(msg => {
-      let content = msg.content
-      if (msg.character_name) {
-        content = `${msg.character_name}：${content}`
-      }
-      return { role: msg.role, content }
-    })
+/**
+ * 预过滤历史消息（角色无关）
+ * 过滤系统消息、空内容、角色指令消息。只需对历史执行一次，
+ * 结果可被所有角色共享，避免 N 个角色各自重复遍历全量历史。
+ * @param {Array} history - 原始历史消息列表
+ * @returns {Array} 过滤后的历史消息（保留原始字段，仅移除无关消息）
+ */
+export function prefilterHistoryMessages(history) {
+  return history.filter(msg => {
+    if (msg.role === 'system') return false
+    if (!msg.content) return false
+    // 过滤掉【角色指令】消息（一次性指令，不应出现在历史中）
+    if (msg.content.trim().includes('【角色指令】')) return false
+    return true
+  })
 }
 
 /**
  * 构建对话上下文消息
  * 按 9 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设 → 历史消息 → 强制指令 → 用户消息
  * @param {object} character - 当前角色
- * @param {Array} history - 历史消息列表
+ * @param {Array} history - 历史消息列表（建议传入预过滤后的历史以避免重复遍历）
  * @param {string} userContent - 用户消息内容
  * @param {string|null} background - 群背景设定
  * @param {string|null} systemPrompt - 群系统提示词

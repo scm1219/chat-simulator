@@ -11,6 +11,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const loading = ref(false)
   const sending = ref(false)
   const streamingMessages = ref(new Map()) // 存储流式消息的临时 ID 到内容的映射
+  const streamingTick = ref(0) // 流式 chunk 计数器：驱动 UI 在流式内容更新时滚动/重排
   const highlightMessageId = ref(null) // 搜索高亮的消息 ID
   let messageListener = null
   let streamStartListener = null
@@ -174,6 +175,8 @@ export const useMessagesStore = defineStore('messages', () => {
         } else {
           message.streamContent = (message.streamContent || '') + data.content
         }
+        // 递增计数器，触发 UI 滚动/重排（Map 内对象属性变更不会自动触发响应式）
+        streamingTick.value++
       }
     })
 
@@ -331,6 +334,7 @@ export const useMessagesStore = defineStore('messages', () => {
     loading,
     sending,
     streamingMessages,
+    streamingTick,
     loadMessages,
     sendMessage,
     sendMessageToCharacter,

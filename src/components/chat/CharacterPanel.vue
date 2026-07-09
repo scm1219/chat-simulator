@@ -351,7 +351,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
@@ -362,12 +362,14 @@ import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useNarrativeStore } from '../../stores/narrative.js'
 import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
-import CreateCharacterDialog from '../config/CreateCharacterDialog.vue'
-import EditCharacterDialog from '../config/EditCharacterDialog.vue'
-import GroupSettingsDialog from '../config/GroupSettingsDialog.vue'
 import EmotionTag from './EmotionTag.vue'
 import RelationshipPanel from './RelationshipPanel.vue'
 import { createLogger } from '../../utils/logger.js'
+
+// 对话框组件按需异步加载，减小首屏 bundle 体积
+const CreateCharacterDialog = defineAsyncComponent(() => import('../config/CreateCharacterDialog.vue'))
+const EditCharacterDialog = defineAsyncComponent(() => import('../config/EditCharacterDialog.vue'))
+const GroupSettingsDialog = defineAsyncComponent(() => import('../config/GroupSettingsDialog.vue'))
 
 const log = createLogger('CharPanel')
 

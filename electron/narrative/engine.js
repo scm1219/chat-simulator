@@ -10,6 +10,7 @@ import { NarrativePromptBuilder } from './prompt-builder.js'
 import { extractJSON } from '../utils/json-extractor.js'
 import { generateUUID } from '../utils/uuid.js'
 import { createLogger } from '../utils/logger.js'
+import { prepareCached } from '../utils/statement-cache.js'
 
 const log = createLogger('Narrative')
 
@@ -58,7 +59,12 @@ export class NarrativeEngine {
   }
 
   /**
-   * 对话后处理：好感度更新 + LLM 情绪推断
+   * 对话后处理：好感度更新（同步）+ LLM 情绪推断（异步非阻塞）
+   *
+   * 性能优化：好感度更新是快速 DB 操作，同步完成；
+   * LLM 情绪推断是一次完整的 LLM 调用（可能数秒），改为 fire-and-forget，
+   * 不阻塞顺序模式下下一个角色的生成。推断结果在下一轮对话时生效。
+   *
    * @param {object} db - 数据库连接
    * @param {string} characterId - 回复角色 ID
    * @param {string} groupId - 群组 ID
@@ -73,10 +79,13 @@ export class NarrativeEngine {
     // 构建角色名→ID映射（用于@提及解析）
     const characterNameMap = new Map(allCharacters.map(c => [c.name, c.id]))
 
-    // 好感度更新（双向 + @解析 + 多模式匹配）
+    // 批量预取所有角色的情绪，避免循环内逐条 SELECT（N 次 DB 往返 → 1 次）
+    const emotionMap = this.emotion.getEmotionsBatch(db, allCharacters.map(c => c.id))
+
+    // 好感度更新（双向 + @解析 + 多模式匹配）—— 同步，快速 DB 操作
     for (const char of allCharacters) {
       if (char.id === characterId) continue
-      const emotion = this.emotion.getEmotion(db, char.id)
+      const emotion = emotionMap.get(char.id) || { emotion: '平静', intensity: 0, decay_rate: 0.1, source: 'keyword' }
       const result = this.relationship.updateFavorability(
         db, characterId, char.id, responseContent, emotion, characterNameMap
       )
@@ -85,39 +94,52 @@ export class NarrativeEngine {
       }
     }
 
-    // LLM 情绪推断（关键节点）
+    // LLM 情绪推断（关键节点）—— 异步非阻塞，不等待结果
     const shouldInfer = this.emotion.shouldInferFromLLM(db, characterId, userContent)
     if (shouldInfer) {
-      try {
-        const targetChar = allCharacters.find(c => c.id === characterId)
-        const { client } = createClientForCharacter(targetChar, group, llmProfiles, apiKey)
-        const inferMessages = [
-          {
-            role: 'system',
-            content: '根据以下对话片段，判断角色当前的情绪。返回 JSON：{"emotion":"情绪词","intensity":0.0-1.0}。只返回 JSON，不要其他内容。可选情绪：开心、愤怒、尴尬、感动、悲伤、惊讶、嫉妒、疲惫、紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌、平静。'
-          },
-          {
-            role: 'user',
-            content: `用户说：${userContent}\n角色回复：${responseContent}`
-          }
-        ]
-        const inferResult = await client.chat(inferMessages, {
-          maxTokens: 100,
-          thinkingEnabled: false,
-          responseFormat: { type: 'json_object' }
-        })
-        if (inferResult.success && inferResult.content) {
-          const parsed = extractJSON(inferResult.content)
-          if (parsed.success && parsed.data) {
-            this.emotion.updateFromLLM(db, characterId, parsed.data.emotion, parsed.data.intensity)
-          }
-        }
-      } catch (err) {
-        log.warn('LLM 情绪推断失败，降级为关键词规则:', err.message)
-      }
+      this._inferEmotionAsync(
+        db, characterId, userContent, responseContent, allCharacters,
+        createClientForCharacter, group, llmProfiles, apiKey
+      )
     }
 
     return { aftermath: null }
+  }
+
+  /**
+   * 异步 LLM 情绪推断（fire-and-forget）
+   * 结果写入 DB 后在下一轮对话中生效，不阻塞当前生成流程
+   */
+  _inferEmotionAsync(db, characterId, userContent, responseContent, allCharacters, createClientForCharacter, group, llmProfiles, apiKey) {
+    const targetChar = allCharacters.find(c => c.id === characterId)
+    if (!targetChar) return
+
+    const { client } = createClientForCharacter(targetChar, group, llmProfiles, apiKey)
+    const inferMessages = [
+      {
+        role: 'system',
+        content: '根据以下对话片段，判断角色当前的情绪。返回 JSON：{"emotion":"情绪词","intensity":0.0-1.0}。只返回 JSON，不要其他内容。可选情绪：开心、愤怒、尴尬、感动、悲伤、惊讶、嫉妒、疲惫、紧张、惊慌、好奇、无奈、沮丧、焦虑、恐慌、平静。'
+      },
+      {
+        role: 'user',
+        content: `用户说：${userContent}\n角色回复：${responseContent}`
+      }
+    ]
+
+    client.chat(inferMessages, {
+      maxTokens: 100,
+      thinkingEnabled: false,
+      responseFormat: { type: 'json_object' }
+    }).then(inferResult => {
+      if (inferResult.success && inferResult.content) {
+        const parsed = extractJSON(inferResult.content)
+        if (parsed.success && parsed.data) {
+          this.emotion.updateFromLLM(db, characterId, parsed.data.emotion, parsed.data.intensity)
+        }
+      }
+    }).catch(err => {
+      log.warn('LLM 情绪推断失败，降级为关键词规则:', err.message)
+    })
   }
 
   /**
@@ -144,7 +166,7 @@ export class NarrativeEngine {
       log.info(`余波触发角色: ${triggerChar.name}`)
 
       const { client } = createClientForCharacter(triggerChar, group, llmProfiles, apiKey)
-      const recentMessages = db.prepare(`
+      const recentMessages = prepareCached(db, `
         SELECT * FROM messages WHERE group_id = ? ORDER BY timestamp DESC LIMIT 20
       `).all(groupId).reverse()
 
@@ -188,9 +210,9 @@ export class NarrativeEngine {
    */
   removeCharacter(db, characterId) {
     db.transaction(() => {
-      db.prepare('DELETE FROM character_emotions WHERE character_id = ?').run(characterId)
-      db.prepare('DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
-      db.prepare('DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
+      prepareCached(db, 'DELETE FROM character_emotions WHERE character_id = ?').run(characterId)
+      prepareCached(db, 'DELETE FROM character_relationships WHERE from_id = ?').run(characterId)
+      prepareCached(db, 'DELETE FROM character_relationships WHERE to_id = ?').run(characterId)
     })()
     log.info(`已清理角色 ${characterId} 的叙事数据`)
   }
@@ -227,7 +249,7 @@ export class NarrativeEngine {
     const activeIn = buildInClause(activeIds)
 
     // 高情绪必定触发（仅检查参与对话的角色）
-    const highEmotions = db.prepare(
+    const highEmotions = prepareCached(db,
       `SELECT COUNT(*) as count FROM character_emotions
        WHERE intensity > 0.7 AND character_id IN (${activeIn.placeholders})`
     ).get(...activeIn.params)
@@ -243,7 +265,7 @@ export class NarrativeEngine {
     }
 
     // 紧张关系必定触发（复用 activeIn）
-    const tenseRels = db.prepare(`
+    const tenseRels = prepareCached(db, `
       SELECT COUNT(*) as count FROM character_relationships
       WHERE favorability < -20 AND from_id IN (${activeIn.placeholders})
     `).get(...activeIn.params)
@@ -267,7 +289,7 @@ export class NarrativeEngine {
 
     const msgId = generateUUID()
     db.transaction(() => {
-      db.prepare(`
+      prepareCached(db, `
         INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens)
         VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?)
       `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0)

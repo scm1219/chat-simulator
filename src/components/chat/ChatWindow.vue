@@ -126,6 +126,7 @@
                 :key="msg.id"
                 :data-message-id="msg.id"
                 :class="['msg-row', msg.role, { highlighted: isHighlighted(msg.id) }]"
+                v-memo="[msg.id, msg.content, msg.message_type, msg.event_impact, msg.is_aftermath, editingId === msg.id, isHighlighted(msg.id)]"
               >
                 <td class="col-index">{{ index + 1 }}</td>
                 <td class="col-role">
@@ -543,13 +544,20 @@ watch(() => messagesStore.highlightMessageId, async (messageId) => {
 })
 
 // 监听流式消息内容变化，实时滚动
-// 使用 Map.size 替代 O(n) 遍历，新 chunk 到达时 Map 中消息引用的属性已直接更新
+// streamingTick 在每个 chunk 到达时递增，保证流式过程中持续触发滚动
+// （streamingMessages.size 在流式中途不变，无法驱动响应式更新）
+// 用 rAF 节流，避免每个 chunk 都触发一次滚动重排
+let streamingScrollScheduled = false
 watch(
-  () => messagesStore.streamingMessages.size,
+  () => messagesStore.streamingTick,
   () => {
-    scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
-  },
-  { flush: 'post' }
+    if (streamingScrollScheduled) return
+    streamingScrollScheduled = true
+    requestAnimationFrame(() => {
+      streamingScrollScheduled = false
+      scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
+    })
+  }
 )
 
 // 流式消息监听器清理引用
