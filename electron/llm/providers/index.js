@@ -66,7 +66,10 @@ export const LLM_PROVIDERS = {
     models: [], // 动态获取
     needApiKey: false,
     needBaseUrl: true,
-    supportsNativeApi: true // 支持原生 API
+    supportsNativeApi: true, // 支持原生 API
+    // 默认使用原生 API（/api/chat）：对 Qwen3.5-MoE 等模型比 OpenAI 兼容端点快 15~30 倍，
+    // 且避免 /v1 端点对 thinking 参数处理不稳定导致的间歇性 400 错误
+    defaultNativeApi: true
   },
   modelscope: {
     id: 'modelscope',
