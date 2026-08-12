@@ -94,8 +94,12 @@ export class OllamaNativeClient extends BaseLLMClient {
         stream: isStreaming
       }
 
-      // 处理思考模式参数：始终传递 think 参数（true 或 false）
-      requestData.think = options.thinkingEnabled === true
+      // 处理思考模式参数：仅在启用思考时发送 think: true
+      // 不发送该字段时 Ollama 默认不思考（等价于 false）；
+      // 无条件发送 think 可能导致不支持思考的模型返回 400 错误
+      if (options.thinkingEnabled === true) {
+        requestData.think = true
+      }
 
       if (isStreaming) {
         return await this.chatStream(requestData, options.onChunk)
