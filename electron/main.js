@@ -33,7 +33,10 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL(devUrl)
-    mainWindow.webContents.openDevTools()
+    // 默认不自动打开 DevTools，需要时设置环境变量 OPEN_DEVTOOLS=1 或按 Ctrl+Shift+I 手动打开
+    if (process.env.OPEN_DEVTOOLS === '1') {
+      mainWindow.webContents.openDevTools()
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
     // 生产环境设置 CSP，禁止 unsafe-eval

@@ -3,6 +3,9 @@
  * 使用 Ollama 原生 API 格式（/api/chat）而非 OpenAI 兼容格式
  */
 import { BaseLLMClient } from './base-client.js'
+import { createLogger } from '../utils/logger.js'
+
+const log = createLogger('LLM')
 
 // Ollama 特有的 HTTP 错误码映射
 const OLLAMA_STATUS_MAP = {
@@ -11,6 +14,27 @@ const OLLAMA_STATUS_MAP = {
 }
 
 const OLLAMA_NETWORK_ERROR = '无法连接到 Ollama 服务，请确保 Ollama 正在运行'
+
+/**
+ * 规范化消息列表：合并所有 system 消息并置顶
+ * 许多本地模型的 Jinja 模板要求 system 消息只能出现在开头（且通常仅允许一条），
+ * 否则报 400（"System message must be at the beginning"）
+ * @param {Array} messages - 原始消息列表
+ * @returns {Array} 规范化后的消息列表（system 合并为一条置顶）
+ */
+function normalizeSystemMessages(messages) {
+  const systemParts = []
+  const rest = []
+  for (const msg of messages) {
+    if (msg.role === 'system' && msg.content) {
+      systemParts.push(msg.content)
+    } else {
+      rest.push(msg)
+    }
+  }
+  if (systemParts.length === 0) return rest.length === messages.length ? messages : rest
+  return [{ role: 'system', content: systemParts.join('\n\n') }, ...rest]
+}
 
 export class OllamaNativeClient extends BaseLLMClient {
   constructor(config) {
@@ -90,55 +114,78 @@ export class OllamaNativeClient extends BaseLLMClient {
     try {
       const requestData = {
         model: this.model,
-        messages: messages,
+        messages: normalizeSystemMessages(messages),
         stream: isStreaming
       }
 
-      // 思考模式参数：仅在显式开启时传递 think，
-      // 旧版 Ollama 不认识该字段会返回 400，思考模型缺省时默认开启思考
-      if (options.thinkingEnabled === true) {
-        requestData.think = true
+      // 思考模式参数：显式传递 think（true/false）。
+      // 思考模型缺省 think 时默认开启思考，必须显式传 false 才能关闭；
+      // 旧版 Ollama 不认识该字段会返回 400，此时降级为不带 think 重试
+      if (this.thinkSupported !== false) {
+        requestData.think = options.thinkingEnabled === true
       }
 
-      if (isStreaming) {
-        return await this.chatStream(requestData, options.onChunk)
-      }
-
-      // 非流式请求
-      const response = await this.client.post('/api/chat', requestData)
-
-      // 检查响应格式
-      if (!response.data || !response.data.message) {
-        return {
-          success: false,
-          error: 'API 返回格式错误：缺少 message 字段'
+      const send = async (data) => {
+        if (isStreaming) {
+          return await this.chatStream(data, options.onChunk)
         }
+        return await this.chatNonStream(data)
       }
 
-      const message = response.data.message
-      const content = message?.content
-      const thinking = message?.thinking
+      let result = await send(requestData)
 
-      if (!content) {
-        return {
-          success: false,
-          error: 'API 返回的内容为空'
-        }
+      // 带 think 参数报 400 且错误信息提及 think：旧版 Ollama 不支持，去掉 think 后降级重试
+      const isThinkRejected = result.error?.startsWith('HTTP 400') && /think/i.test(result.error || '')
+      if (!result.success && isThinkRejected && 'think' in requestData) {
+        this.thinkSupported = false
+        log.warn(`Ollama 服务不支持 think 参数，已降级重试（模型: ${this.model}）`)
+        delete requestData.think
+        result = await send(requestData)
+      } else if (result.success) {
+        this.thinkSupported = true
       }
 
-      return {
-        success: true,
-        content: content,
-        reasoningContent: thinking || null,
-        model: response.data.model || this.model,
-        usage: {
-          prompt_tokens: response.data.prompt_eval_count || 0,
-          completion_tokens: response.data.eval_count || 0,
-          total_tokens: (response.data.prompt_eval_count || 0) + (response.data.eval_count || 0)
-        }
-      }
+      return result
     } catch (error) {
       return this.handleError(error)
+    }
+  }
+
+  /**
+   * 非流式请求
+   */
+  async chatNonStream(requestData) {
+    const response = await this.client.post('/api/chat', requestData)
+
+    // 检查响应格式
+    if (!response.data || !response.data.message) {
+      return {
+        success: false,
+        error: 'API 返回格式错误：缺少 message 字段'
+      }
+    }
+
+    const message = response.data.message
+    const content = message?.content
+    const thinking = message?.thinking
+
+    if (!content) {
+      return {
+        success: false,
+        error: 'API 返回的内容为空'
+      }
+    }
+
+    return {
+      success: true,
+      content: content,
+      reasoningContent: thinking || null,
+      model: response.data.model || this.model,
+      usage: {
+        prompt_tokens: response.data.prompt_eval_count || 0,
+        completion_tokens: response.data.eval_count || 0,
+        total_tokens: (response.data.prompt_eval_count || 0) + (response.data.eval_count || 0)
+      }
     }
   }
 
