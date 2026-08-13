@@ -4,6 +4,10 @@
  */
 
 import { EMOTION_KEYWORDS, mapEventImpactToEmotion } from './constants.js'
+import { prepareCached } from '../utils/statement-cache.js'
+
+// 提升为模块级常量：避免每次调用 shouldInferFromLLM 时重新编译
+const AT_MENTION_REGEX = /@[^\s\u3000]+/
 
 export class EmotionManager {
   constructor() {
@@ -116,14 +120,36 @@ export class EmotionManager {
   }
 
   getEmotion(db, characterId) {
-    const row = db.prepare('SELECT * FROM character_emotions WHERE character_id = ?').get(characterId)
+    const row = prepareCached(db, 'SELECT * FROM character_emotions WHERE character_id = ?').get(characterId)
     return row
       ? { emotion: row.emotion, intensity: row.intensity, decay_rate: row.decay_rate, source: row.source }
       : { emotion: '平静', intensity: 0, decay_rate: 0.1, source: 'keyword' }
   }
 
+  /**
+   * 批量获取多个角色的情绪（单次查询替代 N 次单查）
+   * @param {object} db - 数据库连接
+   * @param {string[]} characterIds - 角色 ID 数组
+   * @returns {Map<string, object>} characterId → 情绪对象
+   */
+  getEmotionsBatch(db, characterIds) {
+    const result = new Map()
+    if (!characterIds || characterIds.length === 0) return result
+    const placeholders = characterIds.map(() => '?').join(',')
+    const rows = prepareCached(db,
+      `SELECT * FROM character_emotions WHERE character_id IN (${placeholders})`
+    ).all(...characterIds)
+    for (const row of rows) {
+      result.set(row.character_id, {
+        emotion: row.emotion, intensity: row.intensity,
+        decay_rate: row.decay_rate, source: row.source
+      })
+    }
+    return result
+  }
+
   getAllEmotions(db) {
-    return db.prepare('SELECT * FROM character_emotions').all()
+    return prepareCached(db, 'SELECT * FROM character_emotions').all()
   }
 
   setEmotion(db, characterId, emotion, intensity) {
@@ -131,7 +157,7 @@ export class EmotionManager {
   }
 
   shouldInferFromLLM(db, characterId, content, senderFavorability = null) {
-    const atMatch = content.match(new RegExp(`@[^\\s\\u3000]+`))
+    const atMatch = content.match(AT_MENTION_REGEX)
     if (atMatch) return true
     if (senderFavorability !== null && senderFavorability < 0) return true
     const emotion = this.getEmotion(db, characterId)
@@ -140,7 +166,7 @@ export class EmotionManager {
   }
 
   _saveEmotion(db, characterId, emotion, intensity, source) {
-    db.prepare(`
+    prepareCached(db, `
       INSERT INTO character_emotions (character_id, emotion, intensity, decay_rate, source, updated_at)
       VALUES (?, ?, ?, 0.1, ?, datetime('now', 'localtime'))
       ON CONFLICT(character_id) DO UPDATE SET

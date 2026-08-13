@@ -67,20 +67,36 @@ let memoryManager = null
 
 // 应用就绪时创建窗口
 app.whenReady().then(async () => {
-  // 动态导入模块
-  const { DatabaseManager } = await import('./database/manager.js')
-  const { GlobalCharacterManager } = await import('./database/global-character-manager.js')
-  const { MemoryManager } = await import('./database/memory-manager.js')
-  const { setupGroupHandlers } = await import('./ipc/handlers/group.js')
-  const { setupCharacterHandlers } = await import('./ipc/handlers/character.js')
-  const { setupMessageHandlers } = await import('./ipc/handlers/message.js')
-  const { setupLLMHandlers } = await import('./ipc/handlers/llm.js')
-  const { setupConfigHandlers } = await import('./ipc/handlers/config.js')
-  const { setupGlobalCharacterHandlers } = await import('./ipc/handlers/global-character.js')
-  const { setupMemoryHandlers } = await import('./ipc/handlers/memory.js')
-  const { setupSearchHandlers } = await import('./ipc/handlers/search.js')
-  const { NarrativeEngine } = await import('./narrative/engine.js')
-  const { setupNarrativeHandlers } = await import('./ipc/handlers/narrative.js')
+  // 并行导入所有模块（串行 await import 会累加磁盘 IO 延迟）
+  const [
+    { DatabaseManager },
+    { GlobalCharacterManager },
+    { MemoryManager },
+    { setupGroupHandlers },
+    { setupCharacterHandlers },
+    { setupMessageHandlers },
+    { setupLLMHandlers },
+    { setupConfigHandlers },
+    { setupGlobalCharacterHandlers },
+    { setupMemoryHandlers },
+    { setupSearchHandlers },
+    { NarrativeEngine },
+    { setupNarrativeHandlers }
+  ] = await Promise.all([
+    import('./database/manager.js'),
+    import('./database/global-character-manager.js'),
+    import('./database/memory-manager.js'),
+    import('./ipc/handlers/group.js'),
+    import('./ipc/handlers/character.js'),
+    import('./ipc/handlers/message.js'),
+    import('./ipc/handlers/llm.js'),
+    import('./ipc/handlers/config.js'),
+    import('./ipc/handlers/global-character.js'),
+    import('./ipc/handlers/memory.js'),
+    import('./ipc/handlers/search.js'),
+    import('./narrative/engine.js'),
+    import('./ipc/handlers/narrative.js')
+  ])
 
   // 初始化数据库管理器
   dbManager = new DatabaseManager()

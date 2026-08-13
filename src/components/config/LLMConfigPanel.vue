@@ -106,12 +106,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
-import LLMProfileForm from './LLMProfileForm.vue'
+
+// 表单组件按需异步加载，减小首屏 bundle 体积
+const LLMProfileForm = defineAsyncComponent(() => import('./LLMProfileForm.vue'))
 
 const store = useLLMProfilesStore()
 const toast = useToastStore()
@@ -191,7 +193,10 @@ function handleAddModelToProvider(providerId) {
   // 获取第一个已有配置的 API Key 和地址作为默认值
   const firstProfile = profiles.value?.[0]
   const defaultApiKey = firstProfile?.apiKey || ''
-  const defaultBaseURL = firstProfile?.baseURL || providerConfig.baseURL || ''
+  // Ollama 默认走原生 API，使用 nativeBaseURL（不带 /v1）
+  const useNative = providerId === 'ollama' && providerConfig.defaultNativeApi !== false
+  const defaultBaseURL = firstProfile?.baseURL ||
+    (useNative ? providerConfig.nativeBaseURL : providerConfig.baseURL) || ''
 
   formData.value = {
     name: `${providerConfig.name} 配置`,
@@ -201,7 +206,8 @@ function handleAddModelToProvider(providerId) {
     model: providerConfig.models?.[0] || '',
     streamEnabled: true,
     thinkingEnabled: false,
-    useNativeApi: false,
+    // Ollama 默认使用原生 API（性能远优于 OpenAI 兼容端点）
+    useNativeApi: useNative,
     proxy: { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
   }
   showFormDialog.value = true

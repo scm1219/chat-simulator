@@ -47,8 +47,20 @@ export function getLLMProfiles() {
         }
         // 迁移：为没有 useNativeApi 字段的配置添加默认值
         if (profile.useNativeApi === undefined) {
-          profile.useNativeApi = false // 默认使用 OpenAI 兼容模式
+          // Ollama 默认使用原生 API（性能远优于 OpenAI 兼容端点，且避免间歇性 400）
+          profile.useNativeApi = profile.provider === 'ollama'
           migrated = true
+        }
+        // 迁移：将误配为 OpenAI 兼容模式(false)的 Ollama 配置纠正为原生 API
+        // 原因：/v1 端点对 MoE 模型极慢（18~30s/次）且偶发 400，原生 /api/chat 仅 1~2s
+        if (profile.provider === 'ollama' && profile.useNativeApi === false) {
+          profile.useNativeApi = true
+          // 同步修正 baseURL：原生 API 不需要 /v1 后缀
+          if (typeof profile.baseURL === 'string' && profile.baseURL.endsWith('/v1')) {
+            profile.baseURL = profile.baseURL.slice(0, -3)
+          }
+          migrated = true
+          log.info(`已将 Ollama 配置"${profile.name}"迁移为原生 API 模式`)
         }
         // 迁移：为没有 proxy 字段的配置添加默认值
         if (profile.proxy === undefined) {

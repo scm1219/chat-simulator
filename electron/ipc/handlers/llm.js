@@ -13,6 +13,8 @@ import { extractJSON } from '../../utils/json-extractor.js'
 import { createHandler } from '../handler-wrapper.js'
 import { resolveClientProxy, createLLMClient, createClientForCharacter, resolveApiKey } from './llm-client-factory.js'
 import { saveUserMessage, generateCharacterResponse } from './llm-response-handler.js'
+import { prepareCached } from '../../utils/statement-cache.js'
+import { prefilterHistoryMessages } from './llm-context-builder.js'
 
 /**
  * 通用 LLM JSON 调用：获取 Profile → 创建 Client → 调用 LLM（JSON 模式）→ 解析 JSON
@@ -78,16 +80,16 @@ export async function callLLMForJSON({ profileId, messages, temperature = 0.9, m
  */
 function prepareGenerationContext(dbManager, groupId) {
   const db = dbManager.getGroupDB(groupId)
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
+  const group = prepareCached(db, 'SELECT * FROM groups WHERE id = ?').get(groupId)
   if (!group) {
     throw new Error('群组不存在')
   }
 
-  const userCharacter = db.prepare(`
+  const userCharacter = prepareCached(db, `
     SELECT * FROM characters WHERE group_id = ? AND is_user = 1
   `).get(groupId)
 
-  const allCharacters = db.prepare(`
+  const allCharacters = prepareCached(db, `
     SELECT * FROM characters WHERE group_id = ? AND enabled = 1
   `).all(groupId)
 
@@ -95,7 +97,7 @@ function prepareGenerationContext(dbManager, groupId) {
 
   // 获取历史消息（系统自动加 10 轮）
   const maxMessages = ((group.max_history || 20) + 10) * 2 + 1
-  const history = db.prepare(`
+  const rawHistory = prepareCached(db, `
     SELECT
       m.*,
       c.name as character_name,
@@ -106,6 +108,10 @@ function prepareGenerationContext(dbManager, groupId) {
     ORDER BY m.timestamp DESC
     LIMIT ?
   `).all(groupId, maxMessages).reverse()
+
+  // 预过滤历史：角色无关的过滤（系统消息/空内容/角色指令）只做一次，
+  // 避免下游 N 个角色各自重复遍历全量历史
+  const history = prefilterHistoryMessages(rawHistory)
 
   const globalLLMConfig = getGlobalLLMConfig()
   const apiKey = resolveApiKey(group, globalLLMConfig)
@@ -269,7 +275,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     saveUserMessage(db, groupId, instruction, userCharacter, event)
 
     // 获取指定角色
-    const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId)
+    const character = prepareCached(db, 'SELECT * FROM characters WHERE id = ?').get(characterId)
     if (!character) {
       return { success: false, error: '角色不存在' }
     }

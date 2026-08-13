@@ -4,6 +4,7 @@
  */
 
 import { RELATIONSHIP_TYPES, INTERACTION_PATTERNS, getFavorabilityLevel } from './constants.js'
+import { prepareCached } from '../utils/statement-cache.js'
 
 export class RelationshipManager {
   constructor() {
@@ -20,7 +21,7 @@ export class RelationshipManager {
 
   setRelationship(db, fromId, toId, type, description = '') {
     const config = this.types[type] || this.types.stranger
-    db.prepare(`
+    prepareCached(db, `
       INSERT INTO character_relationships (from_id, to_id, type, favorability, description, updated_at)
       VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))
       ON CONFLICT(from_id, to_id) DO UPDATE SET
@@ -32,15 +33,15 @@ export class RelationshipManager {
   }
 
   getRelationship(db, fromId, toId) {
-    return db.prepare('SELECT * FROM character_relationships WHERE from_id = ? AND to_id = ?').get(fromId, toId)
+    return prepareCached(db, 'SELECT * FROM character_relationships WHERE from_id = ? AND to_id = ?').get(fromId, toId)
   }
 
   getAllRelationships(db) {
-    return db.prepare('SELECT * FROM character_relationships').all()
+    return prepareCached(db, 'SELECT * FROM character_relationships').all()
   }
 
   removeRelationship(db, fromId, toId) {
-    db.prepare('DELETE FROM character_relationships WHERE from_id = ? AND to_id = ?').run(fromId, toId)
+    prepareCached(db, 'DELETE FROM character_relationships WHERE from_id = ? AND to_id = ?').run(fromId, toId)
   }
 
   /**
@@ -134,13 +135,13 @@ export class RelationshipManager {
    */
   _setFavorabilityValue(db, fromId, toId, existing, newFavor) {
     if (existing) {
-      db.prepare(`
+      prepareCached(db, `
         UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
         WHERE from_id = ? AND to_id = ?
       `).run(newFavor, fromId, toId)
     } else {
       this.setRelationship(db, fromId, toId, 'stranger', '')
-      db.prepare(`
+      prepareCached(db, `
         UPDATE character_relationships SET favorability = ?, updated_at = datetime('now', 'localtime')
         WHERE from_id = ? AND to_id = ?
       `).run(newFavor, fromId, toId)
@@ -148,10 +149,10 @@ export class RelationshipManager {
   }
 
   decayInactive(db, characterId, activeCharacterIds) {
-    const relationships = db.prepare('SELECT * FROM character_relationships WHERE from_id = ?').all(characterId)
+    const relationships = prepareCached(db, 'SELECT * FROM character_relationships WHERE from_id = ?').all(characterId)
     for (const rel of relationships) {
       if (!activeCharacterIds.includes(rel.to_id)) {
-        db.prepare(`
+        prepareCached(db, `
           UPDATE character_relationships SET favorability = MAX(-100, favorability - 1), updated_at = datetime('now', 'localtime')
           WHERE from_id = ? AND to_id = ?
         `).run(characterId, rel.to_id)

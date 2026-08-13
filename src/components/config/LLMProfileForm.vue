@@ -136,6 +136,7 @@
             type="radio"
             :value="false"
             :disabled="submitting"
+            @change="handleNativeApiChange(false)"
           />
           <span>OpenAI 兼容模式</span>
         </label>
@@ -145,8 +146,9 @@
             type="radio"
             :value="true"
             :disabled="submitting"
+            @change="handleNativeApiChange(true)"
           />
-          <span>原生 Ollama API</span>
+          <span>原生 Ollama API（推荐）</span>
         </label>
       </div>
       <small class="hint">
@@ -399,13 +401,41 @@ watch(form, (newVal) => {
 function handleProviderChange() {
   const providerConfig = getProviderConfig(form.value.provider)
 
-  // 自动填充默认 baseURL
-  form.value.baseURL = getProviderDefaultBaseURL(form.value.provider)
+  // Ollama 默认使用原生 API（性能远优于 OpenAI 兼容端点）
+  if (form.value.provider === 'ollama') {
+    form.value.useNativeApi = providerConfig.defaultNativeApi !== false
+  } else if (form.value.useNativeApi === true) {
+    // 切换到其他供应商时关闭原生 API
+    form.value.useNativeApi = false
+  }
+
+  // 自动填充默认 baseURL（Ollama 原生模式用 nativeBaseURL，否则用 baseURL）
+  if (form.value.provider === 'ollama' && form.value.useNativeApi) {
+    form.value.baseURL = providerConfig.nativeBaseURL || 'http://localhost:11434'
+  } else {
+    form.value.baseURL = getProviderDefaultBaseURL(form.value.provider)
+  }
 
   // 自动选择第一个模型
   if (providerConfig?.models?.length > 0) {
     form.value.model = providerConfig.models[0]
     showCustomModel.value = false
+  }
+}
+
+// API 模式切换时联动 baseURL 的 /v1 后缀
+function handleNativeApiChange(useNative) {
+  if (form.value.provider !== 'ollama') return
+  const providerConfig = getProviderConfig(form.value.provider)
+  const nativeBase = providerConfig?.nativeBaseURL || 'http://localhost:11434'
+  const compatBase = providerConfig?.baseURL || 'http://localhost:11434/v1'
+  // 仅当 baseURL 还是默认值（未自定义）时才自动切换，避免覆盖用户输入
+  const isNativeDefault = form.value.baseURL === nativeBase
+  const isCompatDefault = form.value.baseURL === compatBase
+  if (useNative && (isCompatDefault || form.value.baseURL === '')) {
+    form.value.baseURL = nativeBase
+  } else if (!useNative && (isNativeDefault || form.value.baseURL === '')) {
+    form.value.baseURL = compatBase
   }
 }
 
@@ -431,7 +461,10 @@ onMounted(() => {
   }
   // 确保 useNativeApi 有正确的布尔值（仅当确实没有值时）
   if (form.value.useNativeApi === undefined || form.value.useNativeApi === null) {
-    form.value.useNativeApi = false
+    // Ollama 默认使用原生 API（性能远优于 OpenAI 兼容端点）
+    const providerCfg = getProviderConfig(form.value.provider)
+    form.value.useNativeApi = form.value.provider === 'ollama' &&
+      providerCfg?.defaultNativeApi !== false
   }
 
   // 初始化代理配置

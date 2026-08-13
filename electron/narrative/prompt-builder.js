@@ -4,6 +4,7 @@
  */
 
 import { TONE_HINTS, getFavorabilityLevel, getRelationshipType } from './constants.js'
+import { prepareCached } from '../utils/statement-cache.js'
 
 export class NarrativePromptBuilder {
 
@@ -50,7 +51,7 @@ ${triggerChar.name}的追评：`
   _buildEmotionSection(db, allCharacters) {
     const characterIds = allCharacters.map(c => c.id)
     const placeholders = characterIds.map(() => '?').join(',')
-    const emotions = db.prepare(
+    const emotions = prepareCached(db,
       `SELECT * FROM character_emotions WHERE intensity > 0.1 AND character_id IN (${placeholders})`
     ).all(...characterIds)
     if (emotions.length === 0) return ''
@@ -64,7 +65,7 @@ ${triggerChar.name}的追评：`
   }
 
   _buildRelationshipSection(db, characterId, allCharacters) {
-    const relationships = db.prepare(
+    const relationships = prepareCached(db,
       'SELECT * FROM character_relationships WHERE from_id = ?'
     ).all(characterId)
     if (relationships.length === 0) return ''
@@ -79,7 +80,7 @@ ${triggerChar.name}的追评：`
   }
 
   _buildEventSection(db, groupId) {
-    const events = db.prepare(`
+    const events = prepareCached(db, `
       SELECT * FROM narrative_events WHERE group_id = ?
       AND datetime(created_at) > datetime('now', 'localtime', '-1 hour')
       ORDER BY created_at DESC LIMIT 3
