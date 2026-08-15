@@ -14,6 +14,9 @@ export function setupMemoryHandlers(memoryManager) {
   // 添加记忆
   ipcMain.handle('memory:add', createHandler(async (event, data) => {
     const { characterName, content, source, groupId } = data
+    if (typeof characterName !== 'string' || !characterName.trim() || typeof content !== 'string' || !content.trim()) {
+      return { success: false, error: '角色名与记忆内容不能为空' }
+    }
     const memory = memoryManager.addMemory({ characterName, content, source, groupId })
     return { success: true, data: memory }
   }, 'Memory:add'))

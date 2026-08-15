@@ -47,6 +47,13 @@ export class NarrativeEngine {
   }
 
   /**
+   * 获取群组数据库（公开方法，供 IPC 处理层使用）
+   */
+  getGroupDB(groupId) {
+    return this._getGroupDB(groupId)
+  }
+
+  /**
    * 对话前处理：更新所有角色情绪 + 构建叙事上下文
    * 所有角色（含发言角色）都会通过关键词快速更新情绪
    * 发言角色后续在 postCharacterResponse 中还会进行 LLM 深度推断

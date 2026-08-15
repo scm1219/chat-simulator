@@ -7,43 +7,43 @@ import { createHandler } from '../handler-wrapper.js'
 
 export function setupNarrativeHandlers(narrativeEngine) {
   ipcMain.handle('narrative:getEmotions', createHandler(async (event, groupId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const emotions = narrativeEngine.emotion.getAllEmotions(db)
     return { success: true, data: emotions }
   }))
 
   ipcMain.handle('narrative:getEmotion', createHandler(async (event, groupId, characterId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const emotion = narrativeEngine.emotion.getEmotion(db, characterId)
     return { success: true, data: emotion }
   }))
 
   ipcMain.handle('narrative:setEmotion', createHandler(async (event, groupId, characterId, emotion, intensity) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     narrativeEngine.emotion.setEmotion(db, characterId, emotion, intensity)
     return { success: true }
   }))
 
   ipcMain.handle('narrative:getRelationships', createHandler(async (event, groupId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const relationships = narrativeEngine.relationship.getAllRelationships(db)
     return { success: true, data: relationships }
   }))
 
   ipcMain.handle('narrative:getRelationship', createHandler(async (event, groupId, fromId, toId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const rel = narrativeEngine.relationship.getRelationship(db, fromId, toId)
     return { success: true, data: rel }
   }))
 
   ipcMain.handle('narrative:setRelationship', createHandler(async (event, groupId, fromId, toId, type, description) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const rel = narrativeEngine.relationship.setRelationship(db, fromId, toId, type, description)
     return { success: true, data: rel }
   }))
 
   ipcMain.handle('narrative:removeRelationship', createHandler(async (event, groupId, fromId, toId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     narrativeEngine.relationship.removeRelationship(db, fromId, toId)
     return { success: true }
   }))
@@ -66,13 +66,13 @@ export function setupNarrativeHandlers(narrativeEngine) {
   }))
 
   ipcMain.handle('narrative:triggerEvent', createHandler(async (event, groupId, eventKey, content, impact) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const result = narrativeEngine.triggerEvent(db, groupId, eventKey, content, impact)
     return { success: true, data: result }
   }))
 
   ipcMain.handle('narrative:getRecentEvents', createHandler(async (event, groupId, limit) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const events = narrativeEngine.eventTrigger.getRecentEvents(db, groupId, limit || 10)
     // 为每个事件附加场景标签
     for (const evt of events) {
@@ -82,19 +82,19 @@ export function setupNarrativeHandlers(narrativeEngine) {
   }))
 
   ipcMain.handle('narrative:getEventSuggestions', createHandler(async (event, groupId, sceneType, count) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const suggestions = narrativeEngine.getEventSuggestions(db, groupId, sceneType, count || 3)
     return { success: true, data: suggestions }
   }))
 
   ipcMain.handle('narrative:checkStaleness', createHandler(async (event, groupId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     const result = narrativeEngine.checkStaleness(db, groupId)
     return { success: true, data: result }
   }))
 
   ipcMain.handle('narrative:deleteEvent', createHandler(async (event, groupId, eventId) => {
-    const db = narrativeEngine._getGroupDB(groupId)
+    const db = narrativeEngine.getGroupDB(groupId)
     // 获取事件信息，用于匹配对应的聊天消息
     const evt = db.prepare('SELECT * FROM narrative_events WHERE id = ?').get(eventId)
     if (!evt) {

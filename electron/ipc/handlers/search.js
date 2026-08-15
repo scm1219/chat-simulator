@@ -95,7 +95,9 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
 }
 
 /**
- * 异步搜索单个群组（通过 setImmediate 让出事件循环，防止 UI 冻结）
+ * 异步搜索单个群组
+ * 注意：better-sqlite3 为同步驱动，单群大库扫描仍会短暂阻塞主进程；
+ * 群组间让出事件循环仅为避免连续占用
  */
 function searchGroupDBAsync(db, groupId, groupName, keyword, maxResults = 10) {
   return new Promise((resolve) => {

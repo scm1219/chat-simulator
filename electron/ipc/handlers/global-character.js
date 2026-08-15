@@ -72,10 +72,10 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
       return { success: false, error: '角色不存在' }
     }
 
-    if (data.name !== undefined && !data.name.trim()) {
+    if (data.name !== undefined && data.name !== null && !String(data.name).trim()) {
       return { success: false, error: '角色名称不能为空' }
     }
-    if (data.systemPrompt !== undefined && !data.systemPrompt.trim()) {
+    if (data.systemPrompt !== undefined && data.systemPrompt !== null && !String(data.systemPrompt).trim()) {
       return { success: false, error: '人物设定不能为空' }
     }
 
@@ -121,6 +121,12 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
     const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId)
     if (!group) {
       return { success: false, error: '群组不存在' }
+    }
+
+    // 检查该角色（按原始 ID）是否已导入该群组
+    const exists = db.prepare('SELECT id FROM characters WHERE group_id = ? AND id = ?').get(groupId, characterId)
+    if (exists) {
+      return { success: false, error: '该角色已导入该群组' }
     }
 
     // 检查是否已存在同名角色
@@ -270,9 +276,9 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
     }
 
     // 检查新名称是否与其他标签冲突
-    if (data.name !== undefined) {
+    if (data.name !== undefined && data.name !== null) {
       const existing = globalCharManager.getAllTags().find(
-        t => t.id !== id && t.name.toLowerCase() === data.name.trim().toLowerCase()
+        t => t.id !== id && t.name.toLowerCase() === String(data.name).trim().toLowerCase()
       )
       if (existing) {
         return { success: false, error: '标签名称已存在' }

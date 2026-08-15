@@ -165,11 +165,14 @@ export function setupCharacterHandlers(dbManager, narrativeEngine = null) {
     const [removed] = reorderedCharacters.splice(currentIndex, 1)
     reorderedCharacters.splice(newIndex, 0, removed)
 
-    // 更新所有角色的 position 值（基于新数组的索引）
-    const updateStmt = db.prepare('UPDATE characters SET position = ? WHERE id = ?')
-    reorderedCharacters.forEach((char, index) => {
-      updateStmt.run(index, char.id)
+    // 更新所有角色的 position 值（基于新数组的索引），包事务保证原子性
+    const updatePositions = db.transaction((characters) => {
+      const updateStmt = db.prepare('UPDATE characters SET position = ? WHERE id = ?')
+      for (const [index, char] of characters.entries()) {
+        updateStmt.run(index, char.id)
+      }
     })
+    updatePositions(reorderedCharacters)
 
     // 返回更新后的角色列表
     const updatedCharacters = db.prepare(
