@@ -5,6 +5,7 @@
 
 import { generateUUID } from '../utils/uuid.js'
 import { SCENE_LABELS } from './constants.js'
+import { prepareCached } from '../utils/statement-cache.js'
 
 const DEFAULT_EVENT_POOL = {
   office: [
@@ -138,7 +139,7 @@ export class EventTrigger {
     const id = generateUUID()
     // 手动触发事件使用 event_key + 时间戳后缀，避免与预设事件 key 冲突导致去重误判
     const actualKey = triggeredBy === 'user' ? `${eventKey}_${Date.now()}` : eventKey
-    db.prepare(`
+    prepareCached(db, `
       INSERT INTO narrative_events (id, group_id, event_key, content, impact, event_type, triggered_by, created_at)
       VALUES (?, ?, ?, ?, ?, 'user_triggered', ?, datetime('now', 'localtime'))
     `).run(id, groupId, actualKey, content, impact, triggeredBy)
@@ -147,18 +148,23 @@ export class EventTrigger {
 
   getEventSuggestions(db, groupId, sceneType, count = 3) {
     const allEvents = this.getEventPool(sceneType)
-    const recentEvents = db.prepare(`
+    const recentEvents = prepareCached(db, `
       SELECT event_key, content FROM narrative_events WHERE group_id = ? ORDER BY created_at DESC LIMIT 10
     `).all(groupId)
     // 去重：提取基础 key（去掉手动触发的时间戳后缀）进行匹配
     const recentBaseKeys = new Set(recentEvents.map(e => e.event_key.replace(/_\d+$/, '')))
     const available = allEvents.filter(e => !recentBaseKeys.has(e.key))
-    const shuffled = available.sort(() => Math.random() - 0.5)
+    // Fisher-Yates 洗牌（sort(() => Math.random() - 0.5) 分布有偏且会原地修改 allEvents 派生数组）
+    const shuffled = [...available]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
     return shuffled.slice(0, count)
   }
 
   checkStaleness(db, groupId) {
-    const recentMessages = db.prepare(`
+    const recentMessages = prepareCached(db, `
       SELECT content FROM messages
       WHERE group_id = ? AND role IN ('user', 'assistant')
       ORDER BY timestamp DESC LIMIT 10
@@ -176,13 +182,13 @@ export class EventTrigger {
   }
 
   getRecentEvents(db, groupId, limit = 10) {
-    return db.prepare(`
+    return prepareCached(db, `
       SELECT * FROM narrative_events WHERE group_id = ? ORDER BY created_at DESC LIMIT ?
     `).all(groupId, limit)
   }
 
   deleteEvent(db, eventId) {
-    const result = db.prepare('DELETE FROM narrative_events WHERE id = ?').run(eventId)
+    const result = prepareCached(db, 'DELETE FROM narrative_events WHERE id = ?').run(eventId)
     return result.changes > 0
   }
 

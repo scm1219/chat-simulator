@@ -5,6 +5,7 @@
 
 import { RELATIONSHIP_TYPES, INTERACTION_PATTERNS, getFavorabilityLevel } from './constants.js'
 import { prepareCached } from '../utils/statement-cache.js'
+import { stripMentionPunctuation } from '../utils/text.js'
 
 export class RelationshipManager {
   constructor() {
@@ -88,7 +89,8 @@ export class RelationshipManager {
       const atPattern = /@([^\s\u3000]+)/g
       let match
       while ((match = atPattern.exec(content)) !== null) {
-        const mentionedName = match[1]
+        // 捕获段会连带标点及其后内容（如"张三，你觉得呢"），剥离后再查映射
+        const mentionedName = stripMentionPunctuation(match[1])
         const mentionedId = characterNameMap.get(mentionedName)
         if (mentionedId === receiverId) {
           totalChange = 1 + Math.floor(Math.random() * 3)
@@ -114,7 +116,7 @@ export class RelationshipManager {
       if (totalChange !== 0) {
         const reverseExisting = this.getRelationship(db, receiverId, senderId)
         const reverseCurrentFavor = reverseExisting ? reverseExisting.favorability : 0
-        reverseChange = Math.floor(totalChange * 0.5)
+        reverseChange = Math.trunc(totalChange * 0.5)
         if (reverseChange !== 0) {
           const reverseNewFavor = Math.max(-100, Math.min(100, reverseCurrentFavor + reverseChange))
           this._setFavorabilityValue(db, receiverId, senderId, reverseExisting, reverseNewFavor)

@@ -5,6 +5,7 @@
 
 import { EMOTION_KEYWORDS, mapEventImpactToEmotion } from './constants.js'
 import { prepareCached } from '../utils/statement-cache.js'
+import { escapeRegExp } from '../utils/text.js'
 
 // 提升为模块级常量：避免每次调用 shouldInferFromLLM 时重新编译
 const AT_MENTION_REGEX = /@[^\s\u3000]+/
@@ -106,14 +107,24 @@ export class EmotionManager {
   }
 
   updateFromLLM(db, characterId, emotion, intensity) {
-    if (!emotion || typeof intensity !== 'number') return
+    // 情绪词白名单校验 + 数值有限性校验，防止 LLM 幻觉词/非数值写入
+    if (!emotion || !this.keywords[emotion] || !Number.isFinite(intensity)) return
     this._saveEmotion(db, characterId, emotion, Math.min(1, Math.max(0, intensity)), 'llm')
   }
 
   updateFromEvent(db, characterId, impact) {
     if (!impact) return
+    // "平静"事件：重置为平静（强度 0），不再写入事件强度
+    if (impact === '平静') {
+      this._saveEmotion(db, characterId, '平静', 0, 'event')
+      return
+    }
     // 将非标准情绪映射到标准情绪词
     const standardEmotion = mapEventImpactToEmotion(impact)
+    if (standardEmotion === '平静') {
+      this._saveEmotion(db, characterId, '平静', 0, 'event')
+      return
+    }
     const config = this.keywords[standardEmotion]
     const intensity = config ? config.intensity * 0.8 : 0.6
     this._saveEmotion(db, characterId, standardEmotion, intensity, 'event')
@@ -176,8 +187,4 @@ export class EmotionManager {
         updated_at = excluded.updated_at
     `).run(characterId, emotion, intensity, source)
   }
-}
-
-function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

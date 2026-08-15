@@ -12,6 +12,7 @@ import { generateUUID } from '../utils/uuid.js'
 import { createLogger } from '../utils/logger.js'
 import { prepareCached } from '../utils/statement-cache.js'
 import { nowTimestampMs } from '../utils/timestamp.js'
+import { escapeRegExp } from '../utils/text.js'
 
 const log = createLogger('Narrative')
 
@@ -80,8 +81,9 @@ export class NarrativeEngine {
    * @param {string} responseContent - 角色回复内容
    * @param {Array} allCharacters - 所有角色
    * @param {object} clientCtx - LLM 客户端上下文 { createClientForCharacter, group, llmProfiles, apiKey }
+   * @param {string|null} senderCharacterId - 发送者角色 ID（用户扮演的角色，用于负好感深度推断判定）
    */
-  async postCharacterResponse(db, characterId, groupId, userContent, responseContent, allCharacters, clientCtx) {
+  async postCharacterResponse(db, characterId, groupId, userContent, responseContent, allCharacters, clientCtx, senderCharacterId = null) {
     const { createClientForCharacter, group, llmProfiles, apiKey } = clientCtx
 
     // 构建角色名→ID映射（用于@提及解析）
@@ -103,7 +105,13 @@ export class NarrativeEngine {
     }
 
     // LLM 情绪推断（关键节点）—— 异步非阻塞，不等待结果
-    const shouldInfer = this.emotion.shouldInferFromLLM(db, characterId, userContent)
+    // 接线设计意图：发送者对角色好感度为负时，必定进行深度情绪推断
+    let senderFavorability = null
+    if (senderCharacterId) {
+      const rel = this.relationship.getRelationship(db, senderCharacterId, characterId)
+      senderFavorability = rel ? rel.favorability : 0
+    }
+    const shouldInfer = this.emotion.shouldInferFromLLM(db, characterId, userContent, senderFavorability)
     if (shouldInfer) {
       this._inferEmotionAsync(
         db, characterId, userContent, responseContent, allCharacters,
@@ -175,7 +183,9 @@ export class NarrativeEngine {
 
       const { client } = createClientForCharacter(triggerChar, group, llmProfiles, apiKey)
       const recentMessages = prepareCached(db, `
-        SELECT * FROM messages WHERE group_id = ? ORDER BY timestamp DESC LIMIT 20
+        SELECT m.*, c.name AS character_name FROM messages m
+        LEFT JOIN characters c ON c.id = m.character_id
+        WHERE m.group_id = ? ORDER BY m.timestamp DESC LIMIT 20
       `).all(groupId).reverse()
 
       const prompt = this.promptBuilder.buildAftermathPrompt(db, groupId, triggerChar, allCharacters, recentMessages)
@@ -233,9 +243,11 @@ export class NarrativeEngine {
     let bestChar = null
     let bestIntensity = 0
 
+    // 批量预取情绪，避免循环内逐条 SELECT（N 次 DB 往返 → 1 次）
+    const emotionMap = this.emotion.getEmotionsBatch(db, eligibleChars.map(c => c.id))
     for (const char of eligibleChars) {
-      const emotion = this.emotion.getEmotion(db, char.id)
-      if (emotion.intensity > bestIntensity) {
+      const emotion = emotionMap.get(char.id)
+      if (emotion && emotion.intensity > bestIntensity) {
         bestIntensity = emotion.intensity
         bestChar = char
       }
@@ -286,7 +298,7 @@ export class NarrativeEngine {
   _parseSingleAftermath(content, triggerChar, db, groupId, tokenInfo = {}) {
     // 清理 LLM 输出中可能残留的角色名前缀
     let text = content.trim()
-    const prefixPattern = new RegExp(`^${triggerChar.name}[：:，,]\\s*`)
+    const prefixPattern = new RegExp(`^${escapeRegExp(triggerChar.name)}[：:，,]\\s*`)
     text = text.replace(prefixPattern, '').trim()
     // 去除引号包裹
     if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith('\u201C') && text.endsWith('\u201D'))) {

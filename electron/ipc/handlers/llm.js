@@ -215,7 +215,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
             try {
               await narrativeEngine.postCharacterResponse(
                 db, resp.characterId, groupId, userContent, resp.content,
-                allCharacters, narrativeClientCtx
+                allCharacters, narrativeClientCtx, userCharacter?.id
               )
             } catch (err) {
               log.error(`postCharacterResponse 失败 (${resp.characterName}):`, err.message)          }
@@ -252,7 +252,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
             try {
               await narrativeEngine.postCharacterResponse(
                 db, character.id, groupId, userContent, response.content,
-                allCharacters, narrativeClientCtx
+                allCharacters, narrativeClientCtx, userCharacter?.id
               )
             } catch (err) {
               log.error(`postCharacterResponse 失败 (${character.name}):`, err.message)

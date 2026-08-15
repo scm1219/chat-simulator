@@ -50,6 +50,8 @@ ${triggerChar.name}的追评：`
 
   _buildEmotionSection(db, allCharacters) {
     const characterIds = allCharacters.map(c => c.id)
+    // 空数组防护：避免生成 "IN ()" 非法 SQL
+    if (characterIds.length === 0) return ''
     const placeholders = characterIds.map(() => '?').join(',')
     const emotions = prepareCached(db,
       `SELECT * FROM character_emotions WHERE intensity > 0.1 AND character_id IN (${placeholders})`
