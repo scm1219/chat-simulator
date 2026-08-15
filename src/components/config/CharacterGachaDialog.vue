@@ -132,7 +132,7 @@
         <button
           v-if="!generatedCharacter"
           class="btn btn-gacha"
-          :disabled="generating || !canGenerate"
+          :disabled="generating"
           @click="handleGenerate"
         >
           {{ generating ? '🎲 抽卡中...' : '🎲 开始抽卡' }}
@@ -183,10 +183,6 @@ const generating = ref(false)
 const generatedCharacter = ref(null)
 const submitting = ref(false)
 const saved = ref(false)
-
-const canGenerate = computed(() => {
-  return hint.value.trim().length >= 0 || !hint.value.trim()
-})
 
 // ============ 提示词设置状态 ============
 const promptLoading = ref(false)

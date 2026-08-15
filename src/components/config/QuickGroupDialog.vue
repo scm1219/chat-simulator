@@ -105,7 +105,7 @@
           <div class="character-list">
             <div
               v-for="(char, index) in preview.characters"
-              :key="index"
+              :key="char._key"
               class="character-card"
             >
               <div class="card-header">
@@ -384,7 +384,9 @@ async function handleGenerate() {
         name: result.data.user?.name || '用户',
         systemPrompt: result.data.user?.systemPrompt || '你是用户，正在参与群聊对话。'
       }
+      // 为每个角色附加稳定 key，避免移除中间项时列表错位复用
       preview.characters = (result.data.characters || []).map(c => ({
+        _key: crypto.randomUUID(),
         name: c.name || '',
         gender: c.gender || 'other',
         age: c.age || 20,
@@ -459,7 +461,13 @@ async function handleConfirm() {
             age: char.age,
             systemPrompt: char.systemPrompt
           })
-          await globalCharsStore.importToGroup(libChar.id, group.id)
+          try {
+            await globalCharsStore.importToGroup(libChar.id, group.id)
+          } catch (importErr) {
+            // 导入失败时回滚，删除刚创建的库角色避免残留
+            await globalCharsStore.deleteCharacter(libChar.id)
+            throw importErr
+          }
         } else {
           await charactersStore.createCharacter({
             groupId: group.id,
@@ -481,7 +489,7 @@ async function handleConfirm() {
     groupsStore.selectGroup(group.id)
     await charactersStore.loadCharacters(group.id)
 
-    toast.success(`群组"${preview.name}"创建成功！包含 ${preview.characters.length} 个角色`)
+    toast.success(`群组"${preview.name}"创建成功！包含 ${preview.characters.length - failedChars} 个角色`)
     emit('created', group)
     closeDialog()
   } catch (error) {

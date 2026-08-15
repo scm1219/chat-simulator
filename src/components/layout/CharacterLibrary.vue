@@ -102,7 +102,7 @@
 
           <div class="char-actions">
             <button
-              v-if="groupsStore.currentGroupId && !isCharacterInGroup(character.name)"
+              v-if="groupsStore.currentGroupId && !isCharacterInGroup(character)"
               class="btn-icon btn-action btn-import"
               @click="handleImport(character)"
               title="导入到当前群组"
@@ -214,9 +214,9 @@ function truncateText(text, maxLength) {
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
-// 检查角色是否已在当前群组中（通过名称匹配）
-function isCharacterInGroup(characterName) {
-  return charactersStore.characters.some(c => c.name === characterName)
+// 检查角色是否已在当前群组中（按 id 匹配；importToGroup 复用全局库 id，天然可判）
+function isCharacterInGroup(character) {
+  return charactersStore.characters.some(c => c.id === character.id)
 }
 
 
@@ -281,6 +281,8 @@ async function handleDelete(character) {
 
   try {
     await globalCharsStore.deleteCharacter(character.id)
+    // 删除后校正页码，避免停留在超出总页数的空页
+    currentPage.value = Math.min(currentPage.value, totalPages.value)
   } catch (error) {
     toast.error('删除失败：' + error.message)
   }

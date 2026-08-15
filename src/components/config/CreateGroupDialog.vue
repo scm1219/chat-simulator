@@ -185,6 +185,8 @@ function applyTemplates() {
   form.value.systemPrompt = form.value.systemPrompt.trim()
     ? form.value.systemPrompt.trim() + '\n\n' + merged
     : merged
+  // 应用后清空选中，避免同一模板被重复追加
+  selectedTemplateIds.value = []
 }
 
 function clearTemplates() {
