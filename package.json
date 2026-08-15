@@ -15,7 +15,8 @@
     "build:linux": "electron-vite build && npx electron-builder --linux",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "node --test \"tests/**/*.test.js\""
   },
   "build": {
     "appId": "com.chatsimulator.app",
