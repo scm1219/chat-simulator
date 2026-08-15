@@ -7,7 +7,12 @@
         class="tag-item"
         :class="{ selected: selectedTagIds.includes(tag.id), disabled }"
         :style="{ '--tag-color': tag.color }"
+        role="button"
+        :tabindex="disabled ? -1 : 0"
+        :aria-disabled="disabled ? 'true' : undefined"
         @click="!disabled && toggleTag(tag.id)"
+        @keydown.enter.prevent="!disabled && toggleTag(tag.id)"
+        @keydown.space.prevent="!disabled && toggleTag(tag.id)"
       >
         {{ tag.name }}
       </span>

@@ -1,12 +1,12 @@
 <template>
   <div class="dialog-overlay" @click.self="handleOverlayClick">
-    <div class="dialog" :style="dialogStyle" @click.stop>
+    <div class="dialog" role="dialog" aria-modal="true" :style="dialogStyle" @click.stop>
       <div class="dialog-header">
         <div class="header-left">
           <h3>{{ title }}</h3>
           <slot name="header-badges" />
         </div>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+        <button class="close-btn" aria-label="关闭" @click="$emit('close')">&times;</button>
       </div>
 
       <slot name="header-extra" />
@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -40,6 +40,18 @@ const dialogStyle = computed(() => ({
 function handleOverlayClick() {
   if (props.closeOnOverlay) emit('close')
 }
+
+function onDocumentKeydown(e) {
+  if (e.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
 </script>
 
 <style lang="scss" scoped>

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="visible" class="confirm-overlay" @click="handleCancel">
-        <div class="confirm-dialog" @click.stop>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" @click.stop>
           <div class="confirm-header">
             <h3>{{ title }}</h3>
           </div>
@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 defineProps({
   title: {
@@ -75,6 +75,18 @@ const show = () => {
 
 const handleConfirm = ref(() => {})
 const handleCancel = ref(() => {})
+
+function onDocumentKeydown(e) {
+  if (e.key === 'Escape' && visible.value) handleCancel.value()
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
 
 defineExpose({
   show

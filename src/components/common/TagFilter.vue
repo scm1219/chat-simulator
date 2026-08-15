@@ -2,7 +2,15 @@
   <div class="tag-filter">
     <div class="filter-header">
       <span class="filter-title">标签筛选</span>
-      <span v-if="selectedTagIds.length > 0" class="clear-btn" @click="clearFilter">
+      <span
+        v-if="selectedTagIds.length > 0"
+        class="clear-btn"
+        role="button"
+        tabindex="0"
+        @click="clearFilter"
+        @keydown.enter.prevent="clearFilter"
+        @keydown.space.prevent="clearFilter"
+      >
         清除 ({{ selectedTagIds.length }})
       </span>
     </div>
@@ -13,7 +21,11 @@
         class="tag-item"
         :class="{ selected: selectedTagIds.includes(tag.id) }"
         :style="{ '--tag-color': tag.color }"
+        role="button"
+        tabindex="0"
         @click="toggleFilter(tag.id)"
+        @keydown.enter.prevent="toggleFilter(tag.id)"
+        @keydown.space.prevent="toggleFilter(tag.id)"
       >
         {{ tag.name }}
       </span>
