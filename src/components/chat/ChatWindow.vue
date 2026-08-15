@@ -75,6 +75,17 @@
           <p class="hint">输入消息后，AI 角色会自动回复</p>
         </div>
 
+        <!-- 加载更早的消息（分页） -->
+        <div v-if="messagesStore.hasMore && messagesStore.messages.length > 0" class="load-earlier">
+          <button
+            class="load-earlier-btn"
+            :disabled="messagesStore.loadingEarlier"
+            @click="handleLoadEarlier"
+          >
+            {{ messagesStore.loadingEarlier ? '加载中...' : '加载更早的消息' }}
+          </button>
+        </div>
+
         <!-- 气泡视图（虚拟滚动） -->
         <template v-if="displayMode === 'bubble' && messagesStore.messages.length > 0">
           <div
@@ -426,6 +437,25 @@ async function handleSendMessage(content) {
   } catch (error) {
     toast.error('发送消息失败: ' + error.message)
   }
+}
+
+// 加载更早的消息：点击前记录滚动容器内容高度，prepend 后按高度差补偿 scrollTop，
+// 使视口停留在原来的消息位置（虚拟列表默认无 prepend 自动锚定）
+async function handleLoadEarlier() {
+  const groupId = groupsStore.currentGroupId
+  if (!groupId || messagesStore.loadingEarlier) return
+
+  const el = messagesContainer.value
+  const prevScrollHeight = el?.scrollHeight ?? 0
+
+  const loaded = await messagesStore.loadEarlierMessages(groupId)
+  if (!loaded || !el) return
+
+  await nextTick()
+  // 新插入的虚拟行在下一帧完成布局测量后再补偿，减少二次跳动
+  requestAnimationFrame(() => {
+    el.scrollTop += el.scrollHeight - prevScrollHeight
+  })
 }
 
 // 清空消息
@@ -788,6 +818,35 @@ onUnmounted(() => {
   // 表格视图时取消 padding，让表格自适应宽度
   &:has(.table-view) {
     padding: 0;
+  }
+}
+
+// 加载更早的消息（分页）按钮
+.load-earlier {
+  display: flex;
+  justify-content: center;
+  padding: $spacing-sm 0 $spacing-md;
+}
+
+.load-earlier-btn {
+  padding: 6px 20px;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  color: $text-secondary;
+  font-size: $font-size-sm;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    color: $wechat-green;
+    border-color: $wechat-green;
+    background: rgba($wechat-green, 0.05);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 }
 

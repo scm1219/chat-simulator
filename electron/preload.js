@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ============ 消息操作 ============
   message: {
-    getByGroupId: (groupId) => ipcRenderer.invoke('message:getByGroupId', groupId),
+    getByGroupId: (groupId, options) => ipcRenderer.invoke('message:getByGroupId', groupId, options),
     create: (data) => ipcRenderer.invoke('message:create', data),
     update: (groupId, id, content) => ipcRenderer.invoke('message:update', groupId, id, content),
     delete: (groupId, id) => ipcRenderer.invoke('message:delete', groupId, id),

@@ -14,10 +14,12 @@ import { nowTimestampMs } from '../../utils/timestamp.js'
 import { createHandler } from '../handler-wrapper.js'
 
 export function setupMessageHandlers(dbManager) {
-  // 获取群组的消息列表（按时间正序）
-  ipcMain.handle('message:getByGroupId', createHandler(async (event, groupId) => {
+  // 获取群组的消息列表（分页，按时间正序返回）
+  // options: { limit?: number（默认 300，上限 1000）, beforeId?: string（取该消息之前的更早消息）}
+  ipcMain.handle('message:getByGroupId', createHandler(async (event, groupId, options = {}) => {
     const db = dbManager.getGroupDB(groupId)
-    const messages = db.prepare(`
+    const limit = Math.min(Math.max(parseInt(options.limit, 10) || 300, 1), 1000)
+    const baseSelect = `
       SELECT
         m.*,
         c.name as characterName,
@@ -25,11 +27,35 @@ export function setupMessageHandlers(dbManager) {
       FROM messages m
       LEFT JOIN characters c ON m.character_id = c.id
       WHERE m.group_id = ?
-      ORDER BY m.timestamp ASC
-    `).all(groupId)
+    `
 
-    return { success: true, data: messages }
-  }))
+    let rows
+    if (options.beforeId) {
+      // 以 beforeId 消息的 (timestamp, rowid) 为锚点取更早的消息
+      const anchor = db.prepare(
+        'SELECT timestamp, rowid AS rid FROM messages WHERE group_id = ? AND id = ?'
+      ).get(groupId, options.beforeId)
+      if (!anchor) {
+        return { success: true, data: [], hasMore: false }
+      }
+      rows = db.prepare(`
+        ${baseSelect}
+          AND (m.timestamp < ? OR (m.timestamp = ? AND m.rowid < ?))
+        ORDER BY m.timestamp DESC, m.rowid DESC
+        LIMIT ?
+      `).all(groupId, anchor.timestamp, anchor.timestamp, anchor.rid, limit + 1)
+    } else {
+      rows = db.prepare(`
+        ${baseSelect}
+        ORDER BY m.timestamp DESC, m.rowid DESC
+        LIMIT ?
+      `).all(groupId, limit + 1)
+    }
+
+    // 多取 1 条用于判断是否还有更早的消息，返回时截断并反转为升序
+    const hasMore = rows.length > limit
+    return { success: true, data: rows.slice(0, limit).reverse(), hasMore }
+  }, 'Message:getByGroupId'))
 
   // 创建消息
   ipcMain.handle('message:create', createHandler(async (event, data) => {

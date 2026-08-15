@@ -9,6 +9,8 @@ export const useMessagesStore = defineStore('messages', () => {
   // 状态
   const messages = ref([])
   const loading = ref(false)
+  const hasMore = ref(false) // 是否还有更早的消息可加载（分页）
+  const loadingEarlier = ref(false) // 加载更早消息的请求进行中（防并发点击）
   const sending = ref(false)
   const streamingMessages = ref(new Map()) // 存储流式消息的临时 ID 到内容的映射
   const streamingTick = ref(0) // 流式 chunk 计数器：驱动 UI 在流式内容更新时滚动/重排
@@ -25,22 +27,54 @@ export const useMessagesStore = defineStore('messages', () => {
   async function loadMessages(groupId) {
     if (!groupId) {
       messages.value = []
+      hasMore.value = false
       return
     }
 
     const seq = ++loadSeq
     loading.value = true
+    hasMore.value = false
     try {
       const result = await window.electronAPI.message.getByGroupId(groupId)
       if (seq !== loadSeq) return // 已有更新的加载请求，丢弃过期响应
       if (result.success) {
         // 历史消息直接显示，不需要打字机效果
         messages.value = result.data
+        hasMore.value = result.hasMore ?? false
       }
     } catch (error) {
       log.error('加载消息失败:', error)
     } finally {
       if (seq === loadSeq) loading.value = false
+    }
+  }
+
+  // 加载更早的消息（以当前列表第一条为锚点，前插）
+  // 返回是否加载到了新消息；响应落地前校验请求序号，防止切群组后的过期响应污染当前列表
+  async function loadEarlierMessages(groupId) {
+    if (!groupId || loadingEarlier.value) return false
+
+    const first = messages.value[0]
+    if (!first?.id) return false
+
+    const seq = loadSeq // 不自增：任何后续的 loadMessages（如切群组）会使本响应作废
+    loadingEarlier.value = true
+    try {
+      const result = await window.electronAPI.message.getByGroupId(groupId, { beforeId: first.id })
+      if (seq !== loadSeq) return false // 期间已有新的加载请求（如切换群组），丢弃
+      if (result.success) {
+        if (result.data?.length) {
+          messages.value = [...result.data, ...messages.value]
+        }
+        hasMore.value = result.hasMore ?? false
+        return (result.data?.length || 0) > 0
+      }
+      return false
+    } catch (error) {
+      log.error('加载更早消息失败:', error)
+      return false
+    } finally {
+      loadingEarlier.value = false
     }
   }
 
@@ -266,6 +300,7 @@ export const useMessagesStore = defineStore('messages', () => {
       const result = await window.electronAPI.message.clearByGroupId(groupId)
       if (result.success) {
         messages.value = []
+        hasMore.value = false
       } else {
         throw new Error(result.error)
       }
@@ -277,6 +312,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
   function clearLocalMessages() {
     messages.value = []
+    hasMore.value = false
   }
 
   async function updateMessage(messageId, content) {
@@ -355,10 +391,13 @@ export const useMessagesStore = defineStore('messages', () => {
   return {
     messages,
     loading,
+    hasMore,
+    loadingEarlier,
     sending,
     streamingMessages,
     streamingTick,
     loadMessages,
+    loadEarlierMessages,
     sendMessage,
     sendMessageToCharacter,
     appendMessage,
