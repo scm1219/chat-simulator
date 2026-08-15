@@ -4,6 +4,10 @@ import { createLogger, destroyAllLoggers } from './utils/logger.js'
 
 const log = createLogger('Main')
 
+// 开发环境加载 Vite 服务器，生产环境加载构建文件
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+
 // 保持对窗口对象的全局引用
 let mainWindow = null
 
@@ -21,32 +25,31 @@ function createWindow() {
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      sandbox: true
     },
     backgroundColor: '#f5f5f5',
     show: false
   })
 
-  // 开发环境加载 Vite 服务器，生产环境加载构建文件
-  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+  // 窗口防线：禁止任何新窗口/弹出（子窗口会继承 preload 拿到全部 IPC）
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  // 窗口防线：仅允许应用自身的导航，阻止跳转到任意外部地址
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const allowed = isDev ? url.startsWith(devUrl) : url.startsWith('file://')
+    if (!allowed) {
+      event.preventDefault()
+    }
+  })
 
   if (isDev) {
     mainWindow.loadURL(devUrl)
     mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-    // 生产环境设置 CSP，禁止 unsafe-eval
-    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://* http://*; img-src 'self' data: blob: https://* http://*"
-          ]
-        }
-      })
-    })
+    // CSP 由 index.html 的 <meta http-equiv="Content-Security-Policy"> 提供
+    // （webRequest.onHeadersReceived 对 file:// 协议不触发，无法用于生产 CSP）
   }
 
   // 窗口准备好后显示
@@ -65,76 +68,92 @@ let globalCharManager = null
 // 角色记忆管理器
 let memoryManager = null
 
-// 应用就绪时创建窗口
-app.whenReady().then(async () => {
-  // 并行导入所有模块（串行 await import 会累加磁盘 IO 延迟）
-  const [
-    { DatabaseManager },
-    { GlobalCharacterManager },
-    { MemoryManager },
-    { setupGroupHandlers },
-    { setupCharacterHandlers },
-    { setupMessageHandlers },
-    { setupLLMHandlers },
-    { setupConfigHandlers },
-    { setupGlobalCharacterHandlers },
-    { setupMemoryHandlers },
-    { setupSearchHandlers },
-    { NarrativeEngine },
-    { setupNarrativeHandlers }
-  ] = await Promise.all([
-    import('./database/manager.js'),
-    import('./database/global-character-manager.js'),
-    import('./database/memory-manager.js'),
-    import('./ipc/handlers/group.js'),
-    import('./ipc/handlers/character.js'),
-    import('./ipc/handlers/message.js'),
-    import('./ipc/handlers/llm.js'),
-    import('./ipc/handlers/config.js'),
-    import('./ipc/handlers/global-character.js'),
-    import('./ipc/handlers/memory.js'),
-    import('./ipc/handlers/search.js'),
-    import('./narrative/engine.js'),
-    import('./ipc/handlers/narrative.js')
-  ])
-
-  // 初始化数据库管理器
-  dbManager = new DatabaseManager()
-
-  // 初始化全局角色库管理器
-  globalCharManager = new GlobalCharacterManager()
-
-  // 初始化角色记忆管理器
-  memoryManager = new MemoryManager()
-
-  // 初始化叙事引擎
-  const narrativeEngine = new NarrativeEngine()
-  narrativeEngine.setDBManager(dbManager)
-
-  // 设置 IPC 处理器（必须在创建窗口之前完成）
-  setupGroupHandlers(dbManager)
-  setupCharacterHandlers(dbManager, narrativeEngine)
-  setupMessageHandlers(dbManager)
-  setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
-  setupConfigHandlers(dbManager)
-  setupGlobalCharacterHandlers(dbManager, globalCharManager)
-  setupMemoryHandlers(memoryManager)
-  setupSearchHandlers(dbManager)
-  setupNarrativeHandlers(narrativeEngine)
-
-  // 所有处理程序注册完成后再创建窗口
-  createWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+// 单实例锁：防止双开导致并发写 SQLite
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  // 未获得锁的第二个实例：不建窗，直接退出
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.focus()
     }
   })
-}).catch(error => {
-  log.error('应用初始化失败:', error)
-  dialog.showErrorBox('初始化失败', `应用启动失败：${error.message}`)
-  app.quit()
-})
+
+  // 应用就绪时创建窗口
+  app.whenReady().then(async () => {
+    // 并行导入所有模块（串行 await import 会累加磁盘 IO 延迟）
+    const [
+      { DatabaseManager },
+      { GlobalCharacterManager },
+      { MemoryManager },
+      { setupGroupHandlers },
+      { setupCharacterHandlers },
+      { setupMessageHandlers },
+      { setupLLMHandlers },
+      { setupConfigHandlers },
+      { setupGlobalCharacterHandlers },
+      { setupMemoryHandlers },
+      { setupSearchHandlers },
+      { NarrativeEngine },
+      { setupNarrativeHandlers }
+    ] = await Promise.all([
+      import('./database/manager.js'),
+      import('./database/global-character-manager.js'),
+      import('./database/memory-manager.js'),
+      import('./ipc/handlers/group.js'),
+      import('./ipc/handlers/character.js'),
+      import('./ipc/handlers/message.js'),
+      import('./ipc/handlers/llm.js'),
+      import('./ipc/handlers/config.js'),
+      import('./ipc/handlers/global-character.js'),
+      import('./ipc/handlers/memory.js'),
+      import('./ipc/handlers/search.js'),
+      import('./narrative/engine.js'),
+      import('./ipc/handlers/narrative.js')
+    ])
+
+    // 初始化数据库管理器
+    dbManager = new DatabaseManager()
+
+    // 初始化全局角色库管理器
+    globalCharManager = new GlobalCharacterManager()
+
+    // 初始化角色记忆管理器
+    memoryManager = new MemoryManager()
+
+    // 初始化叙事引擎
+    const narrativeEngine = new NarrativeEngine()
+    narrativeEngine.setDBManager(dbManager)
+
+    // 设置 IPC 处理器（必须在创建窗口之前完成）
+    setupGroupHandlers(dbManager)
+    setupCharacterHandlers(dbManager, narrativeEngine)
+    setupMessageHandlers(dbManager)
+    setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
+    setupConfigHandlers(dbManager)
+    setupGlobalCharacterHandlers(dbManager, globalCharManager)
+    setupMemoryHandlers(memoryManager)
+    setupSearchHandlers(dbManager)
+    setupNarrativeHandlers(narrativeEngine)
+
+    // 所有处理程序注册完成后再创建窗口
+    createWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      }
+    })
+  }).catch(error => {
+    log.error('应用初始化失败:', error)
+    dialog.showErrorBox('初始化失败', `应用启动失败：${error.message}`)
+    app.quit()
+  })
+}
 
 // 所有窗口关闭时退出应用（macOS 除外）
 app.on('window-all-closed', () => {
