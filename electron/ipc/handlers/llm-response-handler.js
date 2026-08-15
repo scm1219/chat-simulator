@@ -102,6 +102,9 @@ export async function generateCharacterResponse(client, character, history, user
     safeSend(event, 'message:stream:chunk', payload)
   })
 
+  // 临时消息 ID：在 try 外声明并初始化为 null，catch 中可判断 stream:start 是否已发送
+  let tempMessageId = null
+
   try {
     // 优先使用角色的思考模式设置，如果没有则使用群组的设置
     const characterThinkingEnabled = character.thinking_enabled === 1 || thinkingEnabled
@@ -113,7 +116,7 @@ export async function generateCharacterResponse(client, character, history, user
     const messages = buildContextMessages(character, history, userContent, background, systemPrompt, allCharacters, memories, narrativeContext)
 
     // 创建临时消息 ID
-    const tempMessageId = 'temp_' + Date.now() + '_' + character.id
+    tempMessageId = 'temp_' + Date.now() + '_' + character.id
 
     // 通知渲染进程：开始生成
     safeSend(event, 'message:stream:start', {
@@ -186,6 +189,12 @@ export async function generateCharacterResponse(client, character, history, user
       // 请求被取消（同群组新请求取代本请求）：不写库、不推送错误、不发送剩余 chunk
       if (result.aborted || signal?.aborted) {
         batcher.destroy()
+        // 通知前端移除流式临时消息（onStreamError 静默清理 streamingMessages）
+        safeSend(event, 'message:stream:error', {
+          tempId: tempMessageId,
+          groupId: groupId,
+          error: '已取消'
+        })
         return {
           success: false,
           aborted: true,
@@ -218,6 +227,14 @@ export async function generateCharacterResponse(client, character, history, user
     // 请求被取消：清理批处理器（不 flush），不推送错误
     if (signal?.aborted) {
       batcher.destroy()
+      // stream:start 已发送过才通知前端（tempMessageId 为 null 说明前端无该临时气泡）
+      if (tempMessageId) {
+        safeSend(event, 'message:stream:error', {
+          tempId: tempMessageId,
+          groupId: groupId,
+          error: '已取消'
+        })
+      }
       return {
         success: false,
         aborted: true,
