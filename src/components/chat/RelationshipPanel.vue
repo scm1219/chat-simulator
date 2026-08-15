@@ -65,6 +65,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNarrativeStore } from '../../stores/narrative.js'
 import { useToastStore } from '../../stores/toast'
+import { useDialog } from '../../composables/useDialog'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -73,6 +74,7 @@ const props = defineProps({
 
 const narrativeStore = useNarrativeStore()
 const toast = useToastStore()
+const { confirm } = useDialog()
 const showAddDialog = ref(false)
 const relationshipTypes = ref({})
 const form = ref({ fromId: '', toId: '', type: 'friend', description: '' })
@@ -105,7 +107,14 @@ function getFavorClass(f) {
 function getFavorWidth(f) { return Math.max(0, Math.min(100, (f + 100) / 2)) }
 
 async function handleAdd() {
-  if (!form.value.fromId || !form.value.toId || form.value.fromId === form.value.toId) return
+  if (!form.value.fromId || !form.value.toId) {
+    toast.error('请选择关系双方角色')
+    return
+  }
+  if (form.value.fromId === form.value.toId) {
+    toast.error('请选择两个不同的角色')
+    return
+  }
   try {
     await narrativeStore.setRelationship(
       props.groupId, form.value.fromId, form.value.toId,
@@ -119,6 +128,14 @@ async function handleAdd() {
 }
 
 async function handleRemove(fromId, toId) {
+  const confirmed = await confirm({
+    title: '删除角色关系',
+    message: `确定要删除 ${getCharName(fromId)} → ${getCharName(toId)} 的关系吗？`,
+    confirmText: '删除',
+    cancelText: '取消'
+  })
+  if (!confirmed) return
+
   try {
     await narrativeStore.removeRelationship(props.groupId, fromId, toId)
   } catch (error) {

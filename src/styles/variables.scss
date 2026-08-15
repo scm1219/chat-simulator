@@ -80,3 +80,8 @@ $header-height: 60px;
 
 // 输入框高度
 $input-height: 120px;
+
+// ============ 层级变量 ============
+$z-index-dialog: 1000;
+$z-index-confirm: 10000;
+$z-index-toast: 99999;

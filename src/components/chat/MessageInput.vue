@@ -81,6 +81,15 @@ async function handleClearMessages() {
     emit('clear')
   }
 }
+
+// 恢复输入框内容（供发送失败时回填）
+function restore(text) {
+  if (typeof text === 'string' && text.trim()) {
+    content.value = text
+  }
+}
+
+defineExpose({ restore })
 </script>
 
 <style lang="scss" scoped>

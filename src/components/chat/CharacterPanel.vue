@@ -220,16 +220,17 @@
           <!-- 指令输入和发送（仅 AI 角色） -->
           <div v-if="char.is_user !== 1" class="character-command">
             <input
-              v-model="char.command"
+              :value="commandDrafts.get(char.id) ?? ''"
               type="text"
               class="command-input"
               placeholder="输入指令让角色回复..."
+              @input="e => commandDrafts.set(char.id, e.target.value)"
               @keyup.enter="sendCommand(char)"
             />
             <button
               class="btn btn-primary btn-sm command-btn"
               @click="sendCommand(char)"
-              :disabled="!char.command || char.sending"
+              :disabled="!(commandDrafts.get(char.id) ?? '').trim() || char.sending"
             >
               {{ char.sending ? '发送中...' : '发送' }}
             </button>
@@ -351,7 +352,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
@@ -394,6 +395,7 @@ const memoryDialogInput = ref('')  // 记忆对话框输入
 const editingCharacter = ref(null)
 const libraryCharIds = ref(new Set()) // 记录哪些角色存在于角色库
 const syncingIds = ref(new Set()) // 正在同步的角色 ID
+const commandDrafts = reactive(new Map()) // 角色指令输入草稿（本地状态，避免直改 store）
 
 const currentGroup = computed(() => groupsStore.currentGroup)
 
@@ -573,9 +575,16 @@ async function deleteCharacter(id) {
 }
 
 async function updateMaxHistory(event) {
+  const v = parseInt(event.target.value, 10)
+  if (!Number.isInteger(v) || v < 1 || v > 50) {
+    // 非法输入回显为当前生效值
+    event.target.value = String(currentGroup.value?.max_history ?? 20)
+    toast.error('历史条数需为 1-50 的整数')
+    return
+  }
   try {
     await groupsStore.updateGroup(currentGroup.value.id, {
-      maxHistory: parseInt(event.target.value)
+      maxHistory: v
     })
   } catch (error) {
     toast.error('更新设置失败: ' + error.message)
@@ -681,10 +690,11 @@ function handleGroupSettingsSaved() {
 }
 
 async function sendCommand(char) {
-  if (!char.command || !char.command.trim()) return
+  const draft = (commandDrafts.get(char.id) ?? '').trim()
+  if (!draft || char.sending) return
 
-  const command = char.command.trim()
-  char.command = ''
+  const command = draft
+  commandDrafts.set(char.id, '')
   char.sending = true
 
   try {
@@ -694,8 +704,10 @@ async function sendCommand(char) {
     await messagesStore.sendMessageToCharacter(char.id, instructionMessage)
   } catch (error) {
     toast.error('发送指令失败: ' + error.message)
-    // 如果失败，恢复指令内容
-    char.command = command
+    // 失败时恢复指令内容；若用户已重新输入则不覆盖
+    if (!(commandDrafts.get(char.id) ?? '').trim()) {
+      commandDrafts.set(char.id, command)
+    }
   } finally {
     char.sending = false
   }

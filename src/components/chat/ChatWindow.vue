@@ -194,6 +194,7 @@
       <!-- 输入框 -->
       <div class="chat-input">
         <MessageInput
+          ref="messageInputRef"
           @send="handleSendMessage"
           @clear="handleClearMessages"
           @toggle-event="showEventPanel = !showEventPanel"
@@ -239,6 +240,7 @@ const rightPanelVisible = inject('rightPanelVisible')
 const toggleRightPanel = inject('toggleRightPanel')
 
 const messagesContainer = ref(null)
+const messageInputRef = ref(null)
 const currentGroup = computed(() => groupsStore.currentGroup)
 
 // 虚拟滚动：动态高度消息列表
@@ -436,6 +438,8 @@ async function handleSendMessage(content) {
     }
   } catch (error) {
     toast.error('发送消息失败: ' + error.message)
+    // 发送失败时回填输入框，避免用户内容丢失
+    messageInputRef.value?.restore(content)
   }
 }
 

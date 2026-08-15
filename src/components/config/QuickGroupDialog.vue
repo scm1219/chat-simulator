@@ -410,6 +410,16 @@ async function handleGenerate() {
 async function handleConfirm() {
   if (!canCreate.value) return
 
+  // 年龄校验：允许留空，填写时必须是 1-999 的整数
+  const invalidAgeChar = preview.characters.find(c =>
+    c.age !== null && c.age !== '' &&
+    !(Number.isInteger(Number(c.age)) && Number(c.age) >= 1 && Number(c.age) <= 999)
+  )
+  if (invalidAgeChar) {
+    toast.error(`角色"${invalidAgeChar.name}"的年龄需为 1-999 的整数`)
+    return
+  }
+
   creating.value = true
   try {
     const profile = profilesStore.getProfileById(selectedProfileId.value)

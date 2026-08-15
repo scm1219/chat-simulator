@@ -364,8 +364,20 @@ async function handleCreateTag(data) {
   }
 }
 
+// 年龄校验：允许留空，填写时必须是 1-999 的整数
+function isAgeValid() {
+  const age = form.value.age
+  return age === null || age === '' ||
+    (Number.isInteger(Number(age)) && Number(age) >= 1 && Number(age) <= 999)
+}
+
 async function handleSave() {
   if (!isFormValid.value || saving.value) return
+
+  if (!isAgeValid()) {
+    toast.error('年龄需为 1-999 的整数')
+    return
+  }
 
   saving.value = true
 
@@ -409,6 +421,10 @@ async function handleSync() {
     if (isDirty.value) {
       if (!isFormValid.value) {
         toast.error('表单验证未通过，无法保存')
+        return
+      }
+      if (!isAgeValid()) {
+        toast.error('年龄需为 1-999 的整数')
         return
       }
       const data = {

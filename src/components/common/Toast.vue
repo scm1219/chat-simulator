@@ -38,7 +38,7 @@ const getIcon = (type) => {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 99999;
+  z-index: $z-index-toast;
   display: flex;
   flex-direction: column;
   gap: 10px;

@@ -56,28 +56,20 @@ const visible = ref(false)
 
 const show = () => {
   visible.value = true
-  return new Promise((resolve) => {
-    const originalConfirm = () => {
-      visible.value = false
-      emit('confirm')
-      resolve(true)
-    }
-    const originalCancel = () => {
-      visible.value = false
-      emit('cancel')
-      resolve(false)
-    }
-
-    handleConfirm.value = originalConfirm
-    handleCancel.value = originalCancel
-  })
 }
 
-const handleConfirm = ref(() => {})
-const handleCancel = ref(() => {})
+const handleConfirm = () => {
+  visible.value = false
+  emit('confirm')
+}
+
+const handleCancel = () => {
+  visible.value = false
+  emit('cancel')
+}
 
 function onDocumentKeydown(e) {
-  if (e.key === 'Escape' && visible.value) handleCancel.value()
+  if (e.key === 'Escape' && visible.value) handleCancel()
 }
 
 onMounted(() => {
@@ -104,7 +96,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: $z-index-confirm;
 }
 
 .modal-enter-active,

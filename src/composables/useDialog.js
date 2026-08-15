@@ -23,9 +23,12 @@ export function useDialog() {
 
           const cleanup = () => {
             app.unmount()
-            if (document.body.contains(container)) {
-              document.body.removeChild(container)
-            }
+            // 延迟移除容器，等待离场动画（0.3s）完成
+            setTimeout(() => {
+              if (document.body.contains(container)) {
+                document.body.removeChild(container)
+              }
+            }, 300)
           }
 
           onMounted(() => {

@@ -4,7 +4,6 @@
       <label>{{ label }}</label>
       <slot name="label-extra" />
     </div>
-    <label v-else-if="$slots.default && label === undefined" />
     <slot />
     <small v-if="hint" class="hint">{{ hint }}</small>
     <small v-if="error" class="error">{{ error }}</small>
