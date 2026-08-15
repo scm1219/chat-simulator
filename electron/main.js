@@ -135,7 +135,7 @@ if (!gotLock) {
     setupMessageHandlers(dbManager)
     setupLLMHandlers(dbManager, memoryManager, narrativeEngine)
     setupConfigHandlers(dbManager)
-    setupGlobalCharacterHandlers(dbManager, globalCharManager)
+    setupGlobalCharacterHandlers(dbManager, globalCharManager, memoryManager)
     setupMemoryHandlers(memoryManager)
     setupSearchHandlers(dbManager)
     setupNarrativeHandlers(narrativeEngine)

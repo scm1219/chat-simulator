@@ -23,7 +23,7 @@ const STYLE_PROMPTS = {
   detailed: '用详尽细腻的风格写这个人设，300-500字。全面描写角色的方方面面，包括细微的习惯和深层动机。'
 }
 
-export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
+export function setupGlobalCharacterHandlers(dbManager, globalCharManager, memoryManager = null) {
   // 获取所有全局角色
   ipcMain.handle('globalCharacter:getAll', createHandler(async () => {
     const characters = globalCharManager.getAll()
@@ -80,6 +80,11 @@ export function setupGlobalCharacterHandlers(dbManager, globalCharManager) {
     }
 
     const character = globalCharManager.update(id, data)
+
+    // 设计约定：记忆按角色姓名全局关联（同名即同一人）——改名后需迁移记忆关联
+    if (memoryManager && character && character.name !== existing.name) {
+      memoryManager.renameCharacter(existing.name, character.name)
+    }
 
     // 更新角色标签
     if (data.tagIds !== undefined) {

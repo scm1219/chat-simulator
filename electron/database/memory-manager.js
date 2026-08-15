@@ -149,6 +149,21 @@ export class MemoryManager {
   }
 
   /**
+   * 角色改名时迁移记忆关联
+   * 设计约定：记忆按角色姓名全局关联（同名即同一人）——见代码审查 M-4
+   * @param {string} oldName - 旧角色名称
+   * @param {string} newName - 新角色名称
+   */
+  renameCharacter(oldName, newName) {
+    if (!oldName || !newName || oldName === newName) return
+    this.getDB().prepare(`
+      UPDATE character_memories
+      SET character_name = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE character_name = ?
+    `).run(newName, oldName)
+  }
+
+  /**
    * 获取某角色的记忆条数
    * @param {string} name - 角色名称
    * @returns {number} 记忆条数
