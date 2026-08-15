@@ -238,6 +238,12 @@ const rowVirtualizer = useVirtualizer({
   getScrollElement: () => messagesContainer.value,
   estimateSize: () => 100,
   overscan: 5,
+  // 稳定 key：用消息 id（流式临时消息用 tempId）而非 index，
+  // 避免切群组时复用旧组件状态（编辑框内容串群）及测量缓存错配导致滚动跳动
+  getItemKey: (index) => {
+    const msg = messagesStore.messages[index]
+    return msg?.id ?? msg?.tempId ?? index
+  },
 })
 
 // measureElement 回调（动态测量消息高度）
@@ -525,6 +531,9 @@ watch(() => messagesStore.messages.length, async () => {
   }
 }, { flush: 'post' })
 
+// 高亮清除定时器句柄：连续高亮时取消旧定时器，卸载时清理
+let highlightTimer = null
+
 // 监听高亮消息，滚动到对应位置
 watch(() => messagesStore.highlightMessageId, async (messageId) => {
   if (!messageId) return
@@ -537,8 +546,10 @@ watch(() => messagesStore.highlightMessageId, async (messageId) => {
     rowVirtualizer.value.scrollToIndex(index, { align: 'center', behavior: 'smooth' })
   }
 
-  // 3秒后清除高亮
-  setTimeout(() => {
+  // 3秒后清除高亮（取消旧定时器，避免提前熄灭新一次高亮）
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightTimer = null
     messagesStore.clearHighlight()
   }, 3000)
 })
@@ -548,12 +559,16 @@ watch(() => messagesStore.highlightMessageId, async (messageId) => {
 // （streamingMessages.size 在流式中途不变，无法驱动响应式更新）
 // 用 rAF 节流，避免每个 chunk 都触发一次滚动重排
 let streamingScrollScheduled = false
+let streamingScrollRafId = null
 watch(
   () => messagesStore.streamingTick,
   () => {
+    // 表格视图下虚拟化器不渲染（无测量数据），按气泡 offset 滚动会错乱
+    if (displayMode.value !== 'bubble') return
     if (streamingScrollScheduled) return
     streamingScrollScheduled = true
-    requestAnimationFrame(() => {
+    streamingScrollRafId = requestAnimationFrame(() => {
+      streamingScrollRafId = null
       streamingScrollScheduled = false
       scrollToBottom(false) // 流式输出时使用即时滚动，不使用动画
     })
@@ -608,11 +623,20 @@ onMounted(async () => {
   cleanupAftermath = narrativeStore.setupAftermathListener()
 })
 
-// 组件卸载时清理监听器
+// 组件卸载时清理监听器与定时器/动画帧
 onUnmounted(() => {
   cleanupStreamListeners?.()
   cleanupAftermath?.()
   messagesStore.cleanup()
+  if (highlightTimer) {
+    clearTimeout(highlightTimer)
+    highlightTimer = null
+  }
+  if (streamingScrollRafId !== null) {
+    cancelAnimationFrame(streamingScrollRafId)
+    streamingScrollRafId = null
+    streamingScrollScheduled = false
+  }
 })
 </script>
 
