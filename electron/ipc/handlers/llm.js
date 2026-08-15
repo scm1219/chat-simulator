@@ -308,14 +308,15 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     activeGenerations.set(groupId, controller)
 
     try {
-      // 保存用户指令消息
-      saveUserMessage(db, groupId, instruction, userCharacter, event)
-
-      // 获取指定角色
-      const character = prepareCached(db, 'SELECT * FROM characters WHERE id = ?').get(characterId)
+      // 先校验角色再保存用户指令，避免角色不存在时把指令持久化为孤儿消息
+      // 查询加 group_id 条件，防止跨群 characterId 把角色回复写进另一个群
+      const character = prepareCached(db, 'SELECT * FROM characters WHERE id = ? AND group_id = ?').get(characterId, groupId)
       if (!character) {
         return { success: false, error: '角色不存在' }
       }
+
+      // 保存用户指令消息
+      saveUserMessage(db, groupId, instruction, userCharacter, event)
 
       // 创建客户端并生成回复
       const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)

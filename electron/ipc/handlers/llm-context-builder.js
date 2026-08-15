@@ -148,14 +148,15 @@ export function buildContextMessages(character, history, userContent, background
   })
 
   // 9. 添加当前用户消息
-  const lastMessage = roleMessages[roleMessages.length - 1]
-  if (!lastMessage || lastMessage.role !== 'user') {
-    // 只有最后一条不是用户消息时，才添加
-    messages.push({
-      role: 'user',
-      content: userContent
-    })
-  }
+  // 无条件追加：历史消息在保存用户消息之前查询（见 llm.js 的处理顺序），
+  // history 中不包含当前这条用户消息，不会重复。
+  // 若以"历史末条是否 user"来判断是否追加：当上一轮所有角色回复均失败
+  // （失败回复不入库）时，历史末条是上一轮的 user 消息，会导致本轮用户
+  // 消息被跳过、根本不发给 LLM。
+  messages.push({
+    role: 'user',
+    content: userContent
+  })
 
   return messages
 }
