@@ -10,10 +10,7 @@ import path from 'path'
  * @param {string} filePath - 文件路径（取其 dirname 作为目标目录）
  */
 export function ensureConfigDir(filePath) {
-  const configDir = path.dirname(filePath)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
+  return ensureDataDir(path.dirname(filePath))
 }
 
 /**

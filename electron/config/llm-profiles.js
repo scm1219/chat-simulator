@@ -38,7 +38,13 @@ export function getLLMProfiles() {
   try {
     if (fs.existsSync(LLM_PROFILES_FILE)) {
       const data = fs.readFileSync(LLM_PROFILES_FILE, 'utf-8')
-      const profiles = JSON.parse(data)
+      let profiles = JSON.parse(data)
+
+      // 防御：文件内容损坏或被篡改为非数组时回退为空列表
+      if (!Array.isArray(profiles)) {
+        log.warn('LLM 配置文件格式异常（非数组），已重置为空列表')
+        profiles = []
+      }
 
       // 读取后立即解密 apiKey：内存中的 Profile 始终持有明文
       // （须在下方迁移触发的 saveLLMProfiles 之前完成，否则会对存储密文二次加密）
@@ -79,10 +85,10 @@ export function getLLMProfiles() {
         }
       })
 
-      // 如果有迁移，保存更新后的配置
+      // 如果有迁移，保存更新后的配置（入写队列，避免与并发写操作交错）
       if (migrated) {
-        saveLLMProfiles(profiles)
-        log.info('已迁移配置，添加 streamEnabled 字段')
+        enqueueWrite(() => saveLLMProfiles(profiles))
+        log.info('已迁移配置：补充 streamEnabled/useNativeApi/proxy 字段')
       }
 
       return profiles
@@ -124,8 +130,8 @@ export function addLLMProfile(profile) {
       }
 
       const newProfile = {
-        id: generateUUID(),
         ...profile,
+        id: generateUUID(),
         createdAt: new Date().toISOString()
       }
 

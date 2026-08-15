@@ -12,7 +12,7 @@ import { ensureDataDir } from '../utils/config-dir.js'
 const log = createLogger('Database')
 
 // 数据库连接缓存上限（LRU 策略）
-const MAX_CACHED_CONNECTIONS = 10
+const MAX_CACHED_CONNECTIONS = 64
 
 // 群组 ID 白名单：项目内群组 ID 由 generateUUID() 生成（36 位标准 UUID），
 // 仅允许字母数字与连字符，长度 8-64，阻止路径穿越（../、盘符、分隔符）与 undefined 等脏值
@@ -441,11 +441,12 @@ export class DatabaseManager {
     // 关闭连接
     this.closeGroupDB(groupId)
 
-    // 删除文件
+    // 删除文件（连同 SQLite 事务附属文件：-journal / -wal / -shm）
     const dbPath = path.join(this.dataDir, `group_${groupId}.sqlite`)
     assertPathInsideDataDir(dbPath, this.dataDir)
-    if (fs.existsSync(dbPath)) {
-      fs.unlinkSync(dbPath)
+    for (const suffix of ['', '-journal', '-wal', '-shm']) {
+      const p = dbPath + suffix
+      if (fs.existsSync(p)) fs.unlinkSync(p)
     }
   }
 
