@@ -109,7 +109,7 @@ export function setupMessageHandlers(dbManager) {
   }, 'Message:deleteFrom'))
 
   // 导出群组聊天记录为 ZIP（异步文件 I/O，避免阻塞主线程）
-  ipcMain.handle('message:exportToZip', async (event, groupId, groupName) => {
+  ipcMain.handle('message:exportToZip', createHandler(async (event, groupId, groupName) => {
     let jsonFilePath = null
     let zipFilePath = null
 
@@ -203,19 +203,24 @@ export function setupMessageHandlers(dbManager) {
         zlib: { level: 9 }
       })
 
+      // 等待压缩完成：以 output 的 'close' 为准（所有数据已落盘），
+      // 同时监听 output 与 archive 的 'error'，并接住 finalize() 返回的 Promise，
+      // 避免磁盘满/权限错误时永久挂起或产生未处理的 Promise 拒绝
       await new Promise((resolve, reject) => {
-        output.on('close', () => resolve())
-        archive.on('error', (err) => reject(err))
+        output.on('close', resolve)
+        output.on('error', reject)
+        archive.on('error', reject)
 
         // 关键：将 archive 管道连接到输出流
         archive.pipe(output)
         archive.file(jsonFilePath, { name: jsonFileName })
-        archive.finalize()
+        archive.finalize().catch(reject)
       })
 
-      // 移动到用户选择的路径（异步）
-      await fs.promises.rename(tempZipPath, savePath)
-      zipFilePath = null // 已移走，无需清理
+      // 复制到用户选择的路径（跨盘时 rename 会抛 EXDEV，改用 copyFile + unlink）
+      await fs.promises.copyFile(tempZipPath, savePath)
+      await fs.promises.unlink(tempZipPath).catch(() => {})
+      zipFilePath = null // 已复制并清理，无需在错误路径再清理
 
       const stat = await fs.promises.stat(savePath)
 
@@ -234,7 +239,8 @@ export function setupMessageHandlers(dbManager) {
       } catch (cleanupError) {
         log.error('清理临时文件失败:', cleanupError)
       }
-      return { success: false, error: error.message }
+      // 重新抛出，交由 createHandler 统一记录日志并返回安全错误信息（过滤本机路径）
+      throw error
     }
-  })
+  }, 'Message:exportToZip'))
 }
