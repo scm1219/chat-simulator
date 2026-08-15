@@ -58,6 +58,18 @@ export default [
     }
   },
 
+  // ── Node 测试（node --test）使用 Node 环境 ──
+  {
+    files: ['tests/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node
+      }
+    }
+  },
+
   // ── 全局自定义规则 ──
   {
     rules: {

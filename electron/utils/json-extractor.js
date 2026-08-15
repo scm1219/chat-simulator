@@ -14,7 +14,7 @@
  * @param {string} raw - LLM 原始响应文本
  * @returns {{ success: boolean, data?: any, error?: string }}
  */
-function extractJSON (raw) {
+export function extractJSON (raw) {
   if (!raw || typeof raw !== 'string') {
     return { success: false, error: '响应内容为空' }
   }
@@ -42,11 +42,14 @@ function extractJSON (raw) {
     if (cleanedParse.success) return cleanedParse
   }
 
-  // 策略 4：从文本中查找第一个 { 到最后一个 } 之间的内容
+  // 策略 4：从文本中查找第一个 { 到最后一个 } 之间的内容；
+  // 若完全没有闭合 }（输出被 max_tokens 截断），取第一个 { 到末尾，交给策略 5 修复
   const firstBrace = text.indexOf('{')
   const lastBrace = text.lastIndexOf('}')
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    const extracted = text.substring(firstBrace, lastBrace + 1)
+  if (firstBrace !== -1) {
+    const extracted = lastBrace > firstBrace
+      ? text.substring(firstBrace, lastBrace + 1)
+      : text.substring(firstBrace)
     const extractedParse = tryParse(extracted)
     if (extractedParse.success) return extractedParse
 
@@ -125,5 +128,3 @@ function tryRepairJSON (str) {
     return null
   }
 }
-
-module.exports = { extractJSON }
