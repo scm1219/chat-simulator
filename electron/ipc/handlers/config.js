@@ -99,9 +99,14 @@ export function setupConfigHandlers(dbManager) {
     const result = await updateLLMProfile(id, data)
 
     // 同步更新所有使用旧配置的群组
+    // 注意：必须用合并后的完整 profile 同步（update 是合并语义，data 可能只含部分字段，
+    // 如切换思考模式只传 { thinking_enabled }），否则未传字段会被置空清掉群组的 Key
     if (result.success && oldProfile && dbManager) {
-      const syncedGroups = syncGroupsProfile(dbManager, oldProfile, data)
-      log.info(`Profile "${data.name}" 已同步更新 ${syncedGroups} 个群组`)
+      const mergedProfile = result.data || getLLMProfiles().find(p => p.id === id)
+      const syncedGroups = mergedProfile
+        ? syncGroupsProfile(dbManager, oldProfile, mergedProfile)
+        : 0
+      log.info(`Profile "${mergedProfile?.name ?? id}" 已同步更新 ${syncedGroups} 个群组`)
       result.syncedGroups = syncedGroups
     }
 
@@ -199,6 +204,10 @@ function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
         (group.llm_base_url || null) === (oldProfile.baseURL || null)
 
       if (matches) {
+        // newProfileData 是合并后的完整 Profile（内存中 apiKey 恒为明文），其字段值即最终意图：
+        // apiKey 为 ''/null 表示显式清空（改用全局 Key），仅在字段完全缺失时才回退 oldProfile 防御
+        const newApiKey = newProfileData.apiKey !== undefined ? newProfileData.apiKey : oldProfile.apiKey
+        const newBaseURL = newProfileData.baseURL !== undefined ? newProfileData.baseURL : oldProfile.baseURL
         db.prepare(`
           UPDATE groups SET
             llm_provider = ?,
@@ -210,10 +219,10 @@ function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
         `).run(
           newProfileData.provider || oldProfile.provider,
           newProfileData.model || oldProfile.model,
-          // newProfileData 来自渲染进程的明文输入，落库前加密
-          newProfileData.apiKey ? encryptSecret(String(newProfileData.apiKey)) : null,
-          newProfileData.baseURL ? String(newProfileData.baseURL) : null,
-          newProfileData.apiKey ? 0 : 1,
+          // 内存中的 Profile apiKey 恒为明文（getLLMProfiles 已解密），落库前加密
+          newApiKey ? encryptSecret(String(newApiKey)) : null,
+          newBaseURL ? String(newBaseURL) : null,
+          newApiKey ? 0 : 1,
           groupId
         )
         syncedCount++
