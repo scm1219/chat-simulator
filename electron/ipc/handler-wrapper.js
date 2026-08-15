@@ -9,7 +9,7 @@ const log = createLogger('IPC')
 /**
  * 创建带统一错误处理的 IPC Handler
  * @param {Function} handler - 业务逻辑函数，签名 (event, ...args) => result
- * @param {string} [label] - 可选错误日志标签（如 'Group:create'），传入则自动记录错误
+ * @param {string} [label] - 可选错误日志标签（如 'Group:create'），未传入则使用 'IPC'；异常始终记录日志
  * @returns {Function} 包装后的 async 函数，直接传给 ipcMain.handle
  */
 export function createHandler(handler, label) {
@@ -17,8 +17,12 @@ export function createHandler(handler, label) {
     try {
       return await handler(event, ...args)
     } catch (error) {
-      if (label) log.error(`[${label}]`, error.message)
-      return { success: false, error: error.message }
+      const tag = label || 'IPC'
+      log.error(`[${tag}]`, error.stack || error.message)
+      const safeMessage = String(error.message || '未知错误')
+        // 过滤 Windows 绝对路径，避免向渲染进程泄漏本机目录结构
+        .replace(/[A-Za-z]:\\[^\s'"]*/g, '[路径]')
+      return { success: false, error: safeMessage }
     }
   }
 }
