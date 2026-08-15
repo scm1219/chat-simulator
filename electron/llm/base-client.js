@@ -81,7 +81,20 @@ export class BaseLLMClient {
     // 响应错误拦截器
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        // 流式模式下错误响应体是未解析的 Stream，先读出并尝试解析为 JSON，便于定位具体错误原因
+        const data = error.response?.data
+        if (data && typeof data.pipe === 'function') {
+          try {
+            let raw = ''
+            for await (const chunk of data) {
+              raw += chunk.toString()
+            }
+            error.response.data = JSON.parse(raw)
+          } catch {
+            // 解析失败时保留原始数据
+          }
+        }
         log.error('请求失败:', error.message, error.response?.status)
         return Promise.reject(error)
       }
