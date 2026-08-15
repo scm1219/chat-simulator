@@ -12,9 +12,16 @@ import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { extractJSON } from '../../utils/json-extractor.js'
 import { createHandler } from '../handler-wrapper.js'
 import { resolveClientProxy, createLLMClient, createClientForCharacter, resolveApiKey } from './llm-client-factory.js'
-import { saveUserMessage, generateCharacterResponse } from './llm-response-handler.js'
+import { saveUserMessage, generateCharacterResponse, safeSend } from './llm-response-handler.js'
 import { prepareCached } from '../../utils/statement-cache.js'
 import { prefilterHistoryMessages } from './llm-context-builder.js'
+
+/**
+ * 按群组的生成防重入表：groupId -> AbortController
+ * 同一群组收到新的生成请求时，abort 未完成的旧请求，
+ * 避免两轮生成并发交错写库导致消息顺序错乱
+ */
+const activeGenerations = new Map()
 
 /**
  * 通用 LLM JSON 调用：获取 Profile → 创建 Client → 调用 LLM（JSON 模式）→ 解析 JSON
@@ -165,109 +172,127 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       return { success: false, error: '没有启用的角色' }
     }
 
-    // 保存用户消息
-    saveUserMessage(db, groupId, userContent, userCharacter, event, messageType, eventImpact)
+    // 防重入：同群组存在未完成的旧生成时取消它，注册本轮的 AbortController
+    const previousController = activeGenerations.get(groupId)
+    if (previousController) previousController.abort()
+    const controller = new AbortController()
+    activeGenerations.set(groupId, controller)
 
-    // 根据回复模式调用 LLM
-    const responseMode = group.response_mode || 'sequential'
-    const thinkingEnabled = group.thinking_enabled === 1
-    const randomOrder = group.random_order === 1
-    const responses = []
+    try {
+      // 保存用户消息
+      saveUserMessage(db, groupId, userContent, userCharacter, event, messageType, eventImpact)
 
-    // 叙事引擎共享的 LLM 客户端上下文（避免重复传递 4 个参数）
-    const narrativeClientCtx = { createClientForCharacter, group, llmProfiles, apiKey }
+      // 根据回复模式调用 LLM
+      const responseMode = group.response_mode || 'sequential'
+      const thinkingEnabled = group.thinking_enabled === 1
+      const randomOrder = group.random_order === 1
+      const responses = []
 
-    if (responseMode === 'parallel') {
-      // 并行模式：同时调用所有角色
-      const promises = characters.map(character => {
-        const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-        const narrativeEnabled = group.narrative_enabled === 1
-        const narrativeContext = (narrativeEngine && narrativeEnabled)
-          ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
-          : []
-        return generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
-          thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
-          allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1, narrativeContext
+      // 叙事引擎共享的 LLM 客户端上下文（避免重复传递 4 个参数）
+      const narrativeClientCtx = { createClientForCharacter, group, llmProfiles, apiKey }
+
+      if (responseMode === 'parallel') {
+        // 并行模式：同时调用所有角色
+        const promises = characters.map(character => {
+          const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
+          const narrativeEnabled = group.narrative_enabled === 1
+          const narrativeContext = (narrativeEngine && narrativeEnabled)
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            : []
+          return generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
+            thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
+            allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1, narrativeContext,
+            signal: controller.signal
+          })
         })
-      })
-      const results = await Promise.all(promises)
-      responses.push(...results)
-
-      // 叙事后处理：好感度更新 + LLM 情绪推断
-      if (narrativeEngine && group.narrative_enabled === 1) {
-        for (const resp of responses) {
-          if (!resp.success) continue
-          try {
-            await narrativeEngine.postCharacterResponse(
-              db, resp.characterId, groupId, userContent, resp.content,
-              allCharacters, narrativeClientCtx
-            )
-          } catch (err) {
-            log.error(`postCharacterResponse 失败 (${resp.characterName}):`, err.message)          }
-        }
-      }
-    } else {
-      // 顺序模式：依次调用每个角色
-      // 随机发言模式：打乱角色顺序（操作副本，不修改原数组）
-      const orderedCharacters = randomOrder ? [...characters] : characters
-      if (randomOrder) {
-        for (let i = orderedCharacters.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [orderedCharacters[i], orderedCharacters[j]] = [orderedCharacters[j], orderedCharacters[i]]
-        }
-      }
-
-      for (const character of orderedCharacters) {
-        const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-        const narrativeContext = (narrativeEngine && group.narrative_enabled === 1)
-          ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
-          : []
-        const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
-          thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
-          allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1, narrativeContext
-        })
-        responses.push(response)
+        const results = await Promise.all(promises)
+        responses.push(...results)
 
         // 叙事后处理：好感度更新 + LLM 情绪推断
-        if (narrativeEngine && group.narrative_enabled === 1 && response.success) {
-          try {
-            await narrativeEngine.postCharacterResponse(
-              db, character.id, groupId, userContent, response.content,
-              allCharacters, narrativeClientCtx
-            )
-          } catch (err) {
-            log.error(`postCharacterResponse 失败 (${character.name}):`, err.message)
+        if (narrativeEngine && group.narrative_enabled === 1) {
+          for (const resp of responses) {
+            if (!resp.success) continue
+            try {
+              await narrativeEngine.postCharacterResponse(
+                db, resp.characterId, groupId, userContent, resp.content,
+                allCharacters, narrativeClientCtx
+              )
+            } catch (err) {
+              log.error(`postCharacterResponse 失败 (${resp.characterName}):`, err.message)          }
+          }
+        }
+      } else {
+        // 顺序模式：依次调用每个角色
+        // 随机发言模式：打乱角色顺序（操作副本，不修改原数组）
+        const orderedCharacters = randomOrder ? [...characters] : characters
+        if (randomOrder) {
+          for (let i = orderedCharacters.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [orderedCharacters[i], orderedCharacters[j]] = [orderedCharacters[j], orderedCharacters[i]]
           }
         }
 
-        // 将上一个角色的回复添加到历史上下文
-        if (response.success) {
-          history.push({
-            role: 'assistant',
-            content: response.content,
-            character_id: response.characterId,
-            character_name: response.characterName,
-            character_is_user: 0
+        for (const character of orderedCharacters) {
+          const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
+          const narrativeContext = (narrativeEngine && group.narrative_enabled === 1)
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            : []
+          const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
+            thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
+            allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1, narrativeContext,
+            signal: controller.signal
           })
+          responses.push(response)
+
+          // 本轮生成已被新请求取消：跳过后续角色、叙事后处理与历史注入
+          if (response.aborted) break
+
+          // 叙事后处理：好感度更新 + LLM 情绪推断
+          if (narrativeEngine && group.narrative_enabled === 1 && response.success) {
+            try {
+              await narrativeEngine.postCharacterResponse(
+                db, character.id, groupId, userContent, response.content,
+                allCharacters, narrativeClientCtx
+              )
+            } catch (err) {
+              log.error(`postCharacterResponse 失败 (${character.name}):`, err.message)
+            }
+          }
+
+          // 将上一个角色的回复添加到历史上下文
+          if (response.success) {
+            history.push({
+              role: 'assistant',
+              content: response.content,
+              character_id: response.characterId,
+              character_name: response.characterName,
+              character_is_user: 0
+            })
+          }
         }
       }
-    }
 
-    // 所有角色回复完成后，生成余波
-    if (narrativeEngine) {
-      try {
-        const aftermathMessages = await narrativeEngine.generateAftermath(
-          db, groupId, userContent, responses, allCharacters, narrativeClientCtx
-        )
-        for (const msg of aftermathMessages) {
-          event.sender.send('narrative:aftermath', msg)
+      // 所有角色回复完成后，生成余波（本轮已被取消时跳过，由新请求负责）
+      if (narrativeEngine && !controller.signal.aborted) {
+        try {
+          const aftermathMessages = await narrativeEngine.generateAftermath(
+            db, groupId, userContent, responses, allCharacters, narrativeClientCtx
+          )
+          for (const msg of aftermathMessages) {
+            safeSend(event, 'narrative:aftermath', msg)
+          }
+        } catch (err) {
+          log.error('余波编排失败:', err.message)
         }
-      } catch (err) {
-        log.error('余波编排失败:', err.message)
+      }
+
+      return { success: true, data: responses }
+    } finally {
+      // 仅当 Map 中仍是本轮 controller 时清除（避免误删接棒的新请求）
+      if (activeGenerations.get(groupId) === controller) {
+        activeGenerations.delete(groupId)
       }
     }
-
-    return { success: true, data: responses }
   }, 'LLM:generate'))
 
   // 生成单角色指令回复
@@ -276,26 +301,40 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     const ctx = prepareGenerationContext(dbManager, groupId)
     const { db, group, userCharacter, allCharacters, history, apiKey, llmProfiles } = ctx
 
-    // 保存用户指令消息
-    saveUserMessage(db, groupId, instruction, userCharacter, event)
+    // 防重入：同群组存在未完成的旧生成时取消它
+    const previousController = activeGenerations.get(groupId)
+    if (previousController) previousController.abort()
+    const controller = new AbortController()
+    activeGenerations.set(groupId, controller)
 
-    // 获取指定角色
-    const character = prepareCached(db, 'SELECT * FROM characters WHERE id = ?').get(characterId)
-    if (!character) {
-      return { success: false, error: '角色不存在' }
-    }
+    try {
+      // 保存用户指令消息
+      saveUserMessage(db, groupId, instruction, userCharacter, event)
 
-    // 创建客户端并生成回复
-    const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
-    const thinkingEnabled = group.thinking_enabled === 1
-    const response = await generateCharacterResponse(
-      client, character, history, instruction, event, groupId, db, {
-        thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
-        allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1
+      // 获取指定角色
+      const character = prepareCached(db, 'SELECT * FROM characters WHERE id = ?').get(characterId)
+      if (!character) {
+        return { success: false, error: '角色不存在' }
       }
-    )
 
-    return { success: true, data: [response] }
+      // 创建客户端并生成回复
+      const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
+      const thinkingEnabled = group.thinking_enabled === 1
+      const response = await generateCharacterResponse(
+        client, character, history, instruction, event, groupId, db, {
+          thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
+          allCharacters, memoryManager, autoMemoryExtract: group.auto_memory_extract === 1,
+          signal: controller.signal
+        }
+      )
+
+      return { success: true, data: [response] }
+    } finally {
+      // 仅当 Map 中仍是本轮 controller 时清除（避免误删接棒的新请求）
+      if (activeGenerations.get(groupId) === controller) {
+        activeGenerations.delete(groupId)
+      }
+    }
   }, 'LLM:generateCharacterCommand'))
 
   // 生成角色信息（角色抽卡）

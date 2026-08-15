@@ -194,7 +194,7 @@ export class LLMClient extends BaseLLMClient {
     } catch (error) {
       // 处理取消请求
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        return { success: false, error: '请求已取消' }
+        return { success: false, aborted: true, error: '请求已取消' }
       }
       return this.handleError(error, OPENAI_STATUS_MAP)
     }

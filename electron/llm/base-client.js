@@ -144,7 +144,7 @@ export class BaseLLMClient {
         // 处理已取消的信号
         if (signal && signal.aborted) {
           response.data.destroy()
-          resolve({ success: false, error: '请求已取消' })
+          resolve({ success: false, aborted: true, error: '请求已取消' })
           return
         }
 
@@ -222,14 +222,14 @@ export class BaseLLMClient {
             if (settled) return
             settled = true
             response.data.destroy()
-            resolve({ success: false, error: '请求已取消' })
+            resolve({ success: false, aborted: true, error: '请求已取消' })
           }
           signal.addEventListener('abort', onAbort, { once: true })
         }
       })
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        return { success: false, error: '请求已取消' }
+        return { success: false, aborted: true, error: '请求已取消' }
       }
       // 流式请求非 2xx 时 error.response.data 是未消费的 Stream，
       // 先读取并解析错误体（同时释放 socket），再走同步 handleError 组装

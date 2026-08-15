@@ -242,7 +242,7 @@ export class AnthropicClient extends BaseLLMClient {
       }
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-        return { success: false, error: '请求已取消' }
+        return { success: false, aborted: true, error: '请求已取消' }
       }
       // Anthropic 错误格式: { error: { type, message } }
       if (error.response?.data?.error?.message) {

@@ -12,6 +12,23 @@ const log = createLogger('LLM')
 import { buildContextMessages, fetchCharacterMemories, extractMemoriesAsync } from './llm-context-builder.js'
 
 /**
+ * 安全发送 IPC 消息到渲染进程
+ * 渲染进程已销毁（窗口关闭/刷新）时不抛错，避免影响已完成的业务结果（如已入库消息）
+ * @param {object} event - IPC 事件对象
+ * @param {string} channel - 频道名
+ * @param {object} payload - 消息内容
+ */
+export function safeSend(event, channel, payload) {
+  try {
+    if (event?.sender && !event.sender.isDestroyed()) {
+      event.sender.send(channel, payload)
+    }
+  } catch {
+    // 渲染进程已销毁：通知失败不影响业务结果
+  }
+}
+
+/**
  * 保存用户消息到数据库并通知前端
  * @param {object} db - 数据库连接
  * @param {string} groupId - 群组 ID
@@ -31,7 +48,7 @@ export function saveUserMessage(db, groupId, content, userCharacter, event, mess
   `).run(userMsgId, groupId, userCharacter?.id || null, 'user', content, messageType, eventImpact, nowTimestampMs())
 
   // 通知前端：用户消息已保存（包含真实 ID）
-  event.sender.send('message:user:saved', {
+  safeSend(event, 'message:user:saved', {
     tempId: 'user_' + Date.now(),
     id: userMsgId,
     group_id: groupId,
@@ -64,6 +81,7 @@ export function saveUserMessage(db, groupId, content, userCharacter, event, mess
  * @param {object|null} [options.memoryManager=null] - 记忆管理器
  * @param {boolean} [options.autoMemoryExtract=false] - 是否自动提取记忆
  * @param {Array} [options.narrativeContext=[]] - 叙事上下文
+ * @param {AbortSignal} [options.signal=null] - 取消信号（同群组新请求会 abort 旧请求）
  * @returns {Promise<object>} 生成结果
  */
 export async function generateCharacterResponse(client, character, history, userContent, event, groupId, db, options = {}) {
@@ -74,13 +92,14 @@ export async function generateCharacterResponse(client, character, history, user
     allCharacters = [],
     memoryManager = null,
     autoMemoryExtract = false,
-    narrativeContext = []
+    narrativeContext = [],
+    signal = null
   } = options
 
   // 批处理器：聚合流式 chunk，按 50ms 间隔批量发送，减少 IPC 次数
   // 在 try 外声明，确保 catch 中也能安全清理
   const batcher = new StreamBatcher((payload) => {
-    event.sender.send('message:stream:chunk', payload)
+    safeSend(event, 'message:stream:chunk', payload)
   })
 
   try {
@@ -97,7 +116,7 @@ export async function generateCharacterResponse(client, character, history, user
     const tempMessageId = 'temp_' + Date.now() + '_' + character.id
 
     // 通知渲染进程：开始生成
-    event.sender.send('message:stream:start', {
+    safeSend(event, 'message:stream:start', {
       tempId: tempMessageId,
       groupId: groupId,
       characterId: character.id,
@@ -107,9 +126,10 @@ export async function generateCharacterResponse(client, character, history, user
       timestamp: new Date().toISOString()
     })
 
-    // 调用 LLM（使用流式输出）
+    // 调用 LLM（使用流式输出，signal 用于防重入取消）
     const result = await client.chat(messages, {
       thinkingEnabled: characterThinkingEnabled,
+      signal,
       onChunk: (chunk) => {
         // chunk 格式: { type: 'reasoning' | 'content', content: string }
         if (chunk.type === 'reasoning' || chunk.type === 'content') {
@@ -133,7 +153,7 @@ export async function generateCharacterResponse(client, character, history, user
       `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel, nowTimestampMs())
 
       // 通知渲染进程：流式结束，发送完整消息
-      event.sender.send('message:stream:end', {
+      safeSend(event, 'message:stream:end', {
         tempId: tempMessageId,
         finalId: assistantMsgId,
         groupId: groupId,
@@ -163,13 +183,25 @@ export async function generateCharacterResponse(client, character, history, user
         usage: result.usage || null
       }
     } else {
+      // 请求被取消（同群组新请求取代本请求）：不写库、不推送错误、不发送剩余 chunk
+      if (result.aborted || signal?.aborted) {
+        batcher.destroy()
+        return {
+          success: false,
+          aborted: true,
+          characterId: character.id,
+          characterName: character.name,
+          error: '请求已取消'
+        }
+      }
+
       log.error(`${character.name} - 回复生成失败`, result.error)
 
       // 流式已中断，刷新剩余 chunk 后再发送错误事件
       batcher.flush()
 
       // 通知渲染进程：生成失败
-      event.sender.send('message:stream:error', {
+      safeSend(event, 'message:stream:error', {
         tempId: tempMessageId,
         error: result.error
       })
@@ -183,6 +215,17 @@ export async function generateCharacterResponse(client, character, history, user
     }
   } catch (error) {
     log.error(`${character.name} - 生成过程异常`, error)
+    // 请求被取消：清理批处理器（不 flush），不推送错误
+    if (signal?.aborted) {
+      batcher.destroy()
+      return {
+        success: false,
+        aborted: true,
+        characterId: character.id,
+        characterName: character.name,
+        error: '请求已取消'
+      }
+    }
     // 清理批处理器定时器；尝试刷新已累积的 chunk 后通知前端移除临时消息
     batcher.flush()
     batcher.destroy()
