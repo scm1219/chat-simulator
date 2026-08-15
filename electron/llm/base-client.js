@@ -7,10 +7,25 @@
  * - 连接测试
  */
 import axios from 'axios'
+import http from 'node:http'
+import https from 'node:https'
+import { SocksProxyAgent } from 'socks-proxy-agent'
 import { shouldBypassProxy } from './proxy.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('LLM')
+
+/**
+ * 构建 SOCKS 代理 URL（含认证信息）
+ * @param {object} proxy - resolveProfileProxy 返回的代理配置 { host, port, auth? }
+ * @returns {string} socks5://[user:pass@]host:port
+ */
+function buildSocksProxyUrl(proxy) {
+  const credential = proxy.auth
+    ? `${encodeURIComponent(proxy.auth.username)}:${encodeURIComponent(proxy.auth.password)}@`
+    : ''
+  return `socks5://${credential}${proxy.host}:${proxy.port}`
+}
 
 export class BaseLLMClient {
   /**
@@ -27,22 +42,37 @@ export class BaseLLMClient {
     this.model = config.model
     this.timeout = config.timeout || 60000
 
-    // 创建 Axios 实例
+    // SOCKS5 代理：axios 仅支持 http/https 协议代理，socks5 需经
+    // socks-proxy-agent 以 httpAgent/httpsAgent 方式注入并禁用 axios 内置代理
+    const proxyConfig = config.proxy
+    const socksAgent =
+      proxyConfig && proxyConfig.protocol === 'socks5'
+        ? new SocksProxyAgent(buildSocksProxyUrl(proxyConfig))
+        : null
+
+    // 创建 Axios 实例（http/https 代理路径保持原有 proxy 字段注入不变）
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: this.timeout,
       headers: config.headers || { 'Content-Type': 'application/json' },
-      proxy: config.proxy ?? undefined
+      proxy: socksAgent ? false : (proxyConfig ?? undefined),
+      ...(socksAgent ? { httpAgent: socksAgent, httpsAgent: socksAgent } : {})
     })
 
     // 代理绕过规则拦截器
     const bypassRules = config.bypassRules || ''
-    const proxyConfig = config.proxy
     if (bypassRules && proxyConfig) {
+      // SOCKS agent 挂在实例级 agent 上，绕过时需替换为直连 agent
+      const directHttpAgent = socksAgent ? new http.Agent() : null
+      const directHttpsAgent = socksAgent ? new https.Agent() : null
       this.client.interceptors.request.use((request) => {
         const targetURL = `${request.baseURL || ''}${request.url || ''}`
         if (shouldBypassProxy(targetURL, bypassRules)) {
           request.proxy = false
+          if (socksAgent) {
+            request.httpAgent = directHttpAgent
+            request.httpsAgent = directHttpsAgent
+          }
         }
         return request
       })

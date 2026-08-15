@@ -52,31 +52,6 @@ export function saveProxyConfig(config) {
   }
 }
 
-/**
- * 构建 Axios 代理配置（全局代理，向后兼容）
- */
-export function buildAxiosProxyConfig(proxyConfig) {
-  if (!proxyConfig || !proxyConfig.enabled) {
-    return undefined
-  }
-
-  const { protocol, host, port, username, password } = proxyConfig
-
-  if (!host || !port) {
-    return undefined
-  }
-
-  return {
-    protocol: protocol === 'socks5' ? 'socks5' : undefined,
-    host: host,
-    port: port,
-    auth: username && password ? {
-      username: username,
-      password: password
-    } : undefined
-  }
-}
-
 // ============ Profile 级别代理 ============
 
 /**
