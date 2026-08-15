@@ -201,7 +201,6 @@ memoryManager.close()
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
 | `getProviders()` | 无 | `{ success, data: Provider[] }` | 获取所有 LLM 供应商 |
-| `getModels(provider)` | 供应商 ID | `{ success, data: string[] }` | 获取供应商的模型列表 |
 | `testConnection(config)` | LLM 配置 | `{ success, message, model }` | 测试 LLM 连接 |
 | `generate(groupId, content, options)` | 群组 ID, 用户消息, 选项（含 `messageType`） | 流式事件 | 生成 AI 回复（流式） |
 | `generateCharacterCommand(...)` | 群组/角色/指令 | 流式事件 | 单角色指令回复 |

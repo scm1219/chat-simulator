@@ -226,7 +226,7 @@
           不使用任何代理，直接连接 API 服务器
         </template>
         <template v-else-if="proxyType === 'system'">
-          使用操作系统或环境变量中配置的代理（HTTP_PROXY / HTTPS_PROXY）
+          使用环境变量 HTTP_PROXY/HTTPS_PROXY 中配置的代理
         </template>
         <template v-else>
           使用自定义代理地址连接 API 服务器

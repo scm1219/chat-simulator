@@ -180,30 +180,6 @@ export class OllamaNativeClient extends BaseLLMClient {
   }
 
   /**
-   * 获取可用模型列表
-   * Ollama 原生 API: GET /api/tags
-   */
-  async getModels() {
-    try {
-      const response = await this.client.get('/api/tags')
-
-      if (response.data && response.data.models) {
-        return {
-          success: true,
-          models: response.data.models.map(m => m.name)
-        }
-      }
-
-      return {
-        success: true,
-        models: []
-      }
-    } catch (error) {
-      return this.handleError(error)
-    }
-  }
-
-  /**
    * 错误处理（使用 Ollama 状态码映射）
    */
   handleError(error) {

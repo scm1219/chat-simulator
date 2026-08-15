@@ -32,9 +32,14 @@ export async function callLLMForJSON({ profileId, messages, temperature = 0.9, m
     return { success: false, error: '请先在 LLM 配置管理中添加配置' }
   }
 
-  const profile = profileId
-    ? llmProfiles.find(p => p.id === profileId) || llmProfiles[0]
-    : llmProfiles[0]
+  let profile = profileId ? llmProfiles.find(p => p.id === profileId) : null
+  if (!profile) {
+    // 显式指定的 Profile 不存在时直接报错，仅在未指定时回退第一个
+    if (profileId) {
+      return { success: false, error: '指定的 LLM 配置不存在，请重新选择' }
+    }
+    profile = llmProfiles[0]
+  }
 
   const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
   const client = createLLMClient({
@@ -298,7 +303,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     const gachaConfig = getGachaConfig()
     const systemPrompt = gachaConfig.systemPrompt
     const userPrompt = hint
-      ? gachaConfig.userPromptTemplate.replace('{hint}', hint)
+      ? gachaConfig.userPromptTemplate.replace('{hint}', () => hint)
       : gachaConfig.defaultUserPrompt
 
     const jsonResult = await callLLMForJSON({
@@ -328,7 +333,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     const quickGroupConfig = getQuickGroupConfig()
     const systemPrompt = quickGroupConfig.systemPrompt
     const userPrompt = description
-      ? quickGroupConfig.userPromptTemplate.replace('{description}', description)
+      ? quickGroupConfig.userPromptTemplate.replace('{description}', () => description)
       : quickGroupConfig.defaultUserPrompt
 
     const jsonResult = await callLLMForJSON({

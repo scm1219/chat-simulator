@@ -58,7 +58,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ============ LLM 操作 ============
   llm: {
     getProviders: () => ipcRenderer.invoke('llm:getProviders'),
-    getModels: (provider) => ipcRenderer.invoke('llm:getModels', provider),
     testConnection: (config) => ipcRenderer.invoke('llm:testConnection', config),
     generate: (groupId, content, options) =>
       ipcRenderer.invoke('llm:generate', groupId, content, options),

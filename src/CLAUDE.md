@@ -391,7 +391,7 @@ src/
 #### 4. configStore（配置状态）
 **路径**：`src/stores/config.js`
 
-**方法**：`loadLLMConfig`、`saveLLMConfig`、`loadProxyConfig`、`saveProxyConfig`
+**方法**：`loadLLMConfig`、`saveLLMConfig`
 
 #### 5. llmProfilesStore（LLM 配置管理）
 **路径**：`src/stores/llm-profiles.js`

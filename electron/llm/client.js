@@ -228,21 +228,6 @@ export class LLMClient extends BaseLLMClient {
   }
 
   /**
-   * 获取可用模型列表
-   */
-  async getModels() {
-    try {
-      const response = await this.client.get('/models')
-      return {
-        success: true,
-        models: response.data.data.map(m => m.id)
-      }
-    } catch (error) {
-      return this.handleError(error, OPENAI_STATUS_MAP)
-    }
-  }
-
-  /**
    * 错误处理（使用 OpenAI 状态码映射）
    */
   handleError(error, statusMap = OPENAI_STATUS_MAP) {

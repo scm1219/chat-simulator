@@ -5,12 +5,12 @@
 import { LLMClient } from '../../llm/client.js'
 import { AnthropicClient } from '../../llm/anthropic-client.js'
 import { createLogger } from '../../utils/logger.js'
-
-const log = createLogger('LLM')
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getProviderConfig } from '../../llm/providers/index.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
 import { decryptSecret } from '../../utils/secure-storage.js'
+
+const log = createLogger('LLM')
 
 /**
  * 解析 Profile 代理配置为客户端可用的 proxy + bypassRules
@@ -52,7 +52,7 @@ export function createLLMClient(config) {
     })
   }
 
-  return new LLMClient({ provider, useNativeApi, baseURL, proxy, bypassRules, ...rest })
+  return new LLMClient({ provider, baseURL, proxy, bypassRules, ...rest })
 }
 
 /**
