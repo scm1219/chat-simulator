@@ -40,8 +40,11 @@ export const useGlobalCharactersStore = defineStore('globalCharacters', () => {
 
   async function getCharacterById(id) {
     const result = await call(() => window.electronAPI.globalCharacter.getById(id))
-    const tagsResult = await window.electronAPI.globalCharacter.getCharacterTags(id)
-    result.tags = tagsResult.success ? tagsResult.data : []
+    try {
+      result.tags = await call(() => window.electronAPI.globalCharacter.getCharacterTags(id))
+    } catch {
+      result.tags = [] // 标签加载失败不阻断角色详情（错误已由 call 记录日志）
+    }
     return result
   }
 

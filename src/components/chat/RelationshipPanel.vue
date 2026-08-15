@@ -64,6 +64,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNarrativeStore } from '../../stores/narrative.js'
+import { useToastStore } from '../../stores/toast'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -71,6 +72,7 @@ const props = defineProps({
 })
 
 const narrativeStore = useNarrativeStore()
+const toast = useToastStore()
 const showAddDialog = ref(false)
 const relationshipTypes = ref({})
 const form = ref({ fromId: '', toId: '', type: 'friend', description: '' })
@@ -104,16 +106,24 @@ function getFavorWidth(f) { return Math.max(0, Math.min(100, (f + 100) / 2)) }
 
 async function handleAdd() {
   if (!form.value.fromId || !form.value.toId || form.value.fromId === form.value.toId) return
-  await narrativeStore.setRelationship(
-    props.groupId, form.value.fromId, form.value.toId,
-    form.value.type, form.value.description
-  )
-  showAddDialog.value = false
-  form.value = { fromId: '', toId: '', type: 'friend', description: '' }
+  try {
+    await narrativeStore.setRelationship(
+      props.groupId, form.value.fromId, form.value.toId,
+      form.value.type, form.value.description
+    )
+    showAddDialog.value = false
+    form.value = { fromId: '', toId: '', type: 'friend', description: '' }
+  } catch (error) {
+    toast.error('添加关系失败: ' + error.message)
+  }
 }
 
 async function handleRemove(fromId, toId) {
-  await narrativeStore.removeRelationship(props.groupId, fromId, toId)
+  try {
+    await narrativeStore.removeRelationship(props.groupId, fromId, toId)
+  } catch (error) {
+    toast.error('删除关系失败: ' + error.message)
+  }
 }
 </script>
 

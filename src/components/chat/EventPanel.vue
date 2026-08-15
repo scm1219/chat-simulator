@@ -75,23 +75,23 @@ async function handleTrigger(event) {
   // 流式生成中禁止重复触发事件，避免并发生成
   if (messagesStore.sending) return
   try {
-    const result = await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
+    await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
     await refresh()
-    if (result.success) {
-      emit('eventTriggered', event)
-    }
+    emit('eventTriggered', event)
   } catch (error) {
     toast.error('触发事件失败: ' + error.message)
   }
 }
 
 async function handleDeleteEvent(eventId) {
-  const result = await narrativeStore.deleteEvent(props.groupId, eventId)
-  if (result.success) {
+  try {
+    const deletedMessages = await narrativeStore.deleteEvent(props.groupId, eventId)
     recentEvents.value = narrativeStore.recentEvents
-    if (result.deletedMessages) {
+    if (deletedMessages) {
       emit('eventDeleted')
     }
+  } catch (error) {
+    toast.error('删除事件失败: ' + error.message)
   }
 }
 

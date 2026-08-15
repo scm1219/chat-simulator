@@ -9,7 +9,7 @@ export const useNarrativeStore = defineStore('narrative', () => {
   const recentEvents = ref([])
   const staleness = ref({ stale: false, reason: null })
   const aftermathMessages = ref([])
-  const { silent } = useApi('Narrative')
+  const { silent, call } = useApi('Narrative')
 
   let emotionsSeq = 0 // 加载请求序号：防止快速切换群组时慢响应覆盖新群组数据
 
@@ -26,15 +26,14 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function setRelationship(groupId, fromId, toId, type, description = '') {
-    const result = await window.electronAPI.narrative.setRelationship(groupId, fromId, toId, type, description)
-    if (result.success) await fetchRelationships(groupId)
-    return result
+    const rel = await call(() => window.electronAPI.narrative.setRelationship(groupId, fromId, toId, type, description))
+    await fetchRelationships(groupId)
+    return rel
   }
 
   async function removeRelationship(groupId, fromId, toId) {
-    const result = await window.electronAPI.narrative.removeRelationship(groupId, fromId, toId)
-    if (result.success) await fetchRelationships(groupId)
-    return result
+    await call(() => window.electronAPI.narrative.removeRelationship(groupId, fromId, toId))
+    await fetchRelationships(groupId)
   }
 
   async function fetchEventSuggestions(groupId, sceneType) {
@@ -48,8 +47,8 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function triggerEvent(groupId, eventKey, content, impact) {
-    const result = await window.electronAPI.narrative.triggerEvent(groupId, eventKey, content, impact)
-    if (result.success) await fetchRecentEvents(groupId)
+    const result = await call(() => window.electronAPI.narrative.triggerEvent(groupId, eventKey, content, impact))
+    await fetchRecentEvents(groupId)
     return result
   }
 
@@ -59,9 +58,14 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function deleteEvent(groupId, eventId) {
-    const result = await window.electronAPI.narrative.deleteEvent(groupId, eventId)
-    if (result.success) await fetchRecentEvents(groupId)
-    return result
+    // 该 IPC 成功时返回 { success, deletedMessages }（无 data 字段），
+    // 适配为 call 的 { success, data } 约定，使失败走统一的日志与抛错路径
+    const deletedMessages = await call(async () => {
+      const result = await window.electronAPI.narrative.deleteEvent(groupId, eventId)
+      return result.success ? { success: true, data: !!result.deletedMessages } : result
+    })
+    await fetchRecentEvents(groupId)
+    return deletedMessages
   }
 
   function setupAftermathListener() {
