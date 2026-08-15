@@ -85,15 +85,20 @@ export class AnthropicClient extends BaseLLMClient {
       return { done: false }
     }
 
-    if (!line.startsWith('data: ')) return { done: false }
+    if (!line.startsWith('data:')) return { done: false }
 
-    const data = line.slice(6).trim()
-    if (!data) return { done: false }
+    // SSE 规范允许 `data:` 后不带空格，兼容两种写法
+    const data = line.slice(5)
+    const trimmed = (data.startsWith(' ') ? data.slice(1) : data).trim()
+    if (!trimmed) return { done: false }
 
     try {
-      const parsed = JSON.parse(data)
+      const parsed = JSON.parse(trimmed)
 
-      switch (state.currentEvent) {
+      // 事件类型以 data 载荷自带的 type 字段优先；event: 行仅作兜底
+      // （部分中间层/网关会剥离 event: 行）
+      const type = parsed.type || state.currentEvent
+      switch (type) {
         case 'message_start':
           if (parsed.message?.model && !state.responseModel) {
             state.responseModel = parsed.message.model
@@ -162,9 +167,11 @@ export class AnthropicClient extends BaseLLMClient {
       // 转换消息格式（OpenAI → Anthropic）
       const { system, messages: anthropicMessages } = this._convertMessages(messages)
 
+      const maxTokens = options.maxTokens || 2000
+
       const requestData = {
         model: this.model,
-        max_tokens: options.maxTokens || 2000,
+        max_tokens: maxTokens,
         messages: anthropicMessages,
         stream: !!isStreaming
       }
@@ -180,9 +187,15 @@ export class AnthropicClient extends BaseLLMClient {
       }
 
       // 思考模式（显式传参，避免 MiniMaxi 默认开启）
+      // thinking 预算必须严格小于 max_tokens（Anthropic/MiniMax 协议校验）
+      const budgetTokens = Math.min(Math.max(1024, Math.floor(maxTokens * 0.6)), maxTokens - 1)
       requestData.thinking = options.thinkingEnabled
-        ? { type: 'enabled', budget_tokens: 10000 }
+        ? { type: 'enabled', budget_tokens: budgetTokens }
         : { type: 'disabled' }
+      // 开启思考时若预算抬升导致 max_tokens 偏小，同步抬高 max_tokens
+      if (options.thinkingEnabled) {
+        requestData.max_tokens = Math.max(maxTokens, budgetTokens + 1)
+      }
 
       if (isStreaming) {
         return await this.chatStream(requestData, options.onChunk, signal)

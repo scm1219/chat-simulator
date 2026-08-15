@@ -65,13 +65,15 @@ export class LLMClient extends BaseLLMClient {
    * 格式：`data: {json}` 或 `data: [DONE]`
    */
   _parseStreamLine(line, state, onChunk) {
-    if (!line.startsWith('data: ')) return { done: false }
+    if (!line.startsWith('data:')) return { done: false }
 
-    const data = line.slice(6)
-    if (data === '[DONE]') return { done: true }
+    // SSE 规范允许 `data:` 后不带空格，兼容两种写法
+    const data = line.slice(5)
+    const trimmed = data.startsWith(' ') ? data.slice(1) : data
+    if (trimmed === '[DONE]') return { done: true }
 
     try {
-      const parsed = JSON.parse(data)
+      const parsed = JSON.parse(trimmed)
       const delta = parsed.choices?.[0]?.delta
 
       const content = delta?.content
