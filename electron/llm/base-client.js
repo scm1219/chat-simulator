@@ -148,49 +148,92 @@ export class BaseLLMClient {
           return
         }
 
+        // settle 状态：覆盖 data/end/error/abort 四类事件，
+        // settled 后 data 直接丢弃、end 不再 resolve、error 不再 reject
+        let settled = false
+        let onAbort = null
+
+        // 请求结束后移除 abort 监听器，避免信号持有流引用导致泄漏
+        const cleanup = () => {
+          if (signal && onAbort) {
+            signal.removeEventListener('abort', onAbort)
+            onAbort = null
+          }
+        }
+
         let lineBuffer = ''
 
         response.data.on('data', (chunk) => {
-          lineBuffer += chunk.toString()
-          const lines = lineBuffer.split('\n')
-          lineBuffer = lines.pop() || ''
+          if (settled) return
+          try {
+            lineBuffer += chunk.toString()
+            const lines = lineBuffer.split('\n')
+            lineBuffer = lines.pop() || ''
 
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed === '') continue
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (trimmed === '') continue
 
-            const result = this._parseStreamLine(trimmed, state, onChunk)
-            if (result && result.done) {
-              resolve(buildResult())
-              return
+              const result = this._parseStreamLine(trimmed, state, onChunk)
+              if (result && result.done) {
+                // 收到协议结束符：立即 settle 并销毁流，丢弃后续 data 事件
+                settled = true
+                cleanup()
+                response.data.destroy()
+                resolve(buildResult())
+                return
+              }
             }
+          } catch (error) {
+            // 回调抛异常时也必须 settle，否则外层 Promise 永久悬挂
+            settled = true
+            cleanup()
+            response.data.destroy()
+            reject(this.handleError(error))
           }
         })
 
         response.data.on('end', () => {
-          // 处理缓冲区中可能残留的数据
-          if (lineBuffer.trim()) {
-            this._parseStreamLine(lineBuffer.trim(), state, onChunk)
+          if (settled) return
+          settled = true
+          cleanup()
+          try {
+            // 处理缓冲区中可能残留的数据
+            if (lineBuffer.trim()) {
+              this._parseStreamLine(lineBuffer.trim(), state, onChunk)
+            }
+          } catch (error) {
+            reject(this.handleError(error))
+            return
           }
           resolve(buildResult())
         })
 
         response.data.on('error', (error) => {
+          if (settled) return
+          settled = true
+          cleanup()
           reject(this.handleError(error))
         })
 
         // 监听取消信号
         if (signal) {
-          signal.addEventListener('abort', () => {
+          onAbort = () => {
+            if (settled) return
+            settled = true
             response.data.destroy()
             resolve({ success: false, error: '请求已取消' })
-          }, { once: true })
+          }
+          signal.addEventListener('abort', onAbort, { once: true })
         }
       })
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return { success: false, error: '请求已取消' }
       }
+      // 流式请求非 2xx 时 error.response.data 是未消费的 Stream，
+      // 先读取并解析错误体（同时释放 socket），再走同步 handleError 组装
+      await BaseLLMClient.consumeErrorStream(error)
       return this.handleError(error)
     }
   }
@@ -198,7 +241,38 @@ export class BaseLLMClient {
   // ============ 公共错误处理 ============
 
   /**
-   * 通用错误处理
+   * 读取并解析流式错误响应体（error.response.data 为未消费的 Stream）
+   * 解析成功后将 error.response.data 替换为已解析对象，使同步 handleError
+   * 能提取服务器错误信息；读取失败时保持原样（socket 已尽力释放）
+   * @param {Error} error - axios 抛出的错误对象
+   * @returns {Promise<Error>} 原 error 对象（便于链式使用）
+   */
+  static async consumeErrorStream(error) {
+    const stream = error?.response?.data
+    if (!stream || typeof stream.on !== 'function') {
+      return error
+    }
+    try {
+      const body = await new Promise((resolve) => {
+        let text = ''
+        stream.setEncoding('utf8')
+        stream.on('data', (chunk) => { text += chunk })
+        stream.on('end', () => resolve(text))
+        stream.on('error', () => resolve(''))
+      })
+      try {
+        const parsed = JSON.parse(body)
+        if (parsed?.error?.message || parsed?.error || parsed?.message) {
+          error.response.data = parsed
+        }
+      } catch { /* 非 JSON 错误体，保持原 error */ }
+    } catch { /* 忽略读取失败 */ }
+    return error
+  }
+
+  /**
+   * 通用错误处理（保持同步：子类多处同步调用，流式错误体
+   * 由 chatStream 的 catch 先经 consumeErrorStream 消费后再进入此处）
    * @param {Error} error - 错误对象
    * @param {object} [statusMap] - HTTP 状态码到错误信息的映射
    * @param {string} [networkError='网络连接失败，请检查网络设置或代理配置'] - 网络错误信息
