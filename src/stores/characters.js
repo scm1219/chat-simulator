@@ -14,9 +14,13 @@ export const useCharactersStore = defineStore('characters', () => {
     return map
   })
 
+  let loadSeq = 0 // 加载请求序号：防止快速切换群组时慢响应覆盖新群组数据
+
   async function loadCharacters(groupId) {
     if (!groupId) { characters.value = []; return }
+    const seq = ++loadSeq
     const data = await load(() => window.electronAPI.character.getByGroupId(groupId))
+    if (seq !== loadSeq) return // 已有更新的加载请求，丢弃过期响应
     if (data) characters.value = data
   }
 

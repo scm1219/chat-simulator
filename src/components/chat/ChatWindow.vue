@@ -612,6 +612,7 @@ onMounted(async () => {
 onUnmounted(() => {
   cleanupStreamListeners?.()
   cleanupAftermath?.()
+  messagesStore.cleanup()
 })
 </script>
 

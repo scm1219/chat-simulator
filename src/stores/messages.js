@@ -19,6 +19,7 @@ export const useMessagesStore = defineStore('messages', () => {
   let streamEndListener = null
   let streamErrorListener = null
   let _cleanupStreamListeners = null // 流式监听器清理函数
+  let loadSeq = 0 // 加载请求序号：防止快速切换群组时慢响应覆盖新群组数据
 
   // 方法
   async function loadMessages(groupId) {
@@ -27,9 +28,11 @@ export const useMessagesStore = defineStore('messages', () => {
       return
     }
 
+    const seq = ++loadSeq
     loading.value = true
     try {
       const result = await window.electronAPI.message.getByGroupId(groupId)
+      if (seq !== loadSeq) return // 已有更新的加载请求，丢弃过期响应
       if (result.success) {
         // 历史消息直接显示，不需要打字机效果
         messages.value = result.data
@@ -37,7 +40,7 @@ export const useMessagesStore = defineStore('messages', () => {
     } catch (error) {
       log.error('加载消息失败:', error)
     } finally {
-      loading.value = false
+      if (seq === loadSeq) loading.value = false
     }
   }
 
@@ -102,6 +105,8 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   function appendMessage(message) {
+    // 群组守卫：切群后旧群消息不污染当前列表（消息负载为 DB 形态，字段为 group_id）
+    if (message.group_id && message.group_id !== useGroupsStore().currentGroupId) return
     messages.value.push(message)
   }
 
@@ -112,8 +117,10 @@ export const useMessagesStore = defineStore('messages', () => {
       return
     }
 
+    // 移除上一次注册的监听器，防止重复注册
     if (messageListener) {
-      window.electronAPI.message.onNewMessage(() => {})()
+      messageListener()
+      messageListener = null
     }
     messageListener = window.electronAPI.message.onNewMessage(callback)
   }
@@ -124,6 +131,15 @@ export const useMessagesStore = defineStore('messages', () => {
       _cleanupStreamListeners()
       _cleanupStreamListeners = null
     }
+  }
+
+  // 统一清理：普通消息监听器 + 流式监听器
+  function cleanup() {
+    if (messageListener) {
+      messageListener()
+      messageListener = null
+    }
+    cleanupStreamListeners()
   }
 
   // 设置流式消息监听器
@@ -141,6 +157,8 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听用户消息保存事件（添加用户消息到前端）
     const userMessageSavedListener = window.electronAPI.message.onUserMessageSaved((data) => {
+      // 群组守卫：切群后旧群的用户消息不污染当前列表（负载字段为 group_id）
+      if (data.group_id && data.group_id !== useGroupsStore().currentGroupId) return
       // 检查是否已存在相同的消息（避免重复）
       const exists = messages.value.some(msg =>
         msg.id === data.id ||
@@ -153,6 +171,8 @@ export const useMessagesStore = defineStore('messages', () => {
 
     // 监听流式开始
     streamStartListener = window.electronAPI.message.onStreamStart((data) => {
+      // 群组守卫：切群后旧群的流式消息不进入当前列表（负载字段为 groupId）
+      if (data.groupId && data.groupId !== useGroupsStore().currentGroupId) return
       const tempMsg = {
         ...data,
         tempId: data.tempId,
@@ -183,12 +203,15 @@ export const useMessagesStore = defineStore('messages', () => {
     // 监听流式结束
     streamEndListener = window.electronAPI.message.onStreamEnd((data) => {
       // O(1) 查找 + O(n) splice（仅执行一次）
+      // 无论群组是否匹配，都先清理临时流式消息，避免 streamingMessages Map 残留
       const tempMsg = streamingMessages.value.get(data.tempId)
       if (tempMsg) {
         const idx = messages.value.indexOf(tempMsg)
         if (idx !== -1) messages.value.splice(idx, 1)
         streamingMessages.value.delete(data.tempId)
       }
+      // 群组守卫：切群后旧群的最终消息不污染当前列表（负载字段为 groupId）
+      if (data.groupId && data.groupId !== useGroupsStore().currentGroupId) return
       // 添加最终消息（包含思考内容）
       messages.value.push({
         id: data.finalId,
@@ -342,6 +365,7 @@ export const useMessagesStore = defineStore('messages', () => {
     setupMessageListener,
     setupStreamListeners,
     cleanupStreamListeners,
+    cleanup,
     clearMessages,
     clearLocalMessages,
     updateMessage,

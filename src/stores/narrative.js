@@ -11,8 +11,12 @@ export const useNarrativeStore = defineStore('narrative', () => {
   const aftermathMessages = ref([])
   const { silent } = useApi('Narrative')
 
+  let emotionsSeq = 0 // 加载请求序号：防止快速切换群组时慢响应覆盖新群组数据
+
   async function fetchEmotions(groupId) {
+    const seq = ++emotionsSeq
     const r = await silent(() => window.electronAPI.narrative.getEmotions(groupId))
+    if (seq !== emotionsSeq) return // 已有更新的加载请求，丢弃过期响应
     if (r?.success) emotions.value = r.data
   }
 
