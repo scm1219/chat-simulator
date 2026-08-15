@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { atomicWriteJson } from '../utils/atomic-write.js'
 import { createLogger } from '../utils/logger.js'
 import { encryptSecret, decryptSecret } from '../utils/secure-storage.js'
 
@@ -133,7 +134,7 @@ function createConfigManager(configFilePath, defaults, label, hooks = {}) {
       try {
         ensureConfigDir(configFilePath)
         const serialized = onSave ? onSave(config) : config
-        fs.writeFileSync(configFilePath, JSON.stringify(serialized, null, 2))
+        atomicWriteJson(configFilePath, serialized)
         return true
       } catch (error) {
         log.error(`保存${label}配置失败`, error)

@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { atomicWriteJson } from '../utils/atomic-write.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('SystemPrompts')
@@ -94,7 +95,7 @@ export function getSystemPromptTemplates() {
 export function saveSystemPromptTemplates(templates) {
   try {
     ensureConfigDir(CONFIG_FILE)
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify({ templates }, null, 2))
+    atomicWriteJson(CONFIG_FILE, { templates })
     return true
   } catch (error) {
     log.error('保存模板配置失败', error)

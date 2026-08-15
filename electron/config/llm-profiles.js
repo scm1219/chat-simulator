@@ -8,6 +8,7 @@ import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
 import { ensureConfigDir } from '../utils/config-dir.js'
+import { atomicWriteJson } from '../utils/atomic-write.js'
 import { createLogger } from '../utils/logger.js'
 import { encryptSecret, decryptSecret } from '../utils/secure-storage.js'
 
@@ -101,7 +102,7 @@ function saveLLMProfiles(profiles) {
   try {
     ensureConfigDir(LLM_PROFILES_FILE)
     const serialized = profiles.map(profile => ({ ...profile, apiKey: encryptSecret(profile.apiKey) }))
-    fs.writeFileSync(LLM_PROFILES_FILE, JSON.stringify(serialized, null, 2))
+    atomicWriteJson(LLM_PROFILES_FILE, serialized)
     return true
   } catch (error) {
     log.error('保存 LLM 配置列表失败', error)
