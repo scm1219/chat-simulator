@@ -4,6 +4,7 @@
  */
 import { ipcMain } from 'electron'
 import { createLogger } from '../../utils/logger.js'
+import { escapeLike } from '../../utils/text.js'
 
 const log = createLogger('Search')
 import { createHandler } from '../handler-wrapper.js'
@@ -41,7 +42,7 @@ function extractContext(content, keyword, contextLen = 30) {
  */
 function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
   const results = []
-  const likePattern = `%${keyword}%`
+  const likePattern = `%${escapeLike(keyword)}%`
 
   // 搜索消息内容
   try {
@@ -49,7 +50,7 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
       SELECT m.id, m.content, m.character_id, m.timestamp, c.name as characterName
       FROM messages m
       LEFT JOIN characters c ON m.character_id = c.id
-      WHERE m.content LIKE ?
+      WHERE m.content LIKE ? ESCAPE '\\'
       ORDER BY m.timestamp DESC
       LIMIT ?
     `).all(likePattern, maxResults)
@@ -73,7 +74,8 @@ function searchGroupDB(db, groupId, groupName, keyword, maxResults = 10) {
   // 搜索角色名称
   try {
     const characters = db.prepare(`
-      SELECT id, name FROM characters WHERE name LIKE ?
+      SELECT id, name FROM characters WHERE name LIKE ? ESCAPE '\\'
+      LIMIT 20
     `).all(likePattern)
 
     for (const char of characters) {

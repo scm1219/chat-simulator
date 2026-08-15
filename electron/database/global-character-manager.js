@@ -9,6 +9,7 @@ import { generateUUID } from '../utils/uuid.js'
 import { buildDynamicUpdate } from '../ipc/handler-wrapper.js'
 import { createLogger } from '../utils/logger.js'
 import { ensureDataDir } from '../utils/config-dir.js'
+import { escapeLike } from '../utils/text.js'
 
 const log = createLogger('GlobalChar')
 
@@ -206,10 +207,10 @@ export class GlobalCharacterManager {
       return this.getAll()
     }
 
-    const searchTerm = `%${keyword.trim()}%`
+    const searchTerm = `%${escapeLike(keyword.trim())}%`
     const characters = this.db.prepare(`
       SELECT * FROM global_characters
-      WHERE name LIKE ? OR system_prompt LIKE ?
+      WHERE name LIKE ? ESCAPE '\\' OR system_prompt LIKE ? ESCAPE '\\'
       ORDER BY updated_at DESC
     `).all(searchTerm, searchTerm)
 
@@ -285,9 +286,7 @@ export class GlobalCharacterManager {
       return { success: false, error: '系统默认标签不可删除' }
     }
 
-    // 删除角色-标签关联
-    this.db.prepare('DELETE FROM character_tags WHERE tag_id = ?').run(id)
-    // 删除标签
+    // 删除标签（character_tags 关联由 ON DELETE CASCADE 自动清理）
     this.db.prepare('DELETE FROM tags WHERE id = ?').run(id)
 
     return { success: true }
@@ -313,19 +312,22 @@ export class GlobalCharacterManager {
    * @param {Array<string>} tagIds - 标签 ID 数组
    */
   setCharacterTags(characterId, tagIds) {
-    // 先删除原有标签
-    this.db.prepare('DELETE FROM character_tags WHERE character_id = ?').run(characterId)
+    // 事务保证原子性：中途失败时回滚，不会丢失原有标签
+    this.db.transaction(() => {
+      // 先删除原有标签
+      this.db.prepare('DELETE FROM character_tags WHERE character_id = ?').run(characterId)
 
-    // 插入新标签
-    if (tagIds && tagIds.length > 0) {
-      const insert = this.db.prepare(`
-        INSERT INTO character_tags (character_id, tag_id)
-        VALUES (?, ?)
-      `)
-      for (const tagId of tagIds) {
-        insert.run(characterId, tagId)
+      // 插入新标签
+      if (tagIds && tagIds.length > 0) {
+        const insert = this.db.prepare(`
+          INSERT INTO character_tags (character_id, tag_id)
+          VALUES (?, ?)
+        `)
+        for (const tagId of tagIds) {
+          insert.run(characterId, tagId)
+        }
       }
-    }
+    })()
   }
 
   /**
