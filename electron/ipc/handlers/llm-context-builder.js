@@ -4,8 +4,12 @@
  */
 import { extractJSON } from '../../utils/json-extractor.js'
 import { createLogger } from '../../utils/logger.js'
+import { DEFAULT_CONTEXT_BUDGET_CHARS, sumChars, truncateMessagesToBudget } from '../../utils/context-budget.js'
 
 const log = createLogger('LLM')
+
+/** 记忆注入上限：防止 autoMemoryExtract 无上限累积撑爆上下文 */
+const MAX_MEMORY_LINES = 20
 
 /**
  * 查询角色全局记忆
@@ -87,6 +91,16 @@ export function prefilterHistoryMessages(history) {
 export function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = [], memories = [], narrativeContext = []) {
   const messages = []
 
+  // 0. 预算预计算：系统段（群 systemPrompt + 群背景 + 人设 + 叙事上下文）保留不截断，
+  // 其占用的字符数 reserved 从总预算中扣除，剩余额度留给历史消息（负值时
+  // truncateMessagesToBudget 内部仍保证至少保留最新一条）
+  const reserved = sumChars([
+    systemPrompt ?? '',
+    background ?? '',
+    character?.system_prompt ?? '',
+    narrativeContext.map(m => m?.content ?? '').join('')
+  ])
+
   // 1. 添加系统提示词（最高优先级，如果存在）
   if (systemPrompt && systemPrompt.trim()) {
     messages.push({
@@ -122,9 +136,9 @@ export function buildContextMessages(character, history, userContent, background
     messages.push(...narrativeContext)
   }
 
-  // 5. 注入角色全局记忆（如果有）
+  // 5. 注入角色全局记忆（如果有，上限 MAX_MEMORY_LINES 条防无上限累积）
   if (memories.length > 0) {
-    const memoryLines = memories.map(m => `- ${m.content}`).join('\n')
+    const memoryLines = memories.slice(0, MAX_MEMORY_LINES).map(m => `- ${m.content}`).join('\n')
     messages.push({
       role: 'system',
       content: `你还记得这些事：\n${memoryLines}`
@@ -137,8 +151,12 @@ export function buildContextMessages(character, history, userContent, background
     content: character.system_prompt
   })
 
-  // 7. 添加历史消息（过滤 + 格式化）
-  const roleMessages = filterHistoryMessages(history, character)
+  // 7. 添加历史消息（过滤 + 格式化 + 字符预算截断：保最新丢最旧）
+  // 刚追加/即将追加的用户消息在最后，保最新语义天然保证其不被截掉
+  const roleMessages = truncateMessagesToBudget(
+    filterHistoryMessages(history, character),
+    DEFAULT_CONTEXT_BUDGET_CHARS - reserved
+  )
   messages.push(...roleMessages)
 
   // 8. 轻量引导：提醒角色身份（放在最后，提高优先级）
