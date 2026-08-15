@@ -116,11 +116,9 @@ export class LLMClient extends BaseLLMClient {
    */
   async chat(messages, options = {}) {
     // 确定是否使用流式输出：
-    // 1. 如果 options 明确指定了 onChunk，则使用流式
-    // 2. 否则使用配置中的 streamEnabled 设置
-    const hasOnChunk = options.onChunk && typeof options.onChunk === 'function'
-    const useStreaming = hasOnChunk || (this.streamEnabled && options.streaming !== false)
-    const isStreaming = useStreaming && typeof options.onChunk === 'function'
+    // 1. 调用方提供了 onChunk 回调（需要流式消费）
+    // 2. 且配置未显式关闭流式输出（streamEnabled 开关生效）
+    const isStreaming = typeof options.onChunk === 'function' && this.streamEnabled !== false
     const signal = options.signal || null
 
     try {
@@ -177,7 +175,8 @@ export class LLMClient extends BaseLLMClient {
         const content = message?.content
         const reasoningContent = message?.reasoning_content
 
-        if (!content) {
+        // 纯思考模型可能只返回 reasoning_content 而无 content，视为成功
+        if (!content && !reasoningContent) {
           return {
             success: false,
             error: 'API 返回的内容为空'

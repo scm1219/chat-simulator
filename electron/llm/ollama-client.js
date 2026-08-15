@@ -64,8 +64,14 @@ export class OllamaNativeClient extends BaseLLMClient {
         }
       }
 
-      // 检查是否完成
+      // 检查是否完成（done 帧携带最终用量，须在返回前提取）
       if (parsed.done) {
+        if (typeof parsed.prompt_eval_count === 'number' || typeof parsed.eval_count === 'number') {
+          state.usage = {
+            prompt_tokens: parsed.prompt_eval_count ?? 0,
+            completion_tokens: parsed.eval_count ?? 0
+          }
+        }
         return { done: true }
       }
     } catch {
@@ -82,6 +88,7 @@ export class OllamaNativeClient extends BaseLLMClient {
    * @param {Array} messages - 消息列表
    * @param {Object} options - 选项
    * @param {Function} options.onChunk - 流式输出回调函数
+   * @param {AbortSignal} options.signal - 用于取消请求的 AbortSignal
    */
   async chat(messages, options = {}) {
     // 简化流式判断：有 onChunk 回调则使用流式
@@ -102,11 +109,13 @@ export class OllamaNativeClient extends BaseLLMClient {
       }
 
       if (isStreaming) {
-        return await this.chatStream(requestData, options.onChunk)
+        return await this.chatStream(requestData, options.onChunk, options.signal)
       }
 
       // 非流式请求
-      const response = await this.client.post('/api/chat', requestData)
+      const axiosOptions = {}
+      if (options.signal) axiosOptions.signal = options.signal
+      const response = await this.client.post('/api/chat', requestData, axiosOptions)
 
       // 检查响应格式
       if (!response.data || !response.data.message) {
@@ -139,6 +148,10 @@ export class OllamaNativeClient extends BaseLLMClient {
         }
       }
     } catch (error) {
+      // 处理取消请求
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED' || options.signal?.aborted) {
+        return { success: false, aborted: true, error: '已取消' }
+      }
       return this.handleError(error)
     }
   }
