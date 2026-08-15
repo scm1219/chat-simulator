@@ -49,8 +49,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { createLogger } from '../../utils/logger.js'
+import { escapeHtml } from '../../utils/html.js'
 const log = createLogger('Search')
 
 const emit = defineEmits(['select-message', 'select-group'])
@@ -60,6 +61,9 @@ const results = ref([])
 const loading = ref(false)
 const searchInput = ref(null)
 let debounceTimer = null
+let searchSeq = 0
+
+onUnmounted(() => clearTimeout(debounceTimer))
 
 function handleInput() {
   clearTimeout(debounceTimer)
@@ -69,18 +73,23 @@ function handleInput() {
     return
   }
   loading.value = true
-  debounceTimer = setTimeout(async () => {
-    try {
-      const res = await window.electronAPI.search.global(trimmed)
-      if (res.success) {
-        results.value = res.data
-      }
-    } catch (err) {
-      log.error('搜索失败:', err)
-    } finally {
-      loading.value = false
+  debounceTimer = setTimeout(() => doSearch(), 300)
+}
+
+async function doSearch() {
+  const seq = ++searchSeq
+  try {
+    const res = await window.electronAPI.search.global(keyword.value.trim())
+    // 过期响应（已被更新的搜索发起）直接丢弃，防止旧结果覆盖新结果
+    if (seq !== searchSeq) return
+    if (res.success) {
+      results.value = res.data || []
     }
-  }, 300)
+  } catch (err) {
+    log.error('搜索失败:', err)
+  } finally {
+    if (seq === searchSeq) loading.value = false
+  }
 }
 
 function clearSearch() {
@@ -91,15 +100,14 @@ function clearSearch() {
 }
 
 /**
- * 高亮关键词，返回 HTML 字符串
+ * 高亮关键词，返回 HTML 字符串（文本先经 HTML 转义，在转义后的文本上匹配转义后的关键词）
  */
 function highlightKeyword(text) {
-  if (!text || !keyword.value.trim()) return text || ''
+  const escapedHtml = escapeHtml(text)
   const kw = keyword.value.trim()
-  // 转义正则特殊字符
-  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(`(${escaped})`, 'gi')
-  return text.replace(regex, '<mark class="search-highlight">$1</mark>')
+  if (!kw) return escapedHtml
+  const kwPattern = escapeHtml(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return escapedHtml.replace(new RegExp(`(${kwPattern})`, 'gi'), '<mark class="search-highlight">$1</mark>')
 }
 
 function handleResultClick(item) {
