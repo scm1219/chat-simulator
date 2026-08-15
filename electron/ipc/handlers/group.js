@@ -13,12 +13,23 @@ import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
 const GROUP_COLUMNS = [
   'id', 'name', 'llm_provider', 'llm_model', 'llm_api_key', 'llm_base_url',
   'max_history', 'response_mode', 'use_global_api_key', 'thinking_enabled',
-  'random_order', 'background', 'system_prompt'
+  'random_order', 'background', 'system_prompt',
+  'auto_memory_extract', 'narrative_enabled', 'aftermath_enabled', 'event_scene_type'
 ]
 const GROUP_INSERT_SQL = `
   INSERT INTO groups (${GROUP_COLUMNS.join(', ')})
   VALUES (${GROUP_COLUMNS.map(() => '?').join(', ')})
 `
+
+/**
+ * 布尔列取值归一为 0/1
+ * 优先 camelCase（渲染进程），其次 snake_case（复制群组时透传的数据库行），均缺省用 fallback
+ */
+function boolFrom(data, camelKey, snakeKey, fallback) {
+  if (data[camelKey] !== undefined) return data[camelKey] ? 1 : 0
+  if (data[snakeKey] !== undefined) return data[snakeKey] ? 1 : 0
+  return fallback
+}
 
 /**
  * 将前端 camelCase 字段映射为数据库 snake_case 字段
@@ -32,6 +43,19 @@ const GROUP_INSERT_SQL = `
 function mapGroupValues(data, id, { encryptApiKey = true } = {}) {
   const groupId = id || data.id
   const rawApiKey = (data.llmApiKey || data.llm_api_key) ? String(data.llmApiKey || data.llm_api_key) : null
+
+  // max_history 边界：0 合法（不携带历史）；负数、NaN、非数值回退 20
+  const rawMaxHistory = data.maxHistory ?? data.max_history
+  let maxHistory = 20
+  if (rawMaxHistory !== undefined && rawMaxHistory !== null) {
+    const parsed = parseInt(rawMaxHistory, 10)
+    if (Number.isFinite(parsed)) maxHistory = Math.max(0, parsed)
+  }
+
+  const eventSceneType = (data.eventSceneType || data.event_scene_type)
+    ? String(data.eventSceneType || data.event_scene_type)
+    : 'general'
+
   return [
     groupId,
     String(data.name || ''),
@@ -39,13 +63,17 @@ function mapGroupValues(data, id, { encryptApiKey = true } = {}) {
     String(data.llmModel || data.llm_model || 'gpt-3.5-turbo'),
     encryptApiKey ? encryptSecret(rawApiKey) : rawApiKey,
     (data.llmBaseUrl || data.llm_base_url) ? String(data.llmBaseUrl || data.llm_base_url) : null,
-    parseInt(data.maxHistory || data.max_history) || 20,
+    maxHistory,
     String(data.responseMode || data.response_mode || 'sequential'),
-    data.useGlobalApiKey !== undefined ? (data.useGlobalApiKey ? 1 : 0) : (data.use_global_api_key !== undefined ? data.use_global_api_key : 1),
-    data.thinkingEnabled !== undefined ? (data.thinkingEnabled ? 1 : 0) : (data.thinking_enabled || 0),
-    data.randomOrder !== undefined ? (data.randomOrder ? 1 : 0) : (data.random_order || 0),
+    boolFrom(data, 'useGlobalApiKey', 'use_global_api_key', 1),
+    boolFrom(data, 'thinkingEnabled', 'thinking_enabled', 0),
+    boolFrom(data, 'randomOrder', 'random_order', 0),
     (data.background) ? String(data.background) : null,
-    (data.systemPrompt || data.system_prompt) ? String(data.systemPrompt || data.system_prompt) : null
+    (data.systemPrompt || data.system_prompt) ? String(data.systemPrompt || data.system_prompt) : null,
+    boolFrom(data, 'autoMemoryExtract', 'auto_memory_extract', 0),
+    boolFrom(data, 'narrativeEnabled', 'narrative_enabled', 1),
+    boolFrom(data, 'aftermathEnabled', 'aftermath_enabled', 1),
+    eventSceneType
   ]
 }
 

@@ -6,6 +6,7 @@ import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
 import { atomicWriteJson } from '../utils/atomic-write.js'
+import { generateUUID } from '../utils/uuid.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('SystemPrompts')
@@ -67,6 +68,16 @@ const DEFAULT_TEMPLATES = [
 ]
 
 /**
+ * 深拷贝返回默认模板
+ * 防止调用方（如 addSystemPromptTemplate 的 push）原地污染模块常量，
+ * 导致"重置默认"仍返回被修改过的模板
+ * @returns {Array} 默认模板的浅拷贝数组（模板对象均为新对象）
+ */
+function cloneDefaultTemplates() {
+  return DEFAULT_TEMPLATES.map(t => ({ ...t }))
+}
+
+/**
  * 获取所有系统提示词模板
  * @returns {Array} 模板列表
  */
@@ -75,15 +86,15 @@ export function getSystemPromptTemplates() {
     if (fs.existsSync(CONFIG_FILE)) {
       const data = fs.readFileSync(CONFIG_FILE, 'utf-8')
       const config = JSON.parse(data)
-      return config.templates || DEFAULT_TEMPLATES
+      return config.templates || cloneDefaultTemplates()
     } else {
       // 首次运行，创建默认配置文件
-      saveSystemPromptTemplates(DEFAULT_TEMPLATES)
-      return DEFAULT_TEMPLATES
+      saveSystemPromptTemplates(cloneDefaultTemplates())
+      return cloneDefaultTemplates()
     }
   } catch (error) {
     log.error('加载模板配置失败', error)
-    return DEFAULT_TEMPLATES
+    return cloneDefaultTemplates()
   }
 }
 
@@ -108,8 +119,8 @@ export function saveSystemPromptTemplates(templates) {
  * @returns {Array} 默认模板列表
  */
 export function resetSystemPromptTemplates() {
-  saveSystemPromptTemplates(DEFAULT_TEMPLATES)
-  return DEFAULT_TEMPLATES
+  saveSystemPromptTemplates(cloneDefaultTemplates())
+  return cloneDefaultTemplates()
 }
 
 /**
@@ -121,7 +132,7 @@ export function addSystemPromptTemplate(template) {
   try {
     const templates = getSystemPromptTemplates()
     const newTemplate = {
-      id: `custom-${Date.now()}`,
+      id: generateUUID(),
       name: template.name,
       content: template.content,
       category: template.category || '自定义'

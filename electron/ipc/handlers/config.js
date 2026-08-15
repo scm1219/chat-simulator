@@ -25,6 +25,18 @@ import {
 import { createHandler } from '../handler-wrapper.js'
 
 /**
+ * 统一包装 save/delete 等布尔返回值：失败时附带 error 提示，避免前端只拿到 success:false 无从展示原因
+ * @param {boolean} result - 操作是否成功
+ * @param {string} [message] - 失败提示文案（默认"配置保存失败"）
+ * @returns {object} IPC 返回结构
+ */
+function wrapSaveResult(result, message = '配置保存失败（路径不可写或数据非法）') {
+  return result === true
+    ? { success: true }
+    : { success: false, error: message }
+}
+
+/**
  * 注册 get/save/reset 三件套配置 Handler
  * @param {string} prefix - IPC 通道前缀（如 'gachaConfig'）
  * @param {object} fns - 配置操作函数
@@ -40,7 +52,7 @@ function registerConfigCRUD(prefix, { get, save, getDefault }) {
 
   ipcMain.handle(`${prefix}:save`, createHandler(async (event, config) => {
     const result = save(config)
-    return { success: result }
+    return wrapSaveResult(result)
   }))
 
   ipcMain.handle(`${prefix}:reset`, createHandler(async () => {
@@ -63,7 +75,7 @@ export function setupConfigHandlers(dbManager) {
   // 保存全局 LLM 配置
   ipcMain.handle('config:saveLLMConfig', createHandler(async (event, config) => {
     const result = saveGlobalLLMConfig(config)
-    return { success: result }
+    return wrapSaveResult(result)
   }))
 
   // 获取代理配置
@@ -75,7 +87,7 @@ export function setupConfigHandlers(dbManager) {
   // 保存代理配置
   ipcMain.handle('config:saveProxyConfig', createHandler(async (event, config) => {
     const result = saveProxyConfig(config)
-    return { success: result }
+    return wrapSaveResult(result)
   }))
 
   // ============ LLM 配置管理 ============
@@ -130,7 +142,7 @@ export function setupConfigHandlers(dbManager) {
   // 保存系统提示词模板
   ipcMain.handle('systemPrompt:save', createHandler(async (event, templates) => {
     const result = saveSystemPromptTemplates(templates)
-    return { success: result }
+    return wrapSaveResult(result)
   }))
 
   // 重置为默认模板
@@ -160,7 +172,7 @@ export function setupConfigHandlers(dbManager) {
   // 删除模板
   ipcMain.handle('systemPrompt:delete', createHandler(async (event, id) => {
     const result = deleteSystemPromptTemplate(id)
-    return { success: result }
+    return wrapSaveResult(result, '删除模板失败（配置文件不可写）')
   }))
 
   // ============ 抽卡配置 & 快速建群配置（使用工厂函数） ============
