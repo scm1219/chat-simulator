@@ -52,7 +52,7 @@
                 <label class="thinking-toggle" title="思考模式">
                   <input
                     type="checkbox"
-                    :checked="profile.thinking_enabled === 1"
+                    :checked="profile.thinkingEnabled === true"
                     @change="toggleThinkingMode(profile)"
                   />
                   <span class="toggle-text">思考</span>
@@ -85,7 +85,7 @@
     </div>
 
     <!-- 编辑/添加表单对话框 -->
-    <div v-if="showFormDialog" class="dialog-overlay" @click.self="closeFormDialog">
+    <div v-if="showFormDialog" class="dialog-overlay">
       <div class="dialog">
         <div class="dialog-header">
           <h3>{{ editingProfile ? '编辑配置' : '添加配置' }}</h3>
@@ -192,12 +192,12 @@ function handleAddModelToProvider(providerId) {
   editingProfile.value = null
   const providerConfig = LLM_PROVIDERS[providerId]
 
-  // 获取第一个已有配置的 API Key 和地址作为默认值
-  const firstProfile = profiles.value?.[0]
-  const defaultApiKey = firstProfile?.apiKey || ''
+  // 优先复用同供应商已有配置的凭据，避免跨供应商泄漏 A 家 Key 到 B 家表单
+  const sameProviderProfile = profiles.value?.find(p => p.provider === providerId)
+  const defaultApiKey = sameProviderProfile?.apiKey || ''
   // Ollama 默认走原生 API，使用 nativeBaseURL（不带 /v1）
   const useNative = providerId === 'ollama' && providerConfig.defaultNativeApi !== false
-  const defaultBaseURL = firstProfile?.baseURL ||
+  const defaultBaseURL = sameProviderProfile?.baseURL ||
     (useNative ? providerConfig.nativeBaseURL : providerConfig.baseURL) || ''
 
   formData.value = {
@@ -225,7 +225,7 @@ function handleEdit(profile) {
     baseURL: profile.baseURL,
     model: profile.model,
     streamEnabled: profile.streamEnabled !== undefined ? profile.streamEnabled : true,
-    thinkingEnabled: profile.thinking_enabled === 1,
+    thinkingEnabled: profile.thinkingEnabled === true,
     useNativeApi: profile.useNativeApi === true,
     proxy: profile.proxy || { type: 'none', customUrl: '', bypassRules: 'localhost,127.0.0.1,::1' }
   }
@@ -250,10 +250,10 @@ async function handleDelete(profile) {
 
 // 切换思考模式
 async function toggleThinkingMode(profile) {
-  const newThinkingEnabled = profile.thinking_enabled === 0 ? 1 : 0
+  const newThinkingEnabled = !(profile.thinkingEnabled === true)
 
   const result = await store.updateProfile(profile.id, {
-    thinking_enabled: newThinkingEnabled
+    thinkingEnabled: newThinkingEnabled
   })
 
   if (!result.success) {
@@ -269,12 +269,8 @@ async function handleFormSubmit(data) {
   try {
     // 深拷贝以剥离 Vue 响应式代理（IPC 结构化克隆要求纯对象）
     const rawData = JSON.parse(JSON.stringify(data))
-    // 转换数据格式
-    const submitData = {
-      ...rawData,
-      thinking_enabled: rawData.thinkingEnabled ? 1 : 0
-    }
-    delete submitData.thinkingEnabled
+    // thinkingEnabled 已是驼峰布尔值，直接透传
+    const submitData = rawData
 
     let result
 

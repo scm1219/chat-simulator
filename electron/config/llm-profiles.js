@@ -83,12 +83,21 @@ export function getLLMProfiles() {
           profile.proxy = { ...DEFAULT_PROFILE_PROXY }
           migrated = true
         }
+        // 迁移：thinking 字段统一驼峰命名（旧 thinking_enabled → thinkingEnabled）
+        // 驼峰已存在时以驼峰为准（历史双命名写入可能产生矛盾值），迁移后删除旧键
+        if (profile.thinkingEnabled === undefined && profile.thinking_enabled !== undefined) {
+          profile.thinkingEnabled = profile.thinking_enabled === 1 || profile.thinking_enabled === true
+        }
+        if (profile.thinking_enabled !== undefined) {
+          delete profile.thinking_enabled
+          migrated = true
+        }
       })
 
       // 如果有迁移，保存更新后的配置（入写队列，避免与并发写操作交错）
       if (migrated) {
         enqueueWrite(() => saveLLMProfiles(profiles))
-        log.info('已迁移配置：补充 streamEnabled/useNativeApi/proxy 字段')
+        log.info('已迁移配置：补充 streamEnabled/useNativeApi/proxy 字段并统一 thinkingEnabled 命名')
       }
 
       return profiles
