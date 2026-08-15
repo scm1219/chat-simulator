@@ -50,6 +50,7 @@
         <LLMProfileForm
           v-model="formData"
           :editing="!!editingProfile"
+          :submitting="formSubmitting"
           @submit="handleFormSubmit"
           @cancel="closeFormDialog"
         />
@@ -78,6 +79,7 @@ const loading = computed(() => store.loading)
 const showFormDialog = ref(false)
 const editingProfile = ref(null)
 const formData = ref({})
+const formSubmitting = ref(false)
 const testingId = ref(null)
 
 onMounted(() => store.loadProfiles())
@@ -153,11 +155,18 @@ async function handleTest(profile) {
 }
 
 async function handleFormSubmit(data) {
-  const result = editingProfile.value
-    ? await store.updateProfile(editingProfile.value.id, data)
-    : await store.addProfile(data)
-  if (result.success) closeFormDialog()
-  else toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
+  if (formSubmitting.value) return
+  formSubmitting.value = true
+
+  try {
+    const result = editingProfile.value
+      ? await store.updateProfile(editingProfile.value.id, data)
+      : await store.addProfile(data)
+    if (result.success) closeFormDialog()
+    else toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
+  } finally {
+    formSubmitting.value = false
+  }
 }
 
 function closeFormDialog() {

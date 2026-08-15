@@ -306,13 +306,16 @@ const props = defineProps({
   editing: {
     type: Boolean,
     default: false
+  },
+  submitting: {
+    type: Boolean,
+    default: false
   }
 })
 
 const emit = defineEmits(['update:modelValue', 'submit', 'cancel'])
 
 const form = ref({ ...props.modelValue })
-const submitting = ref(false)
 const showCustomModel = ref(false)
 const showApiKey = ref(false)
 
@@ -483,20 +486,17 @@ onMounted(() => {
 })
 
 // 提交表单
-async function handleSubmit() {
-  if (!canSubmit.value || submitting.value) return
+// submitting 状态由父组件通过 prop 驱动：父组件在 IPC 完成后复位，
+// 防止同步 emit 后立即复位导致双击产生重复配置
+function handleSubmit() {
+  if (!canSubmit.value || props.submitting) return
 
-  submitting.value = true
-  try {
-    const submitData = { ...form.value }
-    // 如果配置名称为空，使用模型名称
-    if (!submitData.name.trim() && submitData.model.trim()) {
-      submitData.name = submitData.model
-    }
-    emit('submit', submitData)
-  } finally {
-    submitting.value = false
+  const submitData = { ...form.value }
+  // 如果配置名称为空，使用模型名称
+  if (!submitData.name.trim() && submitData.model.trim()) {
+    submitData.name = submitData.model
   }
+  emit('submit', submitData)
 }
 </script>
 

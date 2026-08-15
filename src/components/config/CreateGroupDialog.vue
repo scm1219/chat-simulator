@@ -98,7 +98,7 @@
 
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-      <button class="btn btn-primary" @click="handleCreate" :disabled="!canCreate">创建</button>
+      <button class="btn btn-primary" @click="handleCreate" :disabled="!canCreate || submitting">创建</button>
     </template>
 
     <LLMProfileDialog v-if="showProfileManager" @close="closeProfileManager" />
@@ -153,6 +153,7 @@ const selectedProfile = computed(() => {
 const canCreate = computed(() => {
   return form.value.name.trim().length > 0 && form.value.selectedProfileId !== ''
 })
+const submitting = ref(false)
 
 onMounted(async () => {
   await profilesStore.loadProfiles()
@@ -199,7 +200,8 @@ function openProfileManager() { showProfileManager.value = true }
 function closeProfileManager() { showProfileManager.value = false }
 
 async function handleCreate() {
-  if (!canCreate.value) return
+  if (!canCreate.value || submitting.value) return
+  submitting.value = true
   try {
     const profile = selectedProfile.value
     const groupData = {
@@ -219,6 +221,8 @@ async function handleCreate() {
     emit('created', group)
   } catch (error) {
     toast.error('创建群组失败: ' + error.message)
+  } finally {
+    submitting.value = false
   }
 }
 </script>

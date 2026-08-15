@@ -15,7 +15,7 @@
 
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-      <button class="btn btn-primary" @click="handleCreate" :disabled="!canCreate">添加</button>
+      <button class="btn btn-primary" @click="handleCreate" :disabled="!canCreate || submitting">添加</button>
     </template>
   </BaseDialog>
 </template>
@@ -38,9 +38,11 @@ const form = ref({ name: '', systemPrompt: '' })
 const canCreate = computed(() => {
   return form.value.name.trim().length > 0 && form.value.systemPrompt.trim().length > 0
 })
+const submitting = ref(false)
 
 async function handleCreate() {
-  if (!canCreate.value) return
+  if (!canCreate.value || submitting.value) return
+  submitting.value = true
   try {
     await charactersStore.createCharacter({
       groupId: props.groupId,
@@ -50,6 +52,8 @@ async function handleCreate() {
     emit('created')
   } catch (error) {
     toast.error('创建角色失败: ' + error.message)
+  } finally {
+    submitting.value = false
   }
 }
 </script>

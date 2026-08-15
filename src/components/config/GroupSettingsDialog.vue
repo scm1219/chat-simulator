@@ -98,7 +98,7 @@
 
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-      <button class="btn btn-primary" @click="handleSave" :disabled="!hasChanges">保存</button>
+      <button class="btn btn-primary" @click="handleSave" :disabled="!hasChanges || submitting">保存</button>
     </template>
   </BaseDialog>
 </template>
@@ -118,6 +118,7 @@ const groupsStore = useGroupsStore()
 const toast = useToastStore()
 const group = computed(() => groupsStore.groups.find(g => g.id === props.groupId))
 const sceneOptions = ref([{ value: 'general', label: '通用' }])
+const submitting = ref(false)
 
 const form = ref({
   name: '', systemPrompt: '', background: '',
@@ -171,7 +172,8 @@ function getProviderName(providerId) {
 }
 
 async function handleSave() {
-  if (!hasChanges.value) return
+  if (!hasChanges.value || submitting.value) return
+  submitting.value = true
   try {
     await groupsStore.updateGroup(props.groupId, {
       name: form.value.name,
@@ -190,6 +192,8 @@ async function handleSave() {
     emit('close')
   } catch (error) {
     toast.error('保存群设置失败: ' + error.message)
+  } finally {
+    submitting.value = false
   }
 }
 </script>

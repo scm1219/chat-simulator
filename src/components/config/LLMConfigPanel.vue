@@ -96,6 +96,7 @@
           <LLMProfileForm
             v-model="formData"
             :editing="!!editingProfile"
+            :submitting="formSubmitting"
             @submit="handleFormSubmit"
             @cancel="closeFormDialog"
           />
@@ -155,6 +156,7 @@ const providerGroups = computed(() => {
 const showFormDialog = ref(false)
 const editingProfile = ref(null)
 const formData = ref({})
+const formSubmitting = ref(false)
 
 // 加载配置列表
 onMounted(async () => {
@@ -261,27 +263,34 @@ async function toggleThinkingMode(profile) {
 
 // 提交表单
 async function handleFormSubmit(data) {
-  // 深拷贝以剥离 Vue 响应式代理（IPC 结构化克隆要求纯对象）
-  const rawData = JSON.parse(JSON.stringify(data))
-  // 转换数据格式
-  const submitData = {
-    ...rawData,
-    thinking_enabled: rawData.thinkingEnabled ? 1 : 0
-  }
-  delete submitData.thinkingEnabled
+  if (formSubmitting.value) return
+  formSubmitting.value = true
 
-  let result
+  try {
+    // 深拷贝以剥离 Vue 响应式代理（IPC 结构化克隆要求纯对象）
+    const rawData = JSON.parse(JSON.stringify(data))
+    // 转换数据格式
+    const submitData = {
+      ...rawData,
+      thinking_enabled: rawData.thinkingEnabled ? 1 : 0
+    }
+    delete submitData.thinkingEnabled
 
-  if (editingProfile.value) {
-    result = await store.updateProfile(editingProfile.value.id, submitData)
-  } else {
-    result = await store.addProfile(submitData)
-  }
+    let result
 
-  if (result.success) {
-    closeFormDialog()
-  } else {
-    toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
+    if (editingProfile.value) {
+      result = await store.updateProfile(editingProfile.value.id, submitData)
+    } else {
+      result = await store.addProfile(submitData)
+    }
+
+    if (result.success) {
+      closeFormDialog()
+    } else {
+      toast.error((editingProfile.value ? '保存失败: ' : '添加失败: ') + result.error)
+    }
+  } finally {
+    formSubmitting.value = false
   }
 }
 

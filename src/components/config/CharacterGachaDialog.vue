@@ -138,11 +138,12 @@
           {{ generating ? '🎲 抽卡中...' : '🎲 开始抽卡' }}
         </button>
         <button
-          v-if="generatedCharacter"
+          v-if="generatedCharacter && !saved"
           class="btn btn-primary"
+          :disabled="submitting"
           @click="handleConfirm"
         >
-          添加到角色库
+          {{ submitting ? '添加中...' : '添加到角色库' }}
         </button>
         <button
           v-if="generatedCharacter"
@@ -180,6 +181,8 @@ const activeTab = ref('gacha')
 const hint = ref('')
 const generating = ref(false)
 const generatedCharacter = ref(null)
+const submitting = ref(false)
+const saved = ref(false)
 
 const canGenerate = computed(() => {
   return hint.value.trim().length >= 0 || !hint.value.trim()
@@ -217,6 +220,7 @@ function getGenderLabel(gender) {
 async function handleGenerate() {
   generating.value = true
   generatedCharacter.value = null
+  saved.value = false
 
   try {
     const result = await window.electronAPI.llm.generateCharacter(hint.value.trim())
@@ -236,7 +240,8 @@ async function handleGenerate() {
 }
 
 async function handleConfirm() {
-  if (!generatedCharacter.value) return
+  if (!generatedCharacter.value || submitting.value) return
+  submitting.value = true
 
   try {
     await globalCharsStore.createCharacter({
@@ -246,11 +251,15 @@ async function handleConfirm() {
       systemPrompt: generatedCharacter.value.systemPrompt
     })
 
+    // 成功后标记已保存并隐藏按钮，防止重复入库
+    saved.value = true
     toast.success('角色已添加到角色库')
     emit('created')
     emit('close')
   } catch (error) {
     toast.error('添加失败：' + error.message)
+  } finally {
+    submitting.value = false
   }
 }
 
