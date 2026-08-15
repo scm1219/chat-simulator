@@ -14,6 +14,41 @@ const log = createLogger('Database')
 // 数据库连接缓存上限（LRU 策略）
 const MAX_CACHED_CONNECTIONS = 10
 
+// 群组 ID 白名单：项目内群组 ID 由 generateUUID() 生成（36 位标准 UUID），
+// 仅允许字母数字与连字符，长度 8-64，阻止路径穿越（../、盘符、分隔符）与 undefined 等脏值
+const GROUP_ID_RE = /^[a-zA-Z0-9-]{8,64}$/
+
+/**
+ * 校验群组 ID 是否为合法格式（白名单，防路径穿越）
+ * @param {string} id - 群组 ID
+ * @returns {boolean}
+ */
+export function isValidGroupId(id) {
+  return typeof id === 'string' && GROUP_ID_RE.test(id)
+}
+
+/**
+ * 断言群组 ID 合法，不合法则抛错（由 createHandler 转为 {success:false, error} 返回渲染进程）
+ * @param {string} groupId - 群组 ID
+ */
+function assertValidGroupId(groupId) {
+  if (!isValidGroupId(groupId)) {
+    throw new Error(`非法的群组 ID 格式: ${String(groupId)}`)
+  }
+}
+
+/**
+ * 断言数据库路径位于 dataDir 目录内（纵深防御，防路径越界）
+ * @param {string} dbPath - 拼接后的数据库文件路径
+ */
+function assertPathInsideDataDir(dbPath, dataDir) {
+  const resolved = path.resolve(dbPath)
+  const base = path.resolve(dataDir) + path.sep
+  if (!resolved.startsWith(base)) {
+    throw new Error('数据库路径越界')
+  }
+}
+
 // 数据库 Schema（内联以避免打包后路径问题）
 const SCHEMA_SQL = `
 -- ============ 群信息表 ============
@@ -284,6 +319,9 @@ export class DatabaseManager {
    * @returns {Database} SQLite 数据库实例
    */
   getGroupDB(groupId) {
+    // IPC 入口校验：groupId 白名单，阻止路径穿越与 undefined 等脏值
+    assertValidGroupId(groupId)
+
     // 如果连接已存在，移到末尾（LRU 标记为最近使用）
     if (this.connections.has(groupId)) {
       const db = this.connections.get(groupId)
@@ -294,6 +332,7 @@ export class DatabaseManager {
 
     // 创建新的数据库连接
     const dbPath = path.join(this.dataDir, `group_${groupId}.sqlite`)
+    assertPathInsideDataDir(dbPath, this.dataDir)
     const db = new Database(dbPath)
 
     // 启用外键约束
@@ -393,6 +432,9 @@ export class DatabaseManager {
    * @param {string} groupId - 群组 ID
    */
   deleteGroupDB(groupId) {
+    // IPC 入口校验：groupId 白名单，阻止路径穿越删除任意 .sqlite 文件
+    assertValidGroupId(groupId)
+
     // 清理角色索引
     this._unindexGroup(groupId)
 
@@ -401,6 +443,7 @@ export class DatabaseManager {
 
     // 删除文件
     const dbPath = path.join(this.dataDir, `group_${groupId}.sqlite`)
+    assertPathInsideDataDir(dbPath, this.dataDir)
     if (fs.existsSync(dbPath)) {
       fs.unlinkSync(dbPath)
     }
