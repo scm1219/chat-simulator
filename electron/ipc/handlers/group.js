@@ -49,7 +49,7 @@ function mapGroupValues(data, id, { encryptApiKey = true } = {}) {
   let maxHistory = 20
   if (rawMaxHistory !== undefined && rawMaxHistory !== null) {
     const parsed = parseInt(rawMaxHistory, 10)
-    if (Number.isFinite(parsed)) maxHistory = Math.max(0, parsed)
+    if (Number.isFinite(parsed) && parsed >= 0) maxHistory = parsed // 0 合法；负数/NaN 维持默认 20
   }
 
   const eventSceneType = (data.eventSceneType || data.event_scene_type)
