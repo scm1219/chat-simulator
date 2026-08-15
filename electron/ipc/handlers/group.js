@@ -4,6 +4,7 @@
 import { ipcMain } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
 import { createLogger } from '../../utils/logger.js'
+import { encryptSecret, decryptSecret } from '../../utils/secure-storage.js'
 
 const log = createLogger('Group')
 import { createHandler, buildDynamicUpdate } from '../handler-wrapper.js'
@@ -23,16 +24,20 @@ const GROUP_INSERT_SQL = `
  * 将前端 camelCase 字段映射为数据库 snake_case 字段
  * @param {object} data - 前端数据
  * @param {string} [id] - 可选 ID（不传时从 data.id 取）
+ * @param {object} [opts] - 选项
+ * @param {boolean} [opts.encryptApiKey=true] - 是否加密 llm_api_key
+ *   （渲染进程明文输入传 true；group:duplicate 回写存储旧密文时传 false，防止双重加密）
  * @returns {Array} 按 GROUP_COLUMNS 顺序排列的值数组
  */
-function mapGroupValues(data, id) {
+function mapGroupValues(data, id, { encryptApiKey = true } = {}) {
   const groupId = id || data.id
+  const rawApiKey = (data.llmApiKey || data.llm_api_key) ? String(data.llmApiKey || data.llm_api_key) : null
   return [
     groupId,
     String(data.name || ''),
     String(data.llmProvider || data.llm_provider || 'openai'),
     String(data.llmModel || data.llm_model || 'gpt-3.5-turbo'),
-    (data.llmApiKey || data.llm_api_key) ? String(data.llmApiKey || data.llm_api_key) : null,
+    encryptApiKey ? encryptSecret(rawApiKey) : rawApiKey,
     (data.llmBaseUrl || data.llm_base_url) ? String(data.llmBaseUrl || data.llm_base_url) : null,
     parseInt(data.maxHistory || data.max_history) || 20,
     String(data.responseMode || data.response_mode || 'sequential'),
@@ -42,6 +47,15 @@ function mapGroupValues(data, id) {
     (data.background) ? String(data.background) : null,
     (data.systemPrompt || data.system_prompt) ? String(data.systemPrompt || data.system_prompt) : null
   ]
+}
+
+/**
+ * 解密群组行的 llm_api_key（返回渲染进程前调用）
+ * 前端 ChatWindow 需用明文 apiKey 与 LLM Profile 做相等匹配（定位当前配置/切换模型）
+ */
+function decryptGroupRow(group) {
+  if (!group || group.llm_api_key == null) return group
+  return { ...group, llm_api_key: decryptSecret(group.llm_api_key) }
 }
 
 export function setupGroupHandlers(dbManager) {
@@ -61,7 +75,7 @@ export function setupGroupHandlers(dbManager) {
     `).run(userCharacterId, id, '用户', '你是用户，正在参与群聊对话。', 1, 1)
 
     const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
-    return { success: true, data: group }
+    return { success: true, data: decryptGroupRow(group) }
   }, 'Group:create'))
 
   // 获取所有群组（按最近消息时间倒序）
@@ -79,7 +93,7 @@ export function setupGroupHandlers(dbManager) {
             'SELECT timestamp FROM messages WHERE group_id = ? ORDER BY timestamp DESC LIMIT 1'
           ).get(id)
           group.last_message_time = lastMsg ? lastMsg.timestamp : null
-          groups.push(group)
+          groups.push(decryptGroupRow(group))
         }
       } catch (error) {
         log.error(`加载群组 ${id} 失败:`, error)
@@ -106,7 +120,7 @@ export function setupGroupHandlers(dbManager) {
       return { success: false, error: '群组不存在' }
     }
 
-    return { success: true, data: group }
+    return { success: true, data: decryptGroupRow(group) }
   }, 'Group:getById'))
 
   // 更新群组
@@ -118,7 +132,7 @@ export function setupGroupHandlers(dbManager) {
       ['name', 'name'],
       ['llmProvider', 'llm_provider'],
       ['llmModel', 'llm_model'],
-      ['llmApiKey', 'llm_api_key'],
+      ['llmApiKey', 'llm_api_key', (val) => encryptSecret(val)],
       ['llmBaseUrl', 'llm_base_url'],
       ['maxHistory', 'max_history'],
       ['responseMode', 'response_mode'],
@@ -138,7 +152,7 @@ export function setupGroupHandlers(dbManager) {
     }
 
     const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(id)
-    return { success: true, data: group }
+    return { success: true, data: decryptGroupRow(group) }
   }, 'Group:update'))
 
   // 删除群组
@@ -175,10 +189,11 @@ export function setupGroupHandlers(dbManager) {
       : `${sourceGroup.name}(副本)`
 
     // 使用统一的列名常量，snake_case 直接传入 mapGroupValues
+    // 源群组的 llm_api_key 已是存储密文，直接透传（不再次加密）
     const groupValues = mapGroupValues({
       ...sourceGroup,
       name: duplicateName
-    }, newId)
+    }, newId, { encryptApiKey: false })
     newDb.prepare(GROUP_INSERT_SQL).run(...groupValues)
 
     // 复制所有角色（含完整字段），并建立旧ID到新ID的映射
@@ -231,6 +246,6 @@ export function setupGroupHandlers(dbManager) {
     }
 
     const newGroup = newDb.prepare('SELECT * FROM groups WHERE id = ?').get(newId)
-    return { success: true, data: newGroup }
+    return { success: true, data: decryptGroupRow(newGroup) }
   }, 'Group:duplicate'))
 }

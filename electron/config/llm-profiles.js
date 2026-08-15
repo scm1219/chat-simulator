@@ -9,6 +9,7 @@ import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
 import { ensureConfigDir } from '../utils/config-dir.js'
 import { createLogger } from '../utils/logger.js'
+import { encryptSecret, decryptSecret } from '../utils/secure-storage.js'
 
 const log = createLogger('LLMProfiles')
 
@@ -37,6 +38,14 @@ export function getLLMProfiles() {
     if (fs.existsSync(LLM_PROFILES_FILE)) {
       const data = fs.readFileSync(LLM_PROFILES_FILE, 'utf-8')
       const profiles = JSON.parse(data)
+
+      // 读取后立即解密 apiKey：内存中的 Profile 始终持有明文
+      // （须在下方迁移触发的 saveLLMProfiles 之前完成，否则会对存储密文二次加密）
+      for (const profile of profiles) {
+        if (profile.apiKey != null && profile.apiKey !== '') {
+          profile.apiKey = decryptSecret(profile.apiKey)
+        }
+      }
 
       // 迁移：为没有 streamEnabled 字段的配置添加默认值
       let migrated = false
@@ -85,11 +94,14 @@ export function getLLMProfiles() {
 
 /**
  * 保存所有 LLM 配置
+ * 内存中的 Profile 始终持有明文 apiKey（getLLMProfiles 已解密 / 渲染进程输入即为明文），
+ * 落盘前统一加密，避免调用方各自加密导致的双重加密问题
  */
 function saveLLMProfiles(profiles) {
   try {
     ensureConfigDir(LLM_PROFILES_FILE)
-    fs.writeFileSync(LLM_PROFILES_FILE, JSON.stringify(profiles, null, 2))
+    const serialized = profiles.map(profile => ({ ...profile, apiKey: encryptSecret(profile.apiKey) }))
+    fs.writeFileSync(LLM_PROFILES_FILE, JSON.stringify(serialized, null, 2))
     return true
   } catch (error) {
     log.error('保存 LLM 配置列表失败', error)

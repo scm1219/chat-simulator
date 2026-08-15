@@ -7,6 +7,7 @@ import path from 'path'
 import { app } from 'electron'
 import { ensureConfigDir } from '../utils/config-dir.js'
 import { createLogger } from '../utils/logger.js'
+import { encryptSecret, decryptSecret } from '../utils/secure-storage.js'
 
 const log = createLogger('Config')
 
@@ -108,15 +109,20 @@ systemPrompt 写法要求：
  * @param {string} configFilePath - 配置文件路径
  * @param {object} defaults - 默认配置对象
  * @param {string} label - 配置名称（用于日志）
+ * @param {object} [hooks] - 可选读写钩子（如 apiKey 加解密）
+ * @param {(config: object) => object} [hooks.onLoad] - 读取后转换（解密）
+ * @param {(config: object) => object} [hooks.onSave] - 写入前转换（加密）
  * @returns {{ get: () => object, save: (config: object) => boolean, getDefault: () => object }}
  */
-function createConfigManager(configFilePath, defaults, label) {
+function createConfigManager(configFilePath, defaults, label, hooks = {}) {
+  const { onLoad, onSave } = hooks
   return {
     get() {
       try {
         if (fs.existsSync(configFilePath)) {
           const data = fs.readFileSync(configFilePath, 'utf-8')
-          return { ...defaults, ...JSON.parse(data) }
+          const config = { ...defaults, ...JSON.parse(data) }
+          return onLoad ? onLoad(config) : config
         }
       } catch (error) {
         log.error(`加载${label}配置失败`, error)
@@ -126,7 +132,8 @@ function createConfigManager(configFilePath, defaults, label) {
     save(config) {
       try {
         ensureConfigDir(configFilePath)
-        fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2))
+        const serialized = onSave ? onSave(config) : config
+        fs.writeFileSync(configFilePath, JSON.stringify(serialized, null, 2))
         return true
       } catch (error) {
         log.error(`保存${label}配置失败`, error)
@@ -141,7 +148,11 @@ function createConfigManager(configFilePath, defaults, label) {
 
 // ============ 创建配置实例 ============
 
-const llmConfigManager = createConfigManager(LLM_CONFIG_FILE, DEFAULT_LLM_CONFIG, 'LLM')
+// LLM 配置（apiKey 落盘加密、读取解密；内存中的配置始终持有明文）
+const llmConfigManager = createConfigManager(LLM_CONFIG_FILE, DEFAULT_LLM_CONFIG, 'LLM', {
+  onLoad: config => ({ ...config, apiKey: decryptSecret(config.apiKey) }),
+  onSave: config => ({ ...config, apiKey: encryptSecret(config.apiKey) })
+})
 const gachaConfigManager = createConfigManager(GACHA_CONFIG_FILE, DEFAULT_GACHA_CONFIG, '抽卡')
 const quickGroupConfigManager = createConfigManager(QUICK_GROUP_CONFIG_FILE, DEFAULT_QUICK_GROUP_CONFIG, '快速建群')
 

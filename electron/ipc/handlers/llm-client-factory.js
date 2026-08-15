@@ -10,6 +10,7 @@ const log = createLogger('LLM')
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
 import { getProviderConfig } from '../../llm/providers/index.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
+import { decryptSecret } from '../../utils/secure-storage.js'
 
 /**
  * 解析 Profile 代理配置为客户端可用的 proxy + bypassRules
@@ -119,6 +120,7 @@ export function createClientForCharacter(character, group, llmProfiles, apiKey) 
 
 /**
  * 统一解析 API Key（优先使用群组独立 Key）
+ * 群组表的 llm_api_key 为密文存储，使用前解密（globalLLMConfig.apiKey 已由配置层解密为明文）
  * @param {object} group - 群组对象
  * @param {object} globalLLMConfig - 全局 LLM 配置
  * @returns {string} API Key
@@ -126,5 +128,5 @@ export function createClientForCharacter(character, group, llmProfiles, apiKey) 
 export function resolveApiKey(group, globalLLMConfig) {
   return group.use_global_api_key
     ? globalLLMConfig.apiKey
-    : (group.llm_api_key || globalLLMConfig.apiKey)
+    : (group.llm_api_key ? decryptSecret(group.llm_api_key) : globalLLMConfig.apiKey)
 }

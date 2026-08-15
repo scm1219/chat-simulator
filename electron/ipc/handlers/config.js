@@ -7,6 +7,7 @@ import { createLogger } from '../../utils/logger.js'
 
 const log = createLogger('Config')
 import { getProxyConfig, saveProxyConfig } from '../../llm/proxy.js'
+import { encryptSecret, decryptSecret } from '../../utils/secure-storage.js'
 import {
   getLLMProfiles,
   addLLMProfile,
@@ -190,10 +191,11 @@ function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
       if (!group) continue
 
       // 匹配条件：provider + model + apiKey + baseURL 完全一致
+      // （getLLMProfiles 返回明文 apiKey，群组表存密文，比较前先解密；旧明文数据解密失败会原样返回，同样可比）
       const matches =
         group.llm_provider === oldProfile.provider &&
         group.llm_model === oldProfile.model &&
-        (group.llm_api_key || null) === (oldProfile.apiKey || null) &&
+        (decryptSecret(group.llm_api_key || '') || null) === (oldProfile.apiKey || null) &&
         (group.llm_base_url || null) === (oldProfile.baseURL || null)
 
       if (matches) {
@@ -208,7 +210,8 @@ function syncGroupsProfile(dbManager, oldProfile, newProfileData) {
         `).run(
           newProfileData.provider || oldProfile.provider,
           newProfileData.model || oldProfile.model,
-          newProfileData.apiKey ? String(newProfileData.apiKey) : null,
+          // newProfileData 来自渲染进程的明文输入，落库前加密
+          newProfileData.apiKey ? encryptSecret(String(newProfileData.apiKey)) : null,
           newProfileData.baseURL ? String(newProfileData.baseURL) : null,
           newProfileData.apiKey ? 0 : 1,
           groupId
