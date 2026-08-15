@@ -8,10 +8,11 @@
           {{ character?.name || message.characterName || '用户' }}
         </div>
         <div class="message-actions">
-          <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
+          <button v-if="!editing && !message.isStreaming" class="action-btn" @click="startEdit" title="编辑">
             ✏️
           </button>
           <button
+            v-if="!message.isStreaming"
             class="action-btn danger"
             @click="handleDeleteClick"
             title="删除"
@@ -19,7 +20,7 @@
             🗑️
           </button>
           <button
-            v-if="!editing"
+            v-if="!editing && !message.isStreaming"
             :class="['action-btn', { disabled: sending }]"
             @click="handleResendClick"
             :disabled="sending"
@@ -50,10 +51,11 @@
           {{ character?.name || message.characterName || '角色' }}
         </div>
         <div class="message-actions">
-          <button v-if="!editing" class="action-btn" @click="startEdit" title="编辑">
+          <button v-if="!editing && !message.isStreaming" class="action-btn" @click="startEdit" title="编辑">
             ✏️
           </button>
           <button
+            v-if="!message.isStreaming"
             class="action-btn danger"
             @click="handleDeleteClick"
             title="删除"
@@ -245,6 +247,9 @@ const editTextarea = ref(null)
 const editWidth = ref(null)
 
 async function startEdit() {
+  // 流式生成中的消息内容尚未定稿，禁止编辑
+  if (props.message.isStreaming) return
+
   // 记录当前气泡内容的实际宽度
   const bubble = messageContainer.value?.querySelector('.bubble-content')
   if (bubble) {

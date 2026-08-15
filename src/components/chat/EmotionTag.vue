@@ -72,12 +72,13 @@ const emotionOptions = ref(['平静'])
 const emotionClass = computed(() => EMOTION_CSS_MAP[props.emotion] || 'emotion-neutral')
 
 onMounted(async () => {
+  // 先注册监听器，避免与 onUnmounted 竞态导致泄漏（组件可能在 IPC await 期间被卸载）
+  document.addEventListener('click', handleClickOutside)
   // 从后端获取情绪列表，保持与 constants.js 同步
   const result = await window.electronAPI.narrative.getEmotionList()
   if (result.success) {
     emotionOptions.value = ['平静', ...result.data]
   }
-  document.addEventListener('click', handleClickOutside)
 })
 
 function selectEmotion(opt) {

@@ -10,7 +10,12 @@
       暂无推荐事件
     </div>
 
-    <div v-for="event in suggestions" :key="event.key" class="event-card" @click="handleTrigger(event)">
+    <div
+      v-for="event in suggestions"
+      :key="event.key"
+      :class="['event-card', { disabled: messagesStore.sending }]"
+      @click="handleTrigger(event)"
+    >
       <span class="event-impact">{{ event.impact }}</span>
       <span class="event-content">{{ event.content }}</span>
     </div>
@@ -31,6 +36,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNarrativeStore } from '../../stores/narrative.js'
+import { useMessagesStore } from '../../stores/messages.js'
+import { useToastStore } from '../../stores/toast'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -48,6 +55,8 @@ async function loadSceneLabels() {
 }
 
 const narrativeStore = useNarrativeStore()
+const messagesStore = useMessagesStore()
+const toast = useToastStore()
 const suggestions = ref([])
 const recentEvents = ref([])
 
@@ -63,10 +72,16 @@ async function refresh() {
 }
 
 async function handleTrigger(event) {
-  const result = await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
-  await refresh()
-  if (result.success) {
-    emit('eventTriggered', event)
+  // 流式生成中禁止重复触发事件，避免并发生成
+  if (messagesStore.sending) return
+  try {
+    const result = await narrativeStore.triggerEvent(props.groupId, event.key, event.content, event.impact)
+    await refresh()
+    if (result.success) {
+      emit('eventTriggered', event)
+    }
+  } catch (error) {
+    toast.error('触发事件失败: ' + error.message)
   }
 }
 
@@ -107,7 +122,7 @@ function formatTime(datetime) {
 .current-scene { font-size: 10px; background: #e3f2fd; border-radius: 4px; padding: 1px 6px; color: #1976d2; flex-shrink: 0; }
 .btn-refresh { background: none; border: 1px solid #ddd; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; color: #666; &:hover { border-color: #07c160; color: #07c160; } }
 .empty-tip { color: #999; font-size: 12px; text-align: center; padding: 12px; }
-.event-card { display: flex; align-items: center; gap: 6px; padding: 8px; background: #f8f8f8; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: background 0.2s; &:hover { background: #e8f5e9; } }
+.event-card { display: flex; align-items: center; gap: 6px; padding: 8px; background: #f8f8f8; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: background 0.2s; &:hover { background: #e8f5e9; } &.disabled { opacity: 0.5; pointer-events: none; cursor: default; } }
 .event-impact { font-size: 11px; color: #fff; background: #07c160; border-radius: 8px; padding: 1px 6px; white-space: nowrap; }
 .event-content { font-size: 12px; color: #333; }
 .recent-events { margin-top: 12px; h5 { margin: 0 0 6px; font-size: 12px; color: #666; } }

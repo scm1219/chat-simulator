@@ -462,6 +462,8 @@ async function handleExportMessages() {
 
 // 事件触发后的处理：立即以事件内容发起一轮对话
 async function handleEventTriggered(event) {
+  // 流式生成中禁止重复触发，避免并发生成
+  if (messagesStore.sending) return
   showEventPanel.value = false
   showStalenessTip.value = false
   try {
