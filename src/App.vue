@@ -12,7 +12,7 @@ import Toast from './components/common/Toast.vue'
 
 <style lang="scss">
 #app {
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   overflow: hidden;
 }

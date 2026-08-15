@@ -37,7 +37,9 @@ export const useGroupsStore = defineStore('groups', () => {
   async function deleteGroup(id) {
     await call(() => window.electronAPI.group.delete(id))
     groups.value = groups.value.filter(g => g.id !== id)
-    if (currentGroupId.value === id) currentGroupId.value = null
+    if (currentGroupId.value === id) {
+      currentGroupId.value = groups.value[0]?.id ?? null
+    }
   }
 
   async function duplicateGroup(id) {

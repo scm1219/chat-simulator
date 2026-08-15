@@ -4,11 +4,15 @@
 export const required = (msg = '此项不能为空') => (v) =>
   (v !== undefined && v !== null && String(v).trim().length > 0) ? '' : msg
 
-export const maxLength = (max, msg) => (v) =>
-  (!v || v.length <= max) ? '' : (msg || `不能超过${max}个字符`)
+export const maxLength = (max, msg) => (v) => {
+  const s = v == null ? '' : String(v)
+  return s.length <= max ? '' : (msg || `不能超过${max}个字符`)
+}
 
-export const minLength = (min, msg) => (v) =>
-  (v && v.trim().length >= min) ? '' : (msg || `至少需要${min}个字符`)
+export const minLength = (min, msg) => (v) => {
+  const s = v == null ? '' : String(v)
+  return (!v || s.trim().length >= min) ? '' : (msg || `至少需要${min}个字符`)
+}
 
 export const compose = (...rules) => (v) => {
   for (const rule of rules) {

@@ -1,12 +1,14 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { createLogger } from '../utils/logger.js'
 
 /**
  * 统一 IPC API 调用 composable
  * 封装 loading 状态、result.success 检查、错误日志
+ * loading 采用计数器实现：并发调用时，任一请求未完成则保持 loading
  */
 export function useApi(label) {
-  const loading = ref(false)
+  const loadingCount = ref(0)
+  const loading = computed(() => loadingCount.value > 0)
   const log = label ? createLogger(label) : null
 
   /**
@@ -14,7 +16,7 @@ export function useApi(label) {
    * 适用于 loadXxx 方法
    */
   async function load(fn) {
-    loading.value = true
+    loadingCount.value++
     try {
       const result = await fn()
       if (result.success) return result.data
@@ -24,7 +26,7 @@ export function useApi(label) {
       log?.error('加载失败:', error)
       return null
     } finally {
-      loading.value = false
+      loadingCount.value--
     }
   }
 
@@ -33,6 +35,7 @@ export function useApi(label) {
    * 适用于 create/update/delete 方法
    */
   async function call(fn) {
+    loadingCount.value++
     try {
       const result = await fn()
       if (result.success) return result.data
@@ -40,6 +43,8 @@ export function useApi(label) {
     } catch (error) {
       log?.error('操作失败:', error)
       throw error
+    } finally {
+      loadingCount.value--
     }
   }
 
