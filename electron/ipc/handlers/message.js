@@ -10,6 +10,7 @@ import path from 'path'
 import archiver from 'archiver'
 import { app, dialog, BrowserWindow } from 'electron'
 import { generateUUID } from '../../utils/uuid.js'
+import { nowTimestampMs } from '../../utils/timestamp.js'
 import { createHandler } from '../handler-wrapper.js'
 
 export function setupMessageHandlers(dbManager) {
@@ -37,9 +38,9 @@ export function setupMessageHandlers(dbManager) {
 
     const db = dbManager.getGroupDB(groupId)
     db.prepare(`
-      INSERT INTO messages (id, group_id, character_id, role, content)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, groupId, characterId || null, role, content)
+      INSERT INTO messages (id, group_id, character_id, role, content, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, groupId, characterId || null, role, content, nowTimestampMs())
 
     const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(id)
     return { success: true, data: message }
@@ -87,19 +88,24 @@ export function setupMessageHandlers(dbManager) {
   // 删除指定消息及其之后的所有消息
   ipcMain.handle('message:deleteFrom', createHandler(async (event, groupId, messageId) => {
     const db = dbManager.getGroupDB(groupId)
-    const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId)
+    // 按 id 定位目标消息，取其 timestamp 与 rowid 作为复合删除条件
+    const target = db.prepare(
+      'SELECT timestamp, rowid AS rid FROM messages WHERE group_id = ? AND id = ?'
+    ).get(groupId, messageId)
 
-    if (!message) {
+    if (!target) {
       return { success: false, error: '消息不存在' }
     }
 
-    // 获取消息的时间戳
-    const timestamp = message.timestamp
+    const content = db.prepare('SELECT content FROM messages WHERE id = ?').get(messageId)?.content
 
-    // 删除该消息及之后的所有消息
-    db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(groupId, timestamp)
+    // 复合条件：严格晚于目标时间戳，或同时间戳但 rowid 不小于目标（同秒/同毫秒内不误删相邻消息）
+    db.prepare(`
+      DELETE FROM messages
+      WHERE group_id = ? AND (timestamp > ? OR (timestamp = ? AND rowid >= ?))
+    `).run(groupId, target.timestamp, target.timestamp, target.rid)
 
-    return { success: true, data: { content: message.content, groupId } }
+    return { success: true, data: { content, groupId } }
   }, 'Message:deleteFrom'))
 
   // 导出群组聊天记录为 ZIP（异步文件 I/O，避免阻塞主线程）

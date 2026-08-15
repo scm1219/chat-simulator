@@ -11,6 +11,7 @@ import { extractJSON } from '../utils/json-extractor.js'
 import { generateUUID } from '../utils/uuid.js'
 import { createLogger } from '../utils/logger.js'
 import { prepareCached } from '../utils/statement-cache.js'
+import { nowTimestampMs } from '../utils/timestamp.js'
 
 const log = createLogger('Narrative')
 
@@ -290,9 +291,9 @@ export class NarrativeEngine {
     const msgId = generateUUID()
     db.transaction(() => {
       prepareCached(db, `
-        INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens)
-        VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?)
-      `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0)
+        INSERT INTO messages (id, group_id, character_id, role, content, is_aftermath, message_type, model, prompt_tokens, completion_tokens, timestamp)
+        VALUES (?, ?, ?, 'assistant', ?, 1, 'aftermath', ?, ?, ?, ?)
+      `).run(msgId, groupId, triggerChar.id, text, tokenInfo.model || null, tokenInfo.promptTokens || 0, tokenInfo.completionTokens || 0, nowTimestampMs())
       this.emotion.updateFromMessage(db, triggerChar.id, text)
     })()
     return [{

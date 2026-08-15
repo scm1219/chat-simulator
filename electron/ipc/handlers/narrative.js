@@ -103,11 +103,17 @@ export function setupNarrativeHandlers(narrativeEngine) {
     // 删除事件记录
     narrativeEngine.deleteEvent(db, eventId)
     // 删除聊天中对应的用户消息及后续所有消息
+    // 事件触发的用户消息带 message_type='event'（llm:generate 传入），据此限定匹配，
+    // 避免用户以普通消息重发同内容时误从更晚的消息开始级联删除
     const msg = db.prepare(
-      "SELECT * FROM messages WHERE group_id = ? AND role = 'user' AND content = ? ORDER BY timestamp DESC LIMIT 1"
+      "SELECT timestamp, rowid AS rid FROM messages WHERE group_id = ? AND role = 'user' AND content = ? AND message_type = 'event' ORDER BY timestamp DESC, rowid DESC LIMIT 1"
     ).get(groupId, evt.content)
     if (msg) {
-      db.prepare('DELETE FROM messages WHERE group_id = ? AND timestamp >= ?').run(groupId, msg.timestamp)
+      // 复合条件：严格晚于目标时间戳，或同时间戳但 rowid 不小于目标（同秒/同毫秒内不误删相邻消息）
+      db.prepare(`
+        DELETE FROM messages
+        WHERE group_id = ? AND (timestamp > ? OR (timestamp = ? AND rowid >= ?))
+      `).run(groupId, msg.timestamp, msg.timestamp, msg.rid)
     }
     return { success: true, deletedMessages: !!msg }
   }))

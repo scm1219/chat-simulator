@@ -6,6 +6,7 @@ import { generateUUID } from '../../utils/uuid.js'
 import { createLogger } from '../../utils/logger.js'
 import { StreamBatcher } from '../../utils/stream-batcher.js'
 import { prepareCached } from '../../utils/statement-cache.js'
+import { nowTimestampMs } from '../../utils/timestamp.js'
 
 const log = createLogger('LLM')
 import { buildContextMessages, fetchCharacterMemories, extractMemoriesAsync } from './llm-context-builder.js'
@@ -25,9 +26,9 @@ export function saveUserMessage(db, groupId, content, userCharacter, event, mess
   const userMsgId = generateUUID()
 
   prepareCached(db, `
-    INSERT INTO messages (id, group_id, character_id, role, content, message_type, event_impact)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(userMsgId, groupId, userCharacter?.id || null, 'user', content, messageType, eventImpact)
+    INSERT INTO messages (id, group_id, character_id, role, content, message_type, event_impact, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userMsgId, groupId, userCharacter?.id || null, 'user', content, messageType, eventImpact, nowTimestampMs())
 
   // 通知前端：用户消息已保存（包含真实 ID）
   event.sender.send('message:user:saved', {
@@ -127,9 +128,9 @@ export async function generateCharacterResponse(client, character, history, user
       const completionTokens = result.usage?.completion_tokens ?? null
       const responseModel = result.model || null
       prepareCached(db, `
-        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel)
+        INSERT INTO messages (id, group_id, character_id, role, content, reasoning_content, prompt_tokens, completion_tokens, model, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(assistantMsgId, groupId, character.id, 'assistant', result.content, result.reasoningContent || null, promptTokens, completionTokens, responseModel, nowTimestampMs())
 
       // 通知渲染进程：流式结束，发送完整消息
       event.sender.send('message:stream:end', {
