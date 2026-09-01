@@ -61,6 +61,11 @@ export function groupProfilesByProvider(profiles)
 // 输出 [{ providerId, providerName, profiles: [...] }]
 // 空列表/缺字段防御；过滤空组
 // 统一排序：组间按 providerName localeCompare，组内按 profile.name localeCompare
+
+export function sortProfilesByProvider(profiles)
+// 扁平列表变体（供 <select> 下拉使用）：按供应商声明顺序（LLM_PROVIDERS 键序），
+// 同供应商内按 profile.name localeCompare——与 CreateGroupDialog/QuickGroupDialog
+// 现有 providerOrder 排序逐行等价，纯收敛、零行为变化
 ```
 
 渲染进程直接 import `electron/llm/providers/index.js` 是项目既有模式（6 处重复均如此），保持不变。
@@ -138,7 +143,7 @@ export function usePromptConfig(channelKey)
 
 | 编号 | 变化 | 原因 |
 |---|---|---|
-| B-1 | profile 分组排序统一为 LLMConfigPanel 行为：组间按供应商名、组内按配置名排序。CharacterPanel 的"组内不排序"与 CreateGroupDialog/QuickGroupDialog 的 providerOrder 方案被替换 | 三个实现必须选一；LLMConfigPanel 行为最完整，且为主入口 |
+| B-1 | 两处**分组**实现（CharacterPanel 与 LLMConfigPanel）统一为 LLMConfigPanel 行为：组间按供应商名、组内按配置名排序（消除"组内不排序"分叉）。CreateGroupDialog/QuickGroupDialog 的扁平下拉列表经 `sortProfilesByProvider` 收敛，保持现有 providerOrder 顺序不变（等价搬运，无行为变化） | 分组实现必须选一，LLMConfigPanel 行为最完整且为主入口；扁平下拉是另一形态（供 select 用），计划阶段确认其顺序无需变更，只收敛不改行为 |
 | B-2 | CharacterGachaDialog 保存提示词成功后补 toast `提示词配置已保存`（原仅快速建群侧有提示） | usePromptConfig 统一保存路径的副作用 |
 
 除上述两项外，所有改动为等价搬运；如实施中发现必须的行为差异，在修复记录中单列说明。
@@ -164,7 +169,7 @@ export function usePromptConfig(channelKey)
 | 2 调用方迁移 | 函数收敛（6+2 处 + 3 处分组）/ 提示词 Tab 迁移（2 文件）/ Profile 统一（3 文件 + 删 1）/ MemoryDialog 接线 | 4 个 |
 | 3 CharacterPanel 拆分 | GroupSettingsSection / CharacterCard / 面板瘦身收尾 | 2~3 个 |
 
-每阶段收尾跑一次完整验证并更新 `src/CLAUDE.md`（或对应模块文档）中受影响的组件清单与行数描述。
+每任务收尾跑完整验证（lint/build/test）；组件文档与变更记录在最后一个任务统一更新（计划阶段决定：避免每阶段重复改同一批文档段）。
 
 ## 10. 风险与回滚
 
@@ -177,6 +182,6 @@ export function usePromptConfig(channelKey)
 1. FTS5 / worker 搜索（审查 M-23 本体）
 2. 记忆 schema 改 character_id 关联（M-4 完整方案）
 3. focus trap 完整实现（M-31）
-4. 对话框按钮/表单 SCSS 的全面全局化收敛（审查报告 §7 第 3 条后半）——本次仅随组件拆分自然消除 MemoryDialog 的 dialog 复制样式，其余保持组件内 scoped
+4. 对话框按钮/表单 SCSS 的全面全局化收敛（审查报告 §7 第 3 条后半）——本次仅随组件拆分自然消除 MemoryDialog 的 dialog 复制样式，其余保持组件内 scoped。**唯一例外**：`.btn-link` 因 GroupSettingsSection 与 CharacterCard 两个新组件共用，从 CharacterPanel 升为 global.scss 公共样式（单一类、一次性）
 5. ChatWindow.vue（1035 行）等其他大文件的进一步拆分
 6. 新增通用组件库能力（如 Tabs 组件抽象）——`.tab-bar` 仅两处使用，不值得抽象
