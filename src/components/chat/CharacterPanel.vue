@@ -22,159 +22,14 @@
         </div>
 
         <div class="character-list">
-        <div
-          v-for="(char, index) in charactersStore.characters"
-          :key="char.id"
-          :class="['character-item', { 'user-character': char.is_user === 1 }]"
-        >
-          <div class="character-header">
-            <div class="character-actions-left">
-              <button
-                v-if="char.is_user !== 1"
-                class="btn-delete-icon"
-                @click="deleteCharacter(char.id)"
-                title="删除角色"
-              >❌</button>
-            </div>
-            <span class="character-name">{{ char.name }}</span>
-            <EmotionTag
-              :emotion="getCharEmotion(char.id)?.emotion || '平静'"
-              :intensity="getCharEmotion(char.id)?.intensity || 0"
-              :character-id="char.id"
-              :editable="char.is_user !== 1 && !!currentGroup?.narrative_enabled"
-              @update="(e) => updateEmotion(char.id, e)"
-            />
-              <button
-                v-if="char.is_user !== 1"
-                class="btn-memory-icon"
-                @click="openMemoryDialog(char)"
-                title="角色记忆"
-              >📝</button>
-            <div class="character-actions-right">
-              <!-- AI 角色的控制按钮 -->
-              <template v-if="char.is_user !== 1">
-                <!-- 上移按钮 -->
-                <button
-                  class="btn-order-icon"
-                  @click="moveCharacter(char, 'up')"
-                  :disabled="!canMoveUp(index)"
-                  :class="{ 'btn-disabled': !canMoveUp(index) }"
-                  title="上移"
-                >⬆️</button>
-                <!-- 下移按钮 -->
-                <button
-                  class="btn-order-icon"
-                  @click="moveCharacter(char, 'down')"
-                  :disabled="!canMoveDown(index)"
-                  :class="{ 'btn-disabled': !canMoveDown(index) }"
-                  title="下移"
-                >⬇️</button>
-                <!-- 思考模式开关 -->
-                <label class="checkbox-switch" :title="char.thinking_enabled === 1 ? '思考模式已开启' : '思考模式已关闭'">
-                  <input
-                    type="checkbox"
-                    :checked="char.thinking_enabled === 1"
-                    @change="toggleCharacterThinking(char)"
-                  />
-                  <span class="checkbox-icon">🧠</span>
-                </label>
-                <!-- 启用开关 -->
-                <label class="toggle-switch">
-                  <input
-                    type="checkbox"
-                    :checked="char.enabled === 1"
-                    @change="toggleCharacter(char)"
-                  />
-                  <span class="slider"></span>
-                </label>
-              </template>
-              <!-- 用户角色的操作 -->
-              <div v-else class="user-actions">
-                <span class="user-badge">用户</span>
-                <button class="btn-edit-icon" @click="editCharacter(char)" title="编辑用户设定">
-                  ✏️
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 折叠的角色设定（只读） -->
-          <div class="character-prompt-collapsed" v-if="!expandedPrompts[char.id]">
-            <button class="btn btn-link btn-sm expand-btn" @click="togglePromptExpand(char.id)">
-              📄 展开设定
-            </button>
-          </div>
-          <div class="character-prompt-expanded" v-else>
-            <div class="prompt-header">
-              <span class="prompt-label">角色设定（只读）</span>
-              <div class="prompt-header-actions">
-                <button
-                  v-if="libraryCharIds.has(char.id)"
-                  class="btn btn-link btn-sm sync-btn"
-                  @click="syncFromLibrary(char)"
-                  :disabled="syncingIds.has(char.id)"
-                  title="从角色库同步最新设定"
-                >{{ syncingIds.has(char.id) ? '⏳' : '🔄' }}</button>
-                <button class="btn btn-link btn-sm collapse-btn" @click="togglePromptExpand(char.id)">
-                  ▲ 收起
-                </button>
-              </div>
-            </div>
-            <div class="character-prompt-readonly">{{ char.system_prompt || '暂无设定' }}</div>
-          </div>
-
-          <!-- 指令输入和发送（仅 AI 角色） -->
-          <div v-if="char.is_user !== 1" class="character-command">
-            <input
-              :value="commandDrafts.get(char.id) ?? ''"
-              type="text"
-              class="command-input"
-              placeholder="输入指令让角色回复..."
-              @input="e => commandDrafts.set(char.id, e.target.value)"
-              @keyup.enter="sendCommand(char)"
-            />
-            <button
-              class="btn btn-primary btn-sm command-btn"
-              @click="sendCommand(char)"
-              :disabled="!(commandDrafts.get(char.id) ?? '').trim() || char.sending"
-            >
-              {{ char.sending ? '发送中...' : '发送' }}
-            </button>
-          </div>
-
-          <!-- 独立模型设置（仅 AI 角色） -->
-          <div v-if="char.is_user !== 1" class="character-model-setting">
-            <label class="model-checkbox-label">
-              <input
-                type="checkbox"
-                :checked="!!char.custom_llm_profile_id"
-                @change="toggleCustomModel(char)"
-              />
-              <span>独立设置模型</span>
-            </label>
-            <select
-              v-if="char.custom_llm_profile_id"
-              class="model-select"
-              :value="char.custom_llm_profile_id"
-              @change="updateCharacterModel(char, $event.target.value)"
-            >
-              <option value="">-- 使用群组默认 --</option>
-              <optgroup
-                v-for="group in profileGroups"
-                :key="group.providerId"
-                :label="group.providerName"
-              >
-                <option
-                  v-for="profile in group.profiles"
-                  :key="profile.id"
-                  :value="profile.id"
-                >
-                  {{ profile.name }} ({{ profile.model }})
-                </option>
-              </optgroup>
-            </select>
-          </div>
-        </div>
+          <CharacterCard
+            v-for="(char, index) in charactersStore.characters"
+            :key="char.id"
+            :character="char"
+            :index="index"
+            @edit="editCharacter"
+            @open-memory="openMemoryDialog"
+          />
 
         <div v-if="charactersStore.characters.length === 0" class="empty-state">
           <p>还没有角色</p>
@@ -227,95 +82,39 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
-import { useMessagesStore } from '../../stores/messages.js'
-import { useToastStore } from '../../stores/toast'
-import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useNarrativeStore } from '../../stores/narrative.js'
-import { useDialog } from '../../composables/useDialog'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
-import EmotionTag from './EmotionTag.vue'
 import RelationshipPanel from './RelationshipPanel.vue'
 import MemoryDialog from './MemoryDialog.vue'
 import GroupSettingsSection from './GroupSettingsSection.vue'
-import { createLogger } from '../../utils/logger.js'
+import CharacterCard from './CharacterCard.vue'
 
 // 对话框组件按需异步加载，减小首屏 bundle 体积
 const CreateCharacterDialog = defineAsyncComponent(() => import('../config/CreateCharacterDialog.vue'))
 const EditCharacterDialog = defineAsyncComponent(() => import('../config/EditCharacterDialog.vue'))
 const GroupSettingsDialog = defineAsyncComponent(() => import('../config/GroupSettingsDialog.vue'))
 
-const log = createLogger('CharPanel')
-
 const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
-const messagesStore = useMessagesStore()
-const toast = useToastStore()
-const globalCharsStore = useGlobalCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
 const narrativeStore = useNarrativeStore()
-const { confirm } = useDialog()
 const showCreateDialog = ref(false)
 const activeTab = ref('characters') // 'characters' | 'relationships'
 const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
-const expandedPrompts = ref({})
 const memoryDialogVisible = ref(false)  // 记忆对话框可见性
 const memoryDialogChar = ref(null)  // 记忆对话框当前角色
 const editingCharacter = ref(null)
-const libraryCharIds = ref(new Set()) // 记录哪些角色存在于角色库
-const syncingIds = ref(new Set()) // 正在同步的角色 ID
-const commandDrafts = reactive(new Map()) // 角色指令输入草稿（本地状态，避免直改 store）
 
 const currentGroup = computed(() => groupsStore.currentGroup)
-
-// LLM Profile 按供应商分组（用于下拉框）
-const profileGroups = computed(() => {
-  const profiles = llmProfilesStore.profiles
-  if (!profiles || profiles.length === 0) return []
-
-  const groups = {}
-  Object.values(LLM_PROVIDERS).forEach(provider => {
-    groups[provider.id] = {
-      providerId: provider.id,
-      providerName: provider.name,
-      profiles: []
-    }
-  })
-
-  profiles.forEach(profile => {
-    if (groups[profile.provider]) {
-      groups[profile.provider].profiles.push(profile)
-    }
-  })
-
-  return Object.values(groups)
-    .filter(group => group.profiles.length > 0)
-    .sort((a, b) => a.providerName.localeCompare(b.providerName))
-})
 
 // 加载 LLM Profile 列表
 onMounted(async () => {
   await llmProfilesStore.loadProfiles()
 })
-
-// 获取角色情绪
-function getCharEmotion(characterId) {
-  const emotion = narrativeStore.emotions.find(e => e.character_id === characterId)
-  if (emotion && emotion.emotion !== '平静' && emotion.intensity > 0.1) return emotion
-  return null
-}
-
-// 手动更新角色情绪
-async function updateEmotion(characterId, { emotion, intensity }) {
-  const groupId = currentGroup.value?.id
-  if (!groupId) return
-  await window.electronAPI.narrative.setEmotion(groupId, characterId, emotion, intensity)
-  await narrativeStore.fetchEmotions(groupId)
-}
 
 // 监听当前群组变化，获取情绪数据
 watch(() => currentGroup.value?.id, async (newId) => {
@@ -330,127 +129,10 @@ const _aiCharacterCount = computed(() => {
   return charactersStore.characters.filter(c => c.is_user !== 1).length
 })
 
-function togglePromptExpand(charId) {
-  expandedPrompts.value[charId] = !expandedPrompts.value[charId]
-  // 展开时检查角色是否存在于角色库
-  if (expandedPrompts.value[charId] && !libraryCharIds.value.has(charId)) {
-    globalCharsStore.existsInLibrary(charId).then(exists => {
-      if (exists) {
-        libraryCharIds.value.add(charId)
-      }
-    })
-  }
-}
-
-// 同步角色设定从角色库到群组
-async function syncFromLibrary(char) {
-  if (!currentGroup.value) return
-  syncingIds.value.add(char.id)
-  try {
-    await globalCharsStore.syncToGroup(char.id, currentGroup.value.id)
-    await charactersStore.loadCharacters(currentGroup.value.id)
-    toast.success(`已同步 ${char.name} 的最新设定`)
-  } catch (error) {
-    toast.error('同步失败: ' + error.message)
-  } finally {
-    syncingIds.value.delete(char.id)
-  }
-}
-
 // 打开记忆对话框
 function openMemoryDialog(char) {
   memoryDialogChar.value = char
   memoryDialogVisible.value = true
-}
-
-// 判断角色是否可以上移
-function canMoveUp(index) {
-  const char = charactersStore.characters[index]
-  if (char.is_user === 1) return false
-  const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-  const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
-  return aiIndex > 0
-}
-
-// 判断角色是否可以下移
-function canMoveDown(index) {
-  const char = charactersStore.characters[index]
-  if (char.is_user === 1) return false
-  const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-  const aiIndex = aiCharacters.findIndex(c => c.id === char.id)
-  return aiIndex < aiCharacters.length - 1
-}
-
-// 移动角色
-async function moveCharacter(char, direction) {
-  try {
-    await charactersStore.reorderCharacter(char.id, direction)
-  } catch (error) {
-    log.error('移动角色失败:', error)
-    toast.error(`移动角色失败: ${error.message}`)
-  }
-}
-
-async function toggleCharacter(char) {
-  try {
-    await charactersStore.toggleCharacter(char.id, char.enabled === 0)
-  } catch (error) {
-    toast.error('切换角色状态失败: ' + error.message)
-  }
-}
-
-async function deleteCharacter(id) {
-  const confirmed = await confirm({
-    title: '删除角色',
-    message: '确定要删除这个角色吗？',
-    confirmText: '删除',
-    cancelText: '取消'
-  })
-  if (!confirmed) return
-
-  try {
-    await charactersStore.deleteCharacter(id)
-  } catch (error) {
-    toast.error('删除角色失败: ' + error.message)
-  }
-}
-
-async function toggleCharacterThinking(char) {
-  try {
-    const newEnabled = char.thinking_enabled === 0
-    await charactersStore.updateCharacter(char.id, {
-      thinkingEnabled: newEnabled
-    })
-  } catch (error) {
-    toast.error('更新角色思考模式失败: ' + error.message)
-  }
-}
-
-// 切换角色独立模型设置
-async function toggleCustomModel(char) {
-  try {
-    const newValue = char.custom_llm_profile_id ? null : (llmProfilesStore.profiles[0]?.id || null)
-    await charactersStore.updateCharacter(char.id, {
-      customLlmProfileId: newValue
-    })
-    // 重新加载角色列表以更新 UI
-    if (currentGroup.value) {
-      await charactersStore.loadCharacters(currentGroup.value.id)
-    }
-  } catch (error) {
-    toast.error('更新角色模型设置失败: ' + error.message)
-  }
-}
-
-// 更新角色使用的 LLM Profile
-async function updateCharacterModel(char, profileId) {
-  try {
-    await charactersStore.updateCharacter(char.id, {
-      customLlmProfileId: profileId || null
-    })
-  } catch (error) {
-    toast.error('更新角色模型失败: ' + error.message)
-  }
 }
 
 function handleCharacterCreated() {
@@ -469,30 +151,6 @@ function handleCharacterSaved() {
 
 function handleGroupSettingsSaved() {
   showGroupSettings.value = false
-}
-
-async function sendCommand(char) {
-  const draft = (commandDrafts.get(char.id) ?? '').trim()
-  if (!draft || char.sending) return
-
-  const command = draft
-  commandDrafts.set(char.id, '')
-  char.sending = true
-
-  try {
-    // 构建特殊的指令消息
-    const instructionMessage = `【角色指令】\n请${char.name}按照以下指令进行回复：\n${command}\n\n请保持角色人设，以角色的身份回应。`
-
-    await messagesStore.sendMessageToCharacter(char.id, instructionMessage)
-  } catch (error) {
-    toast.error('发送指令失败: ' + error.message)
-    // 失败时恢复指令内容；若用户已重新输入则不覆盖
-    if (!(commandDrafts.get(char.id) ?? '').trim()) {
-      commandDrafts.set(char.id, command)
-    }
-  } finally {
-    char.sending = false
-  }
 }
 </script>
 
@@ -554,368 +212,6 @@ async function sendCommand(char) {
   padding: $spacing-lg;
 }
 
-.character-item {
-  background: $bg-secondary;
-  border-radius: $border-radius-md;
-  padding: $spacing-md;
-  margin-bottom: $spacing-md;
-
-  &.user-character {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: 2px solid #5a67d8;
-
-    .user-badge {
-      background: rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: $font-size-sm;
-      font-weight: $font-weight-medium;
-    }
-
-    .command-input {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      border-color: rgba(255, 255, 255, 0.3);
-
-      &::placeholder {
-        color: rgba(255, 255, 255, 0.6);
-      }
-
-      &:focus {
-        border-color: rgba(255, 255, 255, 0.5);
-      }
-    }
-
-    .character-prompt-collapsed .expand-btn {
-      color: rgba(255, 255, 255, 0.8);
-    }
-
-    .character-prompt-expanded {
-      background: rgba(255, 255, 255, 0.1);
-
-      .prompt-header {
-        background: rgba(255, 255, 255, 0.15);
-        border-bottom-color: rgba(255, 255, 255, 0.2);
-
-        .prompt-label {
-          color: rgba(255, 255, 255, 0.9);
-        }
-
-        .collapse-btn {
-          color: rgba(255, 255, 255, 0.8);
-        }
-      }
-
-      .character-prompt-readonly {
-        color: rgba(255, 255, 255, 0.95);
-      }
-    }
-  }
-}
-
-.character-header {
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-  margin-bottom: $spacing-sm;
-}
-
-.character-actions-left {
-  display: flex;
-  align-items: center;
-  gap: $spacing-xs;
-}
-
-.character-actions-right {
-  display: flex;
-  align-items: center;
-  gap: $spacing-xs;
-}
-
-.btn-delete-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
-  line-height: 1;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.btn-order-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
-  line-height: 1;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-
-  &:hover:not(.btn-disabled) {
-    opacity: 1;
-  }
-
-  &.btn-disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-}
-
-.btn-edit-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
-  line-height: 1;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.checkbox-switch {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-
-  input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .checkbox-icon {
-    font-size: 16px;
-    opacity: 0.3;
-    transition: opacity 0.2s, transform 0.2s;
-  }
-
-  input:checked + .checkbox-icon {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-
-  &:hover .checkbox-icon {
-    opacity: 0.6;
-  }
-
-  input:checked:hover + .checkbox-icon {
-    opacity: 1;
-  }
-}
-
-.user-actions {
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-}
-
-.character-name {
-  flex: 1;
-  font-weight: $font-weight-medium;
-  font-size: $font-size-md;
-}
-
-.character-prompt-collapsed {
-  margin-bottom: $spacing-sm;
-
-  .expand-btn {
-    font-size: $font-size-sm;
-    color: $text-secondary;
-  }
-}
-
-.character-prompt-expanded {
-  margin-bottom: $spacing-sm;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: $border-radius-sm;
-  overflow: hidden;
-
-  .prompt-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.05);
-    border-bottom: 1px solid $border-color;
-
-    .prompt-label {
-      font-size: $font-size-sm;
-      color: $text-secondary;
-      font-weight: $font-weight-medium;
-    }
-
-    .collapse-btn {
-      font-size: $font-size-xs;
-      color: $text-secondary;
-    }
-
-    .prompt-header-actions {
-      display: flex;
-      align-items: center;
-      gap: $spacing-sm;
-    }
-
-    .sync-btn {
-      font-size: $font-size-xs;
-      color: $color-primary;
-
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      &:hover:not(:disabled) {
-        opacity: 0.8;
-      }
-    }
-  }
-
-  .character-prompt-readonly {
-    padding: 10px;
-    font-size: $font-size-sm;
-    color: $text-primary;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 150px;
-    overflow-y: auto;
-    line-height: 1.5;
-  }
-}
-
-.character-command {
-  display: flex;
-  gap: $spacing-sm;
-  margin-bottom: $spacing-sm;
-}
-
-.character-model-setting {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-xs;
-  margin-bottom: $spacing-sm;
-  padding-top: $spacing-xs;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-
-  .model-checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: $spacing-xs;
-    cursor: pointer;
-    user-select: none;
-    font-size: $font-size-xs;
-    color: $text-secondary;
-
-    input[type="checkbox"] {
-      cursor: pointer;
-      width: 14px;
-      height: 14px;
-      accent-color: $color-primary;
-    }
-
-    &:hover {
-      color: $text-primary;
-    }
-  }
-
-  .model-select {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid $border-color;
-    border-radius: $border-radius-sm;
-    font-size: $font-size-sm;
-    background: $bg-primary;
-    color: $text-primary;
-    cursor: pointer;
-    outline: none;
-    transition: border-color 0.2s;
-
-    &:focus {
-      border-color: $color-primary;
-    }
-
-    optgroup {
-      font-weight: $font-weight-medium;
-      color: $text-secondary;
-    }
-
-    option {
-      color: $text-primary;
-      padding: 4px 0;
-    }
-  }
-}
-
-.command-input {
-  flex: 1;
-  @extend .input !optional;
-  padding: 6px 12px;
-  font-size: $font-size-sm;
-}
-
-.command-btn {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-
-  input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: 0.3s;
-    border-radius: 24px;
-
-    &:before {
-      position: absolute;
-      content: "";
-      height: 18px;
-      width: 18px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: 0.3s;
-      border-radius: 50%;
-    }
-  }
-
-  input:checked + .slider {
-    background-color: $color-primary;
-  }
-
-  input:checked + .slider:before {
-    transform: translateX(20px);
-  }
-}
-
 .empty-state,
 .empty-panel {
   flex: 1;
@@ -931,24 +227,4 @@ async function sendCommand(char) {
     margin-top: $spacing-sm;
   }
 }
-
-.user-badge {
-  flex-shrink: 0;
-}
-
-.btn-memory-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0 2px;
-  line-height: 1;
-  opacity: 0.5;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
 </style>
