@@ -23,7 +23,7 @@
         <button
           v-if="character.is_user !== 1"
           class="btn-memory-icon"
-          @click="$emit('open-memory')"
+          @click="$emit('open-memory', character)"
           title="角色记忆"
         >📝</button>
       <div class="character-actions-right">
@@ -67,7 +67,7 @@
         <!-- 用户角色的操作 -->
         <div v-else class="user-actions">
           <span class="user-badge">用户</span>
-          <button class="btn-edit-icon" @click="$emit('edit')" title="编辑用户设定">
+          <button class="btn-edit-icon" @click="$emit('edit', character)" title="编辑用户设定">
             ✏️
           </button>
         </div>
