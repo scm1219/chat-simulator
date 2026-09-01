@@ -1,104 +1,10 @@
 <template>
   <div class="character-panel">
     <div v-if="currentGroup" class="panel-content">
-      <!-- 群设置 -->
-      <div class="panel-section group-settings-section">
-        <div class="section-header" @click="groupSettingsCollapsed = !groupSettingsCollapsed">
-          <h3>群设置</h3>
-          <div class="section-header-actions">
-            <button class="btn btn-link btn-sm" @click.stop="showGroupSettings = true">
-              ⚙️ 编辑
-            </button>
-            <span class="collapse-icon" :class="{ collapsed: groupSettingsCollapsed }">▼</span>
-          </div>
-        </div>
-        <div class="group-settings-body" :class="{ collapsed: groupSettingsCollapsed }">
-          <div class="group-settings-body-inner">
-          <div class="setting-item inline-setting">
-            <label>最大历史轮数</label>
-            <input
-              type="number"
-              :value="currentGroup.max_history"
-              @change="updateMaxHistory"
-              class="input setting-input number-input"
-              min="1"
-              max="50"
-            />
-          </div>
-          <div class="setting-item inline-setting">
-            <label>回复模式</label>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="response-mode"
-                  :value="currentGroup.response_mode"
-                  :checked="currentGroup.response_mode === 'sequential'"
-                  @change="updateResponseMode({ target: { value: 'sequential' }})"
-                />
-                <span>顺序</span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="response-mode"
-                  :value="currentGroup.response_mode"
-                  :checked="currentGroup.response_mode === 'parallel'"
-                  @change="updateResponseMode({ target: { value: 'parallel' }})"
-                />
-                <span>并行</span>
-              </label>
-            </div>
-          </div>
-          <div class="setting-item inline-setting">
-            <label>思考模式</label>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="thinking-mode"
-                  :checked="currentGroup.thinking_enabled === 1"
-                  @change="updateThinkingMode({ target: { checked: true }})"
-                />
-                <span>是</span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="thinking-mode"
-                  :checked="currentGroup.thinking_enabled === 0"
-                  @change="updateThinkingMode({ target: { checked: false }})"
-                />
-                <span>否</span>
-              </label>
-            </div>
-          </div>
-          <div class="setting-item inline-setting">
-            <label>随机发言</label>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="random-order"
-                  :checked="currentGroup.random_order === 1"
-                  @change="updateRandomOrder({ target: { checked: true }})"
-                />
-                <span>是</span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="random-order"
-                  :checked="currentGroup.random_order === 0"
-                  @change="updateRandomOrder({ target: { checked: false }})"
-                />
-                <span>否</span>
-              </label>
-            </div>
-          </div>
-          </div>
-        </div>
-      </div>
+      <GroupSettingsSection
+        :group="currentGroup"
+        @open-settings="showGroupSettings = true"
+      />
 
       <!-- Tab 切换 -->
       <div class="tab-bar">
@@ -334,6 +240,7 @@ import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import EmotionTag from './EmotionTag.vue'
 import RelationshipPanel from './RelationshipPanel.vue'
 import MemoryDialog from './MemoryDialog.vue'
+import GroupSettingsSection from './GroupSettingsSection.vue'
 import { createLogger } from '../../utils/logger.js'
 
 // 对话框组件按需异步加载，减小首屏 bundle 体积
@@ -356,7 +263,6 @@ const activeTab = ref('characters') // 'characters' | 'relationships'
 const showEditDialog = ref(false)
 const showGroupSettings = ref(false)
 const expandedPrompts = ref({})
-const groupSettingsCollapsed = ref(true)  // 群设置收起状态（默认收起）
 const memoryDialogVisible = ref(false)  // 记忆对话框可见性
 const memoryDialogChar = ref(null)  // 记忆对话框当前角色
 const editingCharacter = ref(null)
@@ -509,65 +415,6 @@ async function deleteCharacter(id) {
   }
 }
 
-async function updateMaxHistory(event) {
-  const v = parseInt(event.target.value, 10)
-  if (!Number.isInteger(v) || v < 1 || v > 50) {
-    // 非法输入回显为当前生效值
-    event.target.value = String(currentGroup.value?.max_history ?? 20)
-    toast.error('历史条数需为 1-50 的整数')
-    return
-  }
-  try {
-    await groupsStore.updateGroup(currentGroup.value.id, {
-      maxHistory: v
-    })
-  } catch (error) {
-    toast.error('更新设置失败: ' + error.message)
-  }
-}
-
-async function updateResponseMode(event) {
-  try {
-    await groupsStore.updateGroup(currentGroup.value.id, {
-      responseMode: event.target.value
-    })
-  } catch (error) {
-    toast.error('更新设置失败: ' + error.message)
-  }
-}
-
-async function updateThinkingMode(event) {
-  try {
-    const enabled = event.target.checked
-    await groupsStore.updateGroup(currentGroup.value.id, {
-      thinkingEnabled: enabled
-    })
-
-    // 批量更新所有 AI 角色的思考模式（并行）
-    const aiCharacters = charactersStore.characters.filter(c => c.is_user !== 1)
-    await Promise.all(aiCharacters.map(char =>
-      charactersStore.updateCharacter(char.id, { thinkingEnabled: enabled }).catch(err => {
-        log.error(`更新角色 ${char.name} 思考模式失败:`, err)
-      })
-    ))
-
-    // 重新加载角色列表以确保 UI 正确刷新
-    await charactersStore.loadCharacters(currentGroup.value.id)
-  } catch (error) {
-    toast.error('更新设置失败: ' + error.message)
-  }
-}
-
-async function updateRandomOrder(event) {
-  try {
-    await groupsStore.updateGroup(currentGroup.value.id, {
-      randomOrder: event.target.checked
-    })
-  } catch (error) {
-    toast.error('更新设置失败: ' + error.message)
-  }
-}
-
 async function toggleCharacterThinking(char) {
   try {
     const newEnabled = char.thinking_enabled === 0
@@ -698,62 +545,6 @@ async function sendCommand(char) {
     font-size: $font-size-md;
     font-weight: $font-weight-medium;
     margin-bottom: $spacing-md;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: $spacing-md;
-
-    h3 {
-      margin-bottom: 0;
-    }
-  }
-
-  &.group-settings-section {
-    .section-header {
-      cursor: pointer;
-      user-select: none;
-      margin-bottom: 0;
-
-      &:hover {
-        h3 {
-          color: $color-primary;
-        }
-      }
-    }
-
-    .section-header-actions {
-      display: flex;
-      align-items: center;
-      gap: $spacing-sm;
-    }
-
-    .collapse-icon {
-      font-size: $font-size-xs;
-      color: $text-secondary;
-      transition: transform 0.2s ease;
-      display: inline-block;
-
-      &.collapsed {
-        transform: rotate(-90deg);
-      }
-    }
-
-    .group-settings-body {
-      display: grid;
-      grid-template-rows: 1fr;
-      transition: grid-template-rows 0.3s ease;
-
-      &.collapsed {
-        grid-template-rows: 0fr;
-      }
-
-      .group-settings-body-inner {
-        overflow: hidden;
-      }
-    }
   }
 }
 
@@ -1125,68 +916,6 @@ async function sendCommand(char) {
   }
 }
 
-.setting-item {
-  margin-top: $spacing-md;
-
-  label {
-    display: block;
-    font-size: $font-size-sm;
-    color: $text-secondary;
-    margin-bottom: $spacing-sm;
-  }
-
-  &.inline-setting {
-    display: flex;
-    align-items: center;
-    gap: $spacing-md;
-
-    label {
-      flex-shrink: 0;
-      margin-bottom: 0;
-      white-space: nowrap;
-    }
-
-    .number-input {
-      width: 80px;
-      flex-shrink: 0;
-    }
-  }
-
-  .setting-input {
-    width: 100%;
-  }
-
-  .radio-group {
-    display: flex;
-    gap: $spacing-lg;
-    padding: 0;
-
-    .radio-option {
-      display: flex;
-      align-items: center;
-      gap: $spacing-xs;
-      cursor: pointer;
-      user-select: none;
-
-      input[type="radio"] {
-        cursor: pointer;
-        width: 16px;
-        height: 16px;
-        accent-color: $color-primary;
-      }
-
-      span {
-        font-size: $font-size-md;
-        color: $text-primary;
-      }
-
-      &:hover span {
-        color: $color-primary;
-      }
-    }
-  }
-}
-
 .empty-state,
 .empty-panel {
   flex: 1;
@@ -1200,19 +929,6 @@ async function sendCommand(char) {
   .hint {
     font-size: $font-size-sm;
     margin-top: $spacing-sm;
-  }
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: $color-primary;
-  font-size: $font-size-sm;
-  cursor: pointer;
-  padding: 0;
-
-  &:hover {
-    text-decoration: underline;
   }
 }
 
