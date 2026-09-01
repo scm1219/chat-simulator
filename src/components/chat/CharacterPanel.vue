@@ -312,42 +312,11 @@
     />
 
     <!-- 角色记忆对话框 -->
-    <div v-if="memoryDialogVisible" class="dialog-overlay" @click.self="memoryDialogVisible = false">
-      <div class="dialog memory-dialog">
-        <div class="dialog-header">
-          <h3>{{ memoryDialogChar?.name }} 的记忆</h3>
-          <button class="close-btn" @click="memoryDialogVisible = false">×</button>
-        </div>
-        <div class="dialog-body">
-          <div class="memory-dialog-list">
-            <div
-              v-for="mem in memoryStore.getMemories(memoryDialogChar?.name)"
-              :key="mem.id"
-              class="memory-item"
-            >
-              <span class="memory-source" :class="mem.source">{{ mem.source === 'manual' ? '手动' : '自动' }}</span>
-              <span class="memory-content">{{ mem.content }}</span>
-              <button class="btn-delete-memory" @click="deleteMemory(mem.id, memoryDialogChar)" title="删除">×</button>
-            </div>
-            <div v-if="memoryStore.getMemories(memoryDialogChar?.name).length === 0" class="memory-empty">
-              暂无记忆
-            </div>
-          </div>
-          <div class="memory-add">
-            <input
-              v-model="memoryDialogInput"
-              type="text"
-              class="memory-input"
-              placeholder="添加新记忆..."
-              @keyup.enter="addMemoryFromDialog"
-            />
-            <button class="btn btn-primary btn-sm" @click="addMemoryFromDialog" :disabled="!memoryDialogInput?.trim()">
-              添加
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <MemoryDialog
+      v-if="memoryDialogVisible"
+      :character="memoryDialogChar"
+      @close="memoryDialogVisible = false"
+    />
   </div>
 </template>
 
@@ -357,7 +326,6 @@ import { useGroupsStore } from '../../stores/groups.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useMessagesStore } from '../../stores/messages.js'
 import { useToastStore } from '../../stores/toast'
-import { useMemoryStore } from '../../stores/memory.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useNarrativeStore } from '../../stores/narrative.js'
@@ -365,6 +333,7 @@ import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
 import EmotionTag from './EmotionTag.vue'
 import RelationshipPanel from './RelationshipPanel.vue'
+import MemoryDialog from './MemoryDialog.vue'
 import { createLogger } from '../../utils/logger.js'
 
 // 对话框组件按需异步加载，减小首屏 bundle 体积
@@ -378,7 +347,6 @@ const groupsStore = useGroupsStore()
 const charactersStore = useCharactersStore()
 const messagesStore = useMessagesStore()
 const toast = useToastStore()
-const memoryStore = useMemoryStore()
 const globalCharsStore = useGlobalCharactersStore()
 const llmProfilesStore = useLLMProfilesStore()
 const narrativeStore = useNarrativeStore()
@@ -391,7 +359,6 @@ const expandedPrompts = ref({})
 const groupSettingsCollapsed = ref(true)  // 群设置收起状态（默认收起）
 const memoryDialogVisible = ref(false)  // 记忆对话框可见性
 const memoryDialogChar = ref(null)  // 记忆对话框当前角色
-const memoryDialogInput = ref('')  // 记忆对话框输入
 const editingCharacter = ref(null)
 const libraryCharIds = ref(new Set()) // 记录哪些角色存在于角色库
 const syncingIds = ref(new Set()) // 正在同步的角色 ID
@@ -485,35 +452,9 @@ async function syncFromLibrary(char) {
 }
 
 // 打开记忆对话框
-async function openMemoryDialog(char) {
+function openMemoryDialog(char) {
   memoryDialogChar.value = char
-  memoryDialogInput.value = ''
-  await memoryStore.loadMemories(char.name)
   memoryDialogVisible.value = true
-}
-
-// 从对话框添加记忆
-async function addMemoryFromDialog() {
-  const content = memoryDialogInput.value?.trim()
-  if (!content || !memoryDialogChar.value) return
-  try {
-    await memoryStore.addMemory({
-      characterName: memoryDialogChar.value.name,
-      content
-    })
-    memoryDialogInput.value = ''
-  } catch (error) {
-    toast.error('添加记忆失败: ' + error.message)
-  }
-}
-
-// 删除记忆
-async function deleteMemory(memoryId, char) {
-  try {
-    await memoryStore.deleteMemory(memoryId, char.name)
-  } catch (error) {
-    toast.error('删除记忆失败: ' + error.message)
-  }
 }
 
 // 判断角色是否可以上移
@@ -1294,160 +1235,4 @@ async function sendCommand(char) {
   }
 }
 
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.dialog {
-  background: $bg-primary;
-  border-radius: $border-radius-lg;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.dialog-header {
-  padding: $spacing-lg $spacing-xl;
-  border-bottom: 1px solid $border-color;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h3 {
-    font-size: $font-size-lg;
-    font-weight: $font-weight-medium;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: $text-secondary;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      color: $text-primary;
-    }
-  }
-}
-
-.dialog-body {
-  padding: $spacing-xl;
-}
-
-.memory-dialog {
-  max-width: 480px;
-  width: 90%;
-
-  .dialog-body {
-    display: flex;
-    flex-direction: column;
-    max-height: 60vh;
-  }
-
-  .memory-dialog-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: $spacing-xs 0;
-  }
-
-  .memory-item {
-    display: flex;
-    align-items: flex-start;
-    gap: $spacing-xs;
-    padding: $spacing-xs $spacing-sm;
-    font-size: $font-size-sm;
-    line-height: 1.4;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  .memory-source {
-    flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: $font-size-xs;
-    font-weight: $font-weight-medium;
-
-    &.manual {
-      background: rgba($color-primary, 0.1);
-      color: $color-primary;
-    }
-
-    &.auto {
-      background: rgba(255, 152, 0, 0.1);
-      color: #ff9800;
-    }
-  }
-
-  .memory-content {
-    flex: 1;
-    word-break: break-word;
-  }
-
-  .btn-delete-memory {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    color: $text-secondary;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    opacity: 0.5;
-    padding: 0 2px;
-
-    &:hover {
-      opacity: 1;
-      color: #e53935;
-    }
-  }
-
-  .memory-empty {
-    padding: $spacing-md;
-    text-align: center;
-    color: $text-secondary;
-    font-size: $font-size-sm;
-  }
-
-  .memory-add {
-    display: flex;
-    gap: $spacing-xs;
-    padding: $spacing-sm 0 0;
-    border-top: 1px solid $border-color;
-    margin-top: $spacing-sm;
-  }
-
-  .memory-input {
-    flex: 1;
-    padding: 4px 8px;
-    border: 1px solid $border-color;
-    border-radius: $border-radius-sm;
-    font-size: $font-size-sm;
-    background: $bg-primary;
-
-    &:focus {
-      outline: none;
-      border-color: $color-primary;
-    }
-  }
-}
 </style>
