@@ -101,7 +101,7 @@
       <button class="btn btn-primary" @click="handleCreate" :disabled="!canCreate || submitting">创建</button>
     </template>
 
-    <LLMProfileDialog v-if="showProfileManager" @close="closeProfileManager" />
+    <ProfileManagerDialog v-if="showProfileManager" @close="closeProfileManager" />
   </BaseDialog>
 </template>
 
@@ -113,7 +113,7 @@ import { useToastStore } from '../../stores/toast'
 import { getProviderName, sortProfilesByProvider } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import FormGroup from '../common/FormGroup.vue'
-import LLMProfileDialog from './LLMProfileDialog.vue'
+import ProfileManagerDialog from './ProfileManagerDialog.vue'
 
 const emit = defineEmits(['close', 'created'])
 const toast = useToastStore()
