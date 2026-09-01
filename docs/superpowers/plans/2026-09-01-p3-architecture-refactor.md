@@ -138,7 +138,8 @@ Expected: FAIL（`Cannot find module '../src/utils/llm-providers.js'` 或导出�
 // src/utils/llm-providers.js
 // 渲染进程共享的 LLM 供应商相关工具（收敛自 6 份 getProviderName、
 // 2 份 getGenderLabel、3 处 profile 排序/分组实现）
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+// 注意路径：src/utils/ 上两级即仓库根，与 src/components/**/ 下的三级路径不同
+import { LLM_PROVIDERS } from '../../electron/llm/providers/index.js'
 
 // 未知 id 回退返回 id 本身（与既有各处实现一致）
 export function getProviderName(providerId) {
