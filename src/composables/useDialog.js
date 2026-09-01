@@ -1,56 +1,10 @@
-import { createApp, h, ref, onMounted } from 'vue'
-import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import { useConfirmStore } from '../stores/confirm.js'
 
+// 薄壳：保持 confirm(options) → Promise<boolean> 签名不变，
+// 实际渲染由 App.vue 挂载的 ConfirmHost 完成（Pinia 上下文内，可用任意 store/注入）
 export function useDialog() {
-  const confirm = (options) => {
-    return new Promise((resolve) => {
-      const container = document.createElement('div')
-      document.body.appendChild(container)
-
-      const app = createApp({
-        setup() {
-          const dialogRef = ref(null)
-
-          const handleConfirm = () => {
-            cleanup()
-            resolve(true)
-          }
-
-          const handleCancel = () => {
-            cleanup()
-            resolve(false)
-          }
-
-          const cleanup = () => {
-            app.unmount()
-            // 延迟移除容器，等待离场动画（0.3s）完成
-            setTimeout(() => {
-              if (document.body.contains(container)) {
-                document.body.removeChild(container)
-              }
-            }, 300)
-          }
-
-          onMounted(() => {
-            if (dialogRef.value) {
-              dialogRef.value.show()
-            }
-          })
-
-          return () => h(ConfirmDialog, {
-            ref: dialogRef,
-            ...options,
-            onConfirm: handleConfirm,
-            onCancel: handleCancel
-          })
-        }
-      })
-
-      app.mount(container)
-    })
-  }
-
+  const confirmStore = useConfirmStore()
   return {
-    confirm
+    confirm: (options) => confirmStore.confirm(options)
   }
 }
