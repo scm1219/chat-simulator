@@ -64,7 +64,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { getProviderName } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import LLMProfileForm from './LLMProfileForm.vue'
 
@@ -83,11 +83,6 @@ const formSubmitting = ref(false)
 const testingId = ref(null)
 
 onMounted(() => store.loadProfiles())
-
-function getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
-}
 
 async function handleAdd() {
   editingProfile.value = null

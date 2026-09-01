@@ -424,12 +424,6 @@ const profileGroups = computed(() => {
     .sort((a, b) => a.providerName.localeCompare(b.providerName))
 })
 
-// 获取供应商名称
-function _getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
-}
-
 // 加载 LLM Profile 列表
 onMounted(async () => {
   await llmProfilesStore.loadProfiles()

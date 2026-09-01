@@ -110,7 +110,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { getProviderName, sortProfilesByProvider } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import FormGroup from '../common/FormGroup.vue'
 import LLMProfileDialog from './LLMProfileDialog.vue'
@@ -130,15 +130,7 @@ const form = ref({
   background: ''
 })
 
-const providerOrder = Object.keys(LLM_PROVIDERS)
-const llmProfiles = computed(() => {
-  return [...profilesStore.profiles].sort((a, b) => {
-    const ai = providerOrder.indexOf(a.provider)
-    const bi = providerOrder.indexOf(b.provider)
-    if (ai !== bi) return ai - bi
-    return a.name.localeCompare(b.name)
-  })
-})
+const llmProfiles = computed(() => sortProfilesByProvider(profilesStore.profiles))
 const loadingProfiles = computed(() => profilesStore.loading)
 const showProfileManager = ref(false)
 const templates = ref([])
@@ -191,11 +183,6 @@ function applyTemplates() {
 
 function clearTemplates() {
   selectedTemplateIds.value = []
-}
-
-function getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
 }
 
 function openProfileManager() { showProfileManager.value = true }

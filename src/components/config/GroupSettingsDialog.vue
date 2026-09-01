@@ -109,7 +109,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useToastStore } from '../../stores/toast'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { getProviderName } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import FormGroup from '../common/FormGroup.vue'
 
@@ -167,11 +167,6 @@ onMounted(async () => {
     }
   }
 })
-
-function getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
-}
 
 async function handleSave() {
   if (!form.value.name.trim()) {

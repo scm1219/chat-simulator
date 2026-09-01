@@ -167,12 +167,6 @@ async function loadProfiles() {
   await store.loadProfiles()
 }
 
-// 获取供应商名称
-function _getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
-}
-
 // 添加配置
 function handleAddProfile() {
   editingProfile.value = null

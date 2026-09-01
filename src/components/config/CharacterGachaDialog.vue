@@ -121,6 +121,7 @@ import { ref } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
 import { createLogger } from '../../utils/logger.js'
+import { getGenderLabel } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import PromptSettingsTab from './PromptSettingsTab.vue'
 
@@ -142,11 +143,6 @@ const submitting = ref(false)
 const saved = ref(false)
 
 // ============ 抽卡方法 ============
-
-function getGenderLabel(gender) {
-  const labels = { male: '男', female: '女', other: '其他' }
-  return labels[gender] || '未知'
-}
 
 async function handleGenerate() {
   generating.value = true

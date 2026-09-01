@@ -222,7 +222,7 @@ import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { getProviderName, sortProfilesByProvider } from '../../utils/llm-providers.js'
 import { createLogger } from '../../utils/logger.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import PromptSettingsTab from './PromptSettingsTab.vue'
@@ -256,15 +256,7 @@ const preview = reactive({
 })
 
 // 按供应商定义顺序排序，同供应商内按名称字典序
-const providerOrder = Object.keys(LLM_PROVIDERS)
-const llmProfiles = computed(() => {
-  return [...profilesStore.profiles].sort((a, b) => {
-    const ai = providerOrder.indexOf(a.provider)
-    const bi = providerOrder.indexOf(b.provider)
-    if (ai !== bi) return ai - bi
-    return a.name.localeCompare(b.name)
-  })
-})
+const llmProfiles = computed(() => sortProfilesByProvider(profilesStore.profiles))
 const loadingProfiles = computed(() => profilesStore.loading)
 
 const canCreate = computed(() => {
@@ -277,11 +269,6 @@ const canCreate = computed(() => {
 })
 
 // ============ 方法 ============
-
-function getProviderName(providerId) {
-  const provider = LLM_PROVIDERS[providerId]
-  return provider ? provider.name : providerId
-}
 
 function closeDialog() {
   emit('close')
