@@ -124,11 +124,6 @@ watch(() => currentGroup.value?.id, async (newId) => {
   }
 })
 
-// 获取非用户角色的数量
-const _aiCharacterCount = computed(() => {
-  return charactersStore.characters.filter(c => c.is_user !== 1).length
-})
-
 // 打开记忆对话框
 function openMemoryDialog(char) {
   memoryDialogChar.value = char

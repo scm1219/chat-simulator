@@ -261,12 +261,6 @@ function handleRegenerate() {
   font-weight: $font-weight-medium;
   margin-bottom: $spacing-sm;
   color: $text-primary;
-
-  .label-hint {
-    font-weight: $font-weight-normal;
-    color: $text-placeholder;
-    font-size: $font-size-xs;
-  }
 }
 
 .input {
@@ -430,16 +424,6 @@ function handleRegenerate() {
 
   &:hover:not(:disabled) {
     background: color.adjust($wechat-green, $lightness: -5%);
-  }
-}
-
-.btn-text {
-  background: transparent;
-  color: $text-secondary;
-
-  &:hover:not(:disabled) {
-    color: $text-primary;
-    background: $bg-secondary;
   }
 }
 

@@ -75,6 +75,16 @@ onMounted(loadPromptConfig)
 <style lang="scss" scoped>
 @use 'sass:color';
 
+// 对齐两对话框原 .tab-content 的渐入动画（迁移前该 tab 曾复用其样式）
+.prompt-settings-tab {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .prompt-loading {
   text-align: center;
   padding: $spacing-xxl;

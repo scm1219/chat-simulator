@@ -267,17 +267,6 @@ async function handleCreate() {
   .btn-link:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-.btn-link {
-  background: none;
-  border: none;
-  color: $color-primary;
-  font-size: $font-size-sm;
-  cursor: pointer;
-  padding: 0;
-
-  &:hover { text-decoration: underline; }
-}
-
 .profile-preview {
   padding: $spacing-md;
   background: $bg-secondary;
