@@ -25,10 +25,12 @@ const confirmKey = computed(() =>
 )
 
 // ConfirmDialog 内部 visible 初始为 false，需调用暴露的 show()
-watch(() => confirmStore.visible, async (visible) => {
+// 监听 [visible, confirmKey] + immediate：并发不同内容 confirm 的 :key 重建、
+// 以及 HMR 重挂载时都会重新调用 show()；immediate 触发时 visible 为 false 为 no-op
+watch([() => confirmStore.visible, confirmKey], async ([visible]) => {
   if (visible) {
     await nextTick()
     dialogRef.value?.show()
   }
-})
+}, { immediate: true })
 </script>
