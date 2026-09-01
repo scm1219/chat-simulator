@@ -2,11 +2,21 @@
 
 [根目录](../CLAUDE.md) > **src**
 
-> 最后更新：2026-04-22
+> 最后更新：2026-09-01
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-09-01
+- **重构**：`CharacterPanel.vue`（约 1460 行）拆分为 `CharacterCard.vue`、`GroupSettingsSection.vue`、`MemoryDialog.vue`，瘦身至 230 行
+- **重构**：LLM Profile 管理统一为 `ProfileManager.vue`（列表）/ `ProfileManagerDialog.vue`（对话框），`LLMConfigPanel` 与建群流程共用
+- **重构**：快速建群/角色抽卡的"提示词设置" Tab 提取为共享组件 `PromptSettingsTab.vue`，配置逻辑收敛到 `usePromptConfig` composable
+- **重构**：确认弹窗改为全局 `confirm` Store + `ConfirmHost` 宿主组件（挂载于 `App.vue`），`useDialog.confirm` 签名不变
+- **重构**：供应商名称、性别标签、Profile 分组/排序等重复逻辑收敛至 `utils/llm-providers.js`
+- **新增**：`ConfirmHost.vue`（common/）、`PromptSettingsTab.vue`/`ProfileManager.vue`/`ProfileManagerDialog.vue`（config/）、`CharacterCard.vue`/`GroupSettingsSection.vue`/`MemoryDialog.vue`（chat/）
+- **新增**：`usePromptConfig.js` composable、`confirm.js` Store、`llm-providers.js` 工具（含 7 个新增单元测试）
+- **删除**：旧版 LLM 配置管理对话框（功能由 `ProfileManager.vue` 承接）
 
 ### 2026-04-22
 - **重构**：8 个对话框组件迁移到 `BaseDialog.vue` 通用组件（overlay/header/body/footer/header-extra 插槽）
@@ -63,7 +73,6 @@
 - **更新**：角色面板支持用户角色特殊显示
 - **更新**：创建群组对话框支持背景设定和思考模式
 - **新增**：群设置对话框（`GroupSettingsDialog.vue`）
-- **新增**：LLM 配置管理对话框（`LLMProfileDialog.vue`）
 - **新增**：LLM 配置状态管理（`stores/llm-profiles.js`）
 - **优化**：改进创建群组流程，支持从配置列表选择
 
@@ -78,7 +87,7 @@
 渲染进程是应用的前端界面，负责：
 1. **UI 渲染**：提供微信风格的多栏布局界面
 2. **用户交互**：处理用户输入、点击、搜索等操作
-3. **状态管理**：使用 Pinia 管理应用状态（9 个 Store）
+3. **状态管理**：使用 Pinia 管理应用状态（10 个 Store）
 4. **IPC 通信**：通过 `window.electronAPI` 与主进程通信
 5. **流式消息展示**：实时展示 LLM 流式输出和推理过程
 6. **AI 快速建群**：通过自然语言描述生成完整群组方案
@@ -114,6 +123,7 @@ src/
 ├── App.vue                    # 根组件（含全局 Toast）
 ├── composables/
 │   ├── useDialog.js           # 确认对话框
+│   ├── usePromptConfig.js     # 提示词配置（快速建群/抽卡共享）
 │   └── useApi.js              # 统一 IPC 调用（load/call/silent） composable
 ├── components/
 │   ├── layout/                # 布局组件
@@ -127,6 +137,9 @@ src/
 │   │   ├── MessageBubble.vue  # 消息气泡
 │   │   ├── MessageInput.vue   # 消息输入框
 │   │   ├── CharacterPanel.vue # 角色面板（右栏，含独立 LLM 配置、叙事控制）
+│   │   ├── CharacterCard.vue  # 角色卡片（角色列表项）
+│   │   ├── GroupSettingsSection.vue # 群设置快捷操作区块
+│   │   ├── MemoryDialog.vue   # 角色记忆管理对话框
 │   │   ├── EmotionTag.vue     # 角色情绪标签（15 种情绪 + 强度编辑）
 │   │   ├── RelationshipPanel.vue # 角色关系图谱（可视化 + CRUD）
 │   │   ├── EventPanel.vue     # 叙事事件面板（推荐 + 触发 + 删除）
@@ -137,7 +150,9 @@ src/
 │   │   ├── CreateCharacterDialog.vue  # 创建群内角色对话框
 │   │   ├── EditCharacterDialog.vue    # 编辑群内角色对话框
 │   │   ├── GroupSettingsDialog.vue    # 群设置对话框（含叙事配置）
-│   │   ├── LLMProfileDialog.vue       # LLM 配置管理对话框
+│   │   ├── PromptSettingsTab.vue      # 提示词设置共享 Tab
+│   │   ├── ProfileManager.vue         # LLM Profile 管理列表
+│   │   ├── ProfileManagerDialog.vue   # LLM Profile 管理对话框
 │   │   ├── LLMProfileForm.vue         # LLM 配置表单
 │   │   ├── LLMConfigPanel.vue         # LLM 配置面板（左栏 Tab）
 │   │   ├── GlobalCharacterDialog.vue  # 角色库角色创建/编辑
@@ -147,6 +162,7 @@ src/
 │       ├── FormGroup.vue      # 通用表单组（插槽：label/hint/error）
 │       ├── Toast.vue          # 全局消息提示
 │       ├── ConfirmDialog.vue  # 确认对话框
+│       ├── ConfirmHost.vue    # 全局确认弹窗宿主（confirm Store）
 │       ├── TagFilter.vue      # 标签筛选
 │       └── TagSelector.vue    # 标签选择器（含创建）
 ├── stores/                    # 状态管理
@@ -158,10 +174,17 @@ src/
 │   ├── global-characters.js   # 全局角色库（含同步）
 │   ├── memory.js              # 角色记忆
 │   ├── toast.js               # 消息提示
+│   ├── confirm.js             # 全局确认弹窗
 │   └── narrative.js           # 叙事引擎（情绪/关系/事件/余波）
 ├── composables/
 │   ├── useDialog.js           # 确认对话框
+│   ├── usePromptConfig.js     # 提示词配置（快速建群/抽卡共享）
 │   └── useApi.js              # 统一 IPC 调用（load/call/silent）
+├── utils/
+│   ├── llm-providers.js       # 供应商名称/性别标签/Profile 分组排序
+│   ├── validators.js          # 表单验证（required/maxLength/compose/validate）
+│   ├── html.js                # HTML 转义
+│   └── logger.js              # 渲染进程统一日志
 └── styles/
     ├── variables.scss          # 设计变量
     └── global.scss             # 全局样式
@@ -245,6 +268,7 @@ src/
 - **角色库同步**：群组角色如果来自角色库，显示"同步"按钮更新设定
 - 群设置入口
 - 群设置快捷操作（最大历史轮数、回复模式、思考模式、随机发言）
+- **内部拆分**：角色卡片 `CharacterCard`、群设置快捷区块 `GroupSettingsSection`、记忆管理 `MemoryDialog`
 
 #### 9. CharacterGachaDialog（角色抽卡对话框）
 **路径**：`src/components/config/CharacterGachaDialog.vue`
@@ -259,10 +283,8 @@ src/
 **路径**：`src/components/config/LLMConfigPanel.vue`
 
 **职责**：
-- 按供应商分组显示 LLM 配置
-- 配置 CRUD 操作
-- 思考模式切换
-- 内嵌编辑/添加表单
+- 左栏"LLM 配置" Tab 的外壳（标题栏 + "添加配置"按钮）
+- 内嵌 `ProfileManager`（LLM Profile 分组列表、CRUD、测试连接）
 
 #### 11. ChatWindow（聊天窗口）
 **路径**：`src/components/chat/ChatWindow.vue`
@@ -328,14 +350,20 @@ src/
 - **MessageBubble**：消息气泡（用户/助手/系统三种样式）
 - **MessageInput**：消息输入框（Enter 发送，Shift+Enter 换行）
 - **Toast**：全局消息提示（success/error/warning/info 四种类型）
-- **ConfirmDialog**：确认对话框（通过 `useDialog` composable 调用）
+- **ConfirmDialog**：确认对话框（由 `ConfirmHost` 渲染，经 `useDialog`/`confirm` Store 调用）
+- **ConfirmHost**：全局确认弹窗宿主（挂载于 `App.vue`，渲染 `confirm` Store 的弹窗并回传结果）
 - **TagFilter**：标签筛选组件（多选切换）
 - **TagSelector**：标签选择器（含创建自定义标签、颜色选择）
 - **EditCharacterDialog**：编辑群内角色
 - **CreateGroupDialog**：手动创建群组对话框
 - **CreateCharacterDialog**：创建群内角色对话框
-- **LLMProfileDialog**：LLM 配置管理对话框
 - **LLMProfileForm**：LLM 配置表单
+- **PromptSettingsTab**：提示词设置共享 Tab（`QuickGroupDialog`/`CharacterGachaDialog` 复用，逻辑来自 `usePromptConfig`）
+- **ProfileManager**：LLM Profile 管理列表（按供应商分组、CRUD、测试连接）
+- **ProfileManagerDialog**：LLM Profile 管理对话框（`BaseDialog` 包裹 `ProfileManager`）
+- **MemoryDialog**：角色记忆管理对话框（`BaseDialog` 包裹，记忆 CRUD）
+- **GroupSettingsSection**：角色面板内的群设置快捷操作区块
+- **CharacterCard**：角色卡片（角色列表项，含编辑/记忆/启用开关等操作）
 
 ---
 
@@ -367,7 +395,7 @@ src/
 
 ## 数据模型
 
-### Pinia Stores（9 个）
+### Pinia Stores（10 个）
 
 #### 1. groupsStore（群组状态）
 **路径**：`src/stores/groups.js`
@@ -442,6 +470,15 @@ src/
 - `checkStaleness(groupId)`：检查对话平淡度
 - `setupAftermathListener()`：监听余波事件（`narrative:aftermath`）
 - `clearAftermath()`：清空余波消息列表
+
+#### 10. confirmStore（全局确认弹窗）
+**路径**：`src/stores/confirm.js`
+
+**状态**：`visible`（弹窗可见性）、`options`（`{ title, message, confirmText, cancelText, confirmType }`）
+
+**方法**：
+- `confirm(options)`：发起确认，返回 `Promise<boolean>`
+- `resolve(value)`：由 `ConfirmHost` 调用，关闭弹窗并回传结果
 
 ---
 
@@ -557,6 +594,8 @@ const confirmed = await confirm({
 })
 ```
 
+> 注：确认弹窗由 `App.vue` 挂载的 `ConfirmHost` 全局渲染（内部走 `confirm` Store），`confirm` 签名保持不变。
+
 ### 6. 全局角色库和群组角色如何协作？
 - 全局角色库通过 `LeftPanel` 的"角色库" Tab 管理
 - 群组角色通过 `CharacterPanel` 管理
@@ -630,6 +669,9 @@ const confirmed = await confirm({
 - `src/components/chat/MessageBubble.vue`：消息气泡
 - `src/components/chat/MessageInput.vue`：消息输入框
 - `src/components/chat/CharacterPanel.vue`：角色面板（含独立 LLM 配置、同步功能）
+- `src/components/chat/CharacterCard.vue`：角色卡片（角色列表项）
+- `src/components/chat/GroupSettingsSection.vue`：群设置快捷操作区块
+- `src/components/chat/MemoryDialog.vue`：角色记忆管理对话框
 - `src/components/chat/EmotionTag.vue`：角色情绪标签（15 种情绪编辑）
 - `src/components/chat/RelationshipPanel.vue`：角色关系图谱面板
 - `src/components/chat/EventPanel.vue`：叙事事件面板
@@ -641,7 +683,9 @@ const confirmed = await confirm({
 - `src/components/config/CreateCharacterDialog.vue`：创建群内角色对话框
 - `src/components/config/EditCharacterDialog.vue`：编辑群内角色对话框
 - `src/components/config/GroupSettingsDialog.vue`：群设置对话框（含叙事配置）
-- `src/components/config/LLMProfileDialog.vue`：LLM 配置管理对话框
+- `src/components/config/PromptSettingsTab.vue`：提示词设置共享 Tab（快速建群/抽卡复用）
+- `src/components/config/ProfileManager.vue`：LLM Profile 管理列表
+- `src/components/config/ProfileManagerDialog.vue`：LLM Profile 管理对话框
 - `src/components/config/LLMProfileForm.vue`：LLM 配置表单
 - `src/components/config/LLMConfigPanel.vue`：LLM 配置面板
 - `src/components/config/GlobalCharacterDialog.vue`：角色库角色创建/编辑
@@ -652,6 +696,7 @@ const confirmed = await confirm({
 - `src/components/common/FormGroup.vue`：通用表单组（label/hint/error 插槽）
 - `src/components/common/Toast.vue`：全局消息提示
 - `src/components/common/ConfirmDialog.vue`：确认对话框
+- `src/components/common/ConfirmHost.vue`：全局确认弹窗宿主（渲染 `confirm` Store 的弹窗）
 - `src/components/common/TagFilter.vue`：标签筛选
 - `src/components/common/TagSelector.vue`：标签选择器
 
@@ -664,11 +709,19 @@ const confirmed = await confirm({
 - `src/stores/global-characters.js`：全局角色库状态（含同步）
 - `src/stores/memory.js`：角色记忆状态
 - `src/stores/toast.js`：消息提示状态
+- `src/stores/confirm.js`：全局确认弹窗状态
 - `src/stores/narrative.js`：叙事引擎状态（情绪/关系/事件/余波）
 
 ### Composables
-- `src/composables/useDialog.js`：确认对话框
+- `src/composables/useDialog.js`：确认对话框（薄壳，内部走 `confirm` Store，签名 `confirm(options) → Promise<boolean>` 不变）
 - `src/composables/useApi.js`：统一 IPC API 调用（`load`/`call`/`silent` 三种模式，自动管理 loading 状态和错误日志）
+- `src/composables/usePromptConfig.js`：提示词配置管理（快速建群/角色抽卡共享，按 channel 区分）
+
+### 工具函数
+- `src/utils/llm-providers.js`：供应商名称/性别标签/Profile 分组排序共享工具（`getProviderName`/`getGenderLabel`/`groupProfilesByProvider`/`sortProfilesByProvider`）
+- `src/utils/validators.js`：表单验证（`required`/`maxLength`/`minLength`/`compose`/`validate`）
+- `src/utils/html.js`：HTML 转义（`escapeHtml`）
+- `src/utils/logger.js`：渲染进程统一日志（级别/样式化输出）
 
 ### 样式
 - `src/styles/variables.scss`：设计变量
@@ -676,5 +729,5 @@ const confirmed = await confirm({
 
 ---
 
-**文档版本**：2.3.0
+**文档版本**：2.4.0
 **维护者**：AI 架构师（自适应版）
