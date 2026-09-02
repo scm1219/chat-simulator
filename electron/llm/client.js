@@ -4,6 +4,7 @@
  */
 import { getProviderConfig } from './providers/index.js'
 import { BaseLLMClient } from './base-client.js'
+import { normalizeSystemMessages } from './message-normalizer.js'
 
 // OpenAI 协议特有的 HTTP 错误码映射
 const OPENAI_STATUS_MAP = {
@@ -127,7 +128,8 @@ export class LLMClient extends BaseLLMClient {
 
       const requestData = {
         model: this.model,
-        messages: messages,
+        // vLLM 等严格后端拒绝中置/末尾 system 消息（HTTP 400），统一合并置顶
+        messages: normalizeSystemMessages(messages),
         temperature: options.temperature || 0.7,
         stream: isStreaming
       }

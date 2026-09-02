@@ -3,6 +3,7 @@
  * 使用 Ollama 原生 API 格式（/api/chat）而非 OpenAI 兼容格式
  */
 import { BaseLLMClient } from './base-client.js'
+import { normalizeSystemMessages } from './message-normalizer.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('LLM')
@@ -14,27 +15,6 @@ const OLLAMA_STATUS_MAP = {
 }
 
 const OLLAMA_NETWORK_ERROR = '无法连接到 Ollama 服务，请确保 Ollama 正在运行'
-
-/**
- * 规范化消息列表：合并所有 system 消息并置顶
- * 许多本地模型的 Jinja 模板要求 system 消息只能出现在开头（且通常仅允许一条），
- * 否则报 400（"System message must be at the beginning"）
- * @param {Array} messages - 原始消息列表
- * @returns {Array} 规范化后的消息列表（system 合并为一条置顶）
- */
-function normalizeSystemMessages(messages) {
-  const systemParts = []
-  const rest = []
-  for (const msg of messages) {
-    if (msg.role === 'system' && msg.content) {
-      systemParts.push(msg.content)
-    } else {
-      rest.push(msg)
-    }
-  }
-  if (systemParts.length === 0) return rest.length === messages.length ? messages : rest
-  return [{ role: 'system', content: systemParts.join('\n\n') }, ...rest]
-}
 
 export class OllamaNativeClient extends BaseLLMClient {
   constructor(config) {
