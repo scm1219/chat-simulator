@@ -1,10 +1,25 @@
 # Chat - LLM 角色扮演聊天模拟器
 
-> 最后更新：2026-04-22
+> 最后更新：2026-09-01
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-09-01
+- **重构**：P3 架构重构落地（11 个实现 commit，摘要见下；`CharacterPanel` 约 1460 行瘦身至 230 行）
+- **重构**：`1b1d01f` 收敛 getProviderName/getGenderLabel/profiles 排序到 llm-providers 共享工具（含 7 个新增单元测试）
+- **重构**：`25af3fd` confirm 统一走 Pinia store，确认弹窗进入 app 上下文（`ConfirmHost` 挂载于 `App.vue`）
+- **新增**：`a2ce33d` 抽取 usePromptConfig composable（快速建群/角色抽卡提示词配置共享）
+- **新增**：`4f5f964` 新增 PromptSettingsTab 共享组件
+- **重构**：`fc43501` 快速建群/抽卡提示词 Tab 迁移到共享组件
+- **重构**：`9632539` 工具函数收敛（getProviderName/getGenderLabel/排序）
+- **重构**：`4c0b4db` 统一 LLM Profile 管理，删除 LLMProfileDialog（新增 `ProfileManager`/`ProfileManagerDialog`）
+- **重构**：`b0674a6` 记忆对话框抽为 MemoryDialog 并接入 BaseDialog
+- **重构**：`99d787d` 拆出 GroupSettingsSection
+- **重构**：`2dab37f` 拆出 CharacterCard，CharacterPanel 瘦身
+- **修正**：`e81c6cb` CharacterCard edit/open-memory 事件补充 character 载荷
+- **更新**：Mermaid 结构图与 `src/CLAUDE.md` 模块文档同步本次重构
 
 ### 2026-04-22
 - **重构**：提取 `BaseDialog.vue` 通用对话框组件（overlay/header/body/footer/header-extra 插槽），8 个对话框全部迁移
@@ -240,6 +255,9 @@ graph TD
     Chat --> MessageBubble["MessageBubble.vue"];
     Chat --> MessageInput["MessageInput.vue"];
     Chat --> CharacterPanel["CharacterPanel.vue"];
+    Chat --> CharacterCard["CharacterCard.vue<br/>角色卡片"];
+    Chat --> GroupSettingsSection["GroupSettingsSection.vue<br/>群设置快捷区块"];
+    Chat --> MemoryDialog["MemoryDialog.vue<br/>记忆管理对话框"];
     Chat --> EmotionTag["EmotionTag.vue<br/>情绪标签"];
     Chat --> RelationshipPanel["RelationshipPanel.vue<br/>关系图谱"];
     Chat --> EventPanel["EventPanel.vue<br/>事件面板"];
@@ -252,7 +270,9 @@ graph TD
     ConfigC --> GlobalCharDialog["GlobalCharacterDialog.vue"];
     ConfigC --> CharacterGacha["CharacterGachaDialog.vue"];
     ConfigC --> GroupSettings["GroupSettingsDialog.vue"];
-    ConfigC --> LLMProfile["LLMProfileDialog.vue"];
+    ConfigC --> PromptSettingsTab["PromptSettingsTab.vue<br/>提示词设置"];
+    ConfigC --> ProfileManager["ProfileManager.vue<br/>Profile 管理列表"];
+    ConfigC --> ProfileManagerDialog["ProfileManagerDialog.vue<br/>Profile 管理对话框"];
     ConfigC --> LLMProfileForm["LLMProfileForm.vue"];
     ConfigC --> LLMConfigPanel["LLMConfigPanel.vue"];
 
@@ -260,6 +280,7 @@ graph TD
     Common --> FormGroup["FormGroup.vue<br/>通用表单组"];
     Common --> Toast["Toast.vue"];
     Common --> ConfirmDialog["ConfirmDialog.vue"];
+    Common --> ConfirmHost["ConfirmHost.vue<br/>全局确认宿主"];
     Common --> TagFilter["TagFilter.vue"];
     Common --> TagSelector["TagSelector.vue"];
 
@@ -272,8 +293,10 @@ graph TD
     Stores --> ToastStore["toast.js"];
     Stores --> MemoryStore["memory.js"];
     Stores --> NarrativeStore["narrative.js"];
+    Stores --> ConfirmStore["confirm.js<br/>全局确认弹窗"];
 
     Composables --> UseDialog["useDialog.js"];
+    Composables --> UsePromptConfig["usePromptConfig.js<br/>提示词配置"];
     Composables --> UseApi["useApi.js<br/>统一IPC调用"];
 
     Styles --> Variables["variables.scss"];
@@ -678,6 +701,6 @@ pnpm build:linux
 
 ---
 
-**文档版本**：2.3.0
+**文档版本**：2.4.0
 **维护者**：AI 架构师（自适应版）
 **项目状态**：活跃开发中

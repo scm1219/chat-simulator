@@ -87,6 +87,19 @@ html, body {
   }
 }
 
+.btn-link {
+  background: none;
+  border: none;
+  color: $color-primary;
+  font-size: $font-size-sm;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .input {
   width: 100%;
   padding: 8px 12px;

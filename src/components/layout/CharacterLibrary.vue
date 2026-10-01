@@ -158,6 +158,7 @@ import { useCharactersStore } from '../../stores/characters.js'
 
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
+import { getGenderLabel } from '../../utils/llm-providers.js'
 import TagFilter from '../common/TagFilter.vue'
 
 // 对话框组件按需异步加载，减小首屏 bundle 体积
@@ -197,16 +198,6 @@ const displayCharacters = computed(() => {
 watch([() => searchKeyword.value, () => globalCharsStore.selectedTagIds.length], () => {
   currentPage.value = 1
 })
-
-// 性别标签
-function getGenderLabel(gender) {
-  const labels = {
-    male: '男',
-    female: '女',
-    other: '其他'
-  }
-  return labels[gender] || ''
-}
 
 // 截断文本
 function truncateText(text, maxLength) {

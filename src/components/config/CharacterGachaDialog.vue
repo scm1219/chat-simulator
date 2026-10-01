@@ -10,7 +10,7 @@
         </button>
         <button
           :class="['tab-btn', { active: activeTab === 'prompt' }]"
-          @click="switchToPromptTab"
+          @click="activeTab = 'prompt'"
         >
           提示词设置
         </button>
@@ -71,58 +71,14 @@
     </div>
 
     <!-- Tab: 提示词设置 -->
-    <div v-show="activeTab === 'prompt'" class="tab-content">
-      <div v-if="promptLoading" class="prompt-loading">加载中...</div>
-      <div v-else class="prompt-settings">
-        <div class="form-group">
-          <label class="form-label">
-            系统提示词
-            <span class="label-hint">（发给 LLM 的角色设定指令）</span>
-          </label>
-          <textarea
-            v-model="promptForm.systemPrompt"
-            class="input textarea textarea-code"
-            rows="14"
-            placeholder="系统提示词..."
-          ></textarea>
-          <div class="form-hint">{{ promptForm.systemPrompt.length }} 字符</div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">
-            用户提示模板
-            <span class="label-hint">（{hint} 将替换为用户输入）</span>
-          </label>
-          <input
-            v-model="promptForm.userPromptTemplate"
-            class="input"
-            placeholder="例如：请根据以下提示生成一个角色：{hint}"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">默认提示（无用户输入时使用）</label>
-          <input
-            v-model="promptForm.defaultUserPrompt"
-            class="input"
-            placeholder="例如：请随机生成一个有趣的角色"
-          />
-        </div>
-
-        <div class="prompt-actions">
-          <button class="btn btn-text" @click="handleResetPrompt">
-            恢复默认
-          </button>
-          <button
-            class="btn btn-primary"
-            :disabled="!promptDirty"
-            @click="handleSavePrompt"
-          >
-            {{ promptSaving ? '保存中...' : '保存' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <PromptSettingsTab
+      v-show="activeTab === 'prompt'"
+      channel="gachaConfig"
+      system-hint="（发给 LLM 的角色设定指令）"
+      template-hint="（{hint} 将替换为用户输入）"
+      template-placeholder="例如：请根据以下提示生成一个角色：{hint}"
+      default-placeholder="例如：请随机生成一个有趣的角色"
+    />
 
     <template #footer>
       <template v-if="activeTab === 'gacha'">
@@ -161,11 +117,13 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
 import { createLogger } from '../../utils/logger.js'
+import { getGenderLabel } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
+import PromptSettingsTab from './PromptSettingsTab.vue'
 
 const log = createLogger('Gacha')
 
@@ -184,34 +142,7 @@ const generatedCharacter = ref(null)
 const submitting = ref(false)
 const saved = ref(false)
 
-// ============ 提示词设置状态 ============
-const promptLoading = ref(false)
-const promptSaving = ref(false)
-const promptForm = reactive({
-  systemPrompt: '',
-  userPromptTemplate: '',
-  defaultUserPrompt: ''
-})
-const savedPrompt = reactive({
-  systemPrompt: '',
-  userPromptTemplate: '',
-  defaultUserPrompt: ''
-})
-
-const promptDirty = computed(() => {
-  return (
-    promptForm.systemPrompt !== savedPrompt.systemPrompt ||
-    promptForm.userPromptTemplate !== savedPrompt.userPromptTemplate ||
-    promptForm.defaultUserPrompt !== savedPrompt.defaultUserPrompt
-  )
-})
-
 // ============ 抽卡方法 ============
-
-function getGenderLabel(gender) {
-  const labels = { male: '男', female: '女', other: '其他' }
-  return labels[gender] || '未知'
-}
 
 async function handleGenerate() {
   generating.value = true
@@ -263,77 +194,6 @@ function handleRegenerate() {
   generatedCharacter.value = null
 }
 
-// ============ 提示词设置方法 ============
-
-async function loadGachaConfig() {
-  promptLoading.value = true
-  try {
-    const result = await window.electronAPI.config.gachaConfig.get()
-    if (result.success) {
-      promptForm.systemPrompt = result.data.systemPrompt
-      promptForm.userPromptTemplate = result.data.userPromptTemplate
-      promptForm.defaultUserPrompt = result.data.defaultUserPrompt
-      // 同步到 saved 副本用于 dirty 检测
-      savedPrompt.systemPrompt = result.data.systemPrompt
-      savedPrompt.userPromptTemplate = result.data.userPromptTemplate
-      savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
-    }
-  } catch (error) {
-    log.error('加载抽卡配置失败', error)
-  } finally {
-    promptLoading.value = false
-  }
-}
-
-async function handleSavePrompt() {
-  promptSaving.value = true
-  try {
-    const result = await window.electronAPI.config.gachaConfig.save({
-      systemPrompt: promptForm.systemPrompt,
-      userPromptTemplate: promptForm.userPromptTemplate,
-      defaultUserPrompt: promptForm.defaultUserPrompt
-    })
-    if (result.success) {
-      savedPrompt.systemPrompt = promptForm.systemPrompt
-      savedPrompt.userPromptTemplate = promptForm.userPromptTemplate
-      savedPrompt.defaultUserPrompt = promptForm.defaultUserPrompt
-    } else {
-      toast.error('保存失败')
-    }
-  } catch (error) {
-    toast.error('保存失败：' + error.message)
-  } finally {
-    promptSaving.value = false
-  }
-}
-
-async function handleResetPrompt() {
-  try {
-    const result = await window.electronAPI.config.gachaConfig.reset()
-    if (result.success) {
-      promptForm.systemPrompt = result.data.systemPrompt
-      promptForm.userPromptTemplate = result.data.userPromptTemplate
-      promptForm.defaultUserPrompt = result.data.defaultUserPrompt
-      savedPrompt.systemPrompt = result.data.systemPrompt
-      savedPrompt.userPromptTemplate = result.data.userPromptTemplate
-      savedPrompt.defaultUserPrompt = result.data.defaultUserPrompt
-    }
-  } catch (error) {
-    toast.error('重置失败：' + error.message)
-  }
-}
-
-function switchToPromptTab() {
-  activeTab.value = 'prompt'
-  // 首次切换时加载配置
-  if (!promptForm.systemPrompt) {
-    loadGachaConfig()
-  }
-}
-
-onMounted(() => {
-  loadGachaConfig()
-})
 </script>
 
 <style lang="scss" scoped>
@@ -401,12 +261,6 @@ onMounted(() => {
   font-weight: $font-weight-medium;
   margin-bottom: $spacing-sm;
   color: $text-primary;
-
-  .label-hint {
-    font-weight: $font-weight-normal;
-    color: $text-placeholder;
-    font-size: $font-size-xs;
-  }
 }
 
 .input {
@@ -434,14 +288,6 @@ onMounted(() => {
   min-height: 100px;
   font-family: inherit;
   line-height: 1.6;
-}
-
-.textarea-code {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: $font-size-sm;
-  line-height: 1.5;
-  min-height: 240px;
-  height: auto;
 }
 
 .form-hint {
@@ -546,27 +392,6 @@ onMounted(() => {
   }
 }
 
-// ============ 提示词设置 Tab ============
-
-.prompt-loading {
-  text-align: center;
-  padding: $spacing-xxl;
-  color: $text-secondary;
-}
-
-.prompt-settings {
-  display: flex;
-  flex-direction: column;
-}
-
-.prompt-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-md;
-  padding-top: $spacing-md;
-  border-top: 1px solid $border-color-light;
-}
-
 // ============ 底部按钮 ============
 
 .btn {
@@ -599,16 +424,6 @@ onMounted(() => {
 
   &:hover:not(:disabled) {
     background: color.adjust($wechat-green, $lightness: -5%);
-  }
-}
-
-.btn-text {
-  background: transparent;
-  color: $text-secondary;
-
-  &:hover:not(:disabled) {
-    color: $text-primary;
-    background: $bg-secondary;
   }
 }
 

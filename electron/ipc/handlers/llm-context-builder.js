@@ -77,7 +77,7 @@ export function prefilterHistoryMessages(history) {
 
 /**
  * 构建对话上下文消息
- * 按 9 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设 → 历史消息 → 强制指令 → 用户消息
+ * 按 8 步优先级拼装：系统提示词 → 群背景 → 群成员介绍 → 叙事上下文 → 角色记忆 → 角色人设（含身份提醒） → 历史消息 → 用户消息
  * @param {object} character - 当前角色
  * @param {Array} history - 历史消息列表（建议传入预过滤后的历史以避免重复遍历）
  * @param {string} userContent - 用户消息内容
@@ -91,13 +91,15 @@ export function prefilterHistoryMessages(history) {
 export function buildContextMessages(character, history, userContent, background = null, systemPrompt = null, allCharacters = [], memories = [], narrativeContext = []) {
   const messages = []
 
-  // 0. 预算预计算：系统段（群 systemPrompt + 群背景 + 人设 + 叙事上下文）保留不截断，
+  // 0. 预算预计算：系统段（群 systemPrompt + 群背景 + 人设 + 身份提醒 + 叙事上下文）保留不截断，
   // 其占用的字符数 reserved 从总预算中扣除，剩余额度留给历史消息（负值时
   // truncateMessagesToBudget 内部仍保证至少保留最新一条）
+  const identityReminder = `你是${character.name}，现在直接说你的台词就好，不用加自己的名字。不要替其他人说话。`
   const reserved = sumChars([
     systemPrompt ?? '',
     background ?? '',
     character?.system_prompt ?? '',
+    identityReminder,
     narrativeContext.map(m => m?.content ?? '').join('')
   ])
 
@@ -145,10 +147,14 @@ export function buildContextMessages(character, history, userContent, background
     })
   }
 
-  // 6. 添加角色系统提示词（人设）
+  // 6. 添加角色系统提示词（人设），并附上身份提醒。
+  // 提醒原本作为独立 system 消息置于对话末尾以强化优先级，但 vLLM 等
+  // 严格后端要求 system 消息必须全部位于开头，故并入人设消息
   messages.push({
     role: 'system',
     content: character.system_prompt
+      ? `${character.system_prompt}\n\n${identityReminder}`
+      : identityReminder
   })
 
   // 7. 添加历史消息（过滤 + 格式化 + 字符预算截断：保最新丢最旧）
@@ -159,13 +165,7 @@ export function buildContextMessages(character, history, userContent, background
   )
   messages.push(...roleMessages)
 
-  // 8. 轻量引导：提醒角色身份（放在最后，提高优先级）
-  messages.push({
-    role: 'system',
-    content: `你是${character.name}，现在直接说你的台词就好，不用加自己的名字。不要替其他人说话。`
-  })
-
-  // 9. 添加当前用户消息
+  // 8. 添加当前用户消息
   // 无条件追加：历史消息在保存用户消息之前查询（见 llm.js 的处理顺序），
   // history 中不包含当前这条用户消息，不会重复。
   // 若以"历史末条是否 user"来判断是否追加：当上一轮所有角色回复均失败

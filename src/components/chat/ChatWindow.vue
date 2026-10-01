@@ -217,7 +217,7 @@ import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
-import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
+import { getProviderName } from '../../utils/llm-providers.js'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 import StalenessTip from './StalenessTip.vue'
@@ -286,7 +286,7 @@ const profileGroups = computed(() => {
   const groups = {}
   llmProfilesStore.profiles.forEach(profile => {
     const providerId = profile.provider
-    const providerName = LLM_PROVIDERS[providerId]?.name || providerId
+    const providerName = getProviderName(providerId)
     if (!groups[providerId]) {
       groups[providerId] = { id: providerId, name: providerName, profiles: [] }
     }
