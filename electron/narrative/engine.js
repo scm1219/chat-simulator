@@ -252,7 +252,9 @@ export class NarrativeEngine {
         WHERE m.group_id = ? ORDER BY m.timestamp DESC LIMIT 10
       `).all(group.id).reverse()
       // 静态池抽 4 条作 few-shot 示例（Fisher-Yates 洗牌）
-      const pool = [...this.eventTrigger.getEventPool(sceneType)]
+      // 过滤"平静"事件：示例与 impact 白名单（EMOTION_KEYWORDS）保持一致，
+      // 否则 LLM 会模仿示例输出"平静"，触发兜底归一
+      const pool = this.eventTrigger.getEventPool(sceneType).filter(e => e.impact !== '平静')
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]]

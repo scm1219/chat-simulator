@@ -53,7 +53,8 @@ export const INTERACTION_PATTERNS = [
 
 // 事件 impact 到标准情绪的映射
 // 事件池中使用了非标准情绪词，需要映射到 EMOTION_KEYWORDS 中定义的标准情绪
-// 注："平静"事件不在此映射——由 EmotionManager.updateFromEvent 特殊处理（重置为平静，强度 0）
+// 注："平静"不在 EMOTION_KEYWORDS（它是强度 0 的中性态），由 mapEventImpactToEmotion
+// 显式透传，EmotionManager.updateFromEvent 据此重置为平静（强度 0）
 export const EVENT_EMOTION_MAP = {
   '焦急': '焦虑',
   '窃喜': '开心',
@@ -119,9 +120,10 @@ export function getRelationshipType(type) {
 /**
  * 将事件 impact 映射为标准情绪词
  * @param {string} impact 事件 impact 值
- * @returns {string} 标准情绪词
+ * @returns {string} 标准情绪词（"平静"透传，语义为重置为中性态）
  */
 export function mapEventImpactToEmotion(impact) {
   if (EMOTION_KEYWORDS[impact]) return impact
+  if (impact === '平静') return '平静'
   return EVENT_EMOTION_MAP[impact] || '惊讶'
 }

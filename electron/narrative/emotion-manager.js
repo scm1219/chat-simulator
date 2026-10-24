@@ -108,19 +108,21 @@ export class EmotionManager {
 
   updateFromLLM(db, characterId, emotion, intensity) {
     // 情绪词白名单校验 + 数值有限性校验，防止 LLM 幻觉词/非数值写入
-    if (!emotion || !this.keywords[emotion] || !Number.isFinite(intensity)) return
+    if (!emotion || !Number.isFinite(intensity)) return
+    // "平静"在推断 prompt 的可选词中，但表示无活跃情绪：接受并强度归零
+    if (emotion === '平静') {
+      this._saveEmotion(db, characterId, '平静', 0, 'llm')
+      return
+    }
+    if (!this.keywords[emotion]) return
     this._saveEmotion(db, characterId, emotion, Math.min(1, Math.max(0, intensity)), 'llm')
   }
 
   updateFromEvent(db, characterId, impact, jitter = 0) {
     if (!impact) return
-    // "平静"事件：重置为平静（强度 0），不参与抖动
-    if (impact === '平静') {
-      this._saveEmotion(db, characterId, '平静', 0, 'event')
-      return
-    }
-    // 将非标准情绪映射到标准情绪词
+    // 将非标准情绪映射到标准情绪词（"平静"透传）
     const standardEmotion = mapEventImpactToEmotion(impact)
+    // "平静"事件：重置为平静（强度 0），不参与抖动
     if (standardEmotion === '平静') {
       this._saveEmotion(db, characterId, '平静', 0, 'event')
       return
