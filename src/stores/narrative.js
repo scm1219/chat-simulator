@@ -41,6 +41,25 @@ export const useNarrativeStore = defineStore('narrative', () => {
     if (r?.success) eventSuggestions.value = r.data
   }
 
+  const eventSuggestionsLoading = ref(false)
+  const eventSuggestionsSource = ref('fallback')
+  let suggestionsSeq = 0 // 生成请求序号：LLM 生成耗时数秒，防止快速切换群组时慢响应覆盖新群组数据
+
+  async function generateEventSuggestions(groupId, sceneType) {
+    const seq = ++suggestionsSeq
+    eventSuggestionsLoading.value = true
+    try {
+      const r = await silent(() => window.electronAPI.narrative.generateEventSuggestions(groupId, sceneType, 3))
+      if (seq !== suggestionsSeq) return // 已有更新的生成请求，丢弃过期响应
+      if (r?.success) {
+        eventSuggestions.value = r.data.events
+        eventSuggestionsSource.value = r.data.source
+      }
+    } finally {
+      if (seq === suggestionsSeq) eventSuggestionsLoading.value = false
+    }
+  }
+
   async function fetchRecentEvents(groupId) {
     const r = await silent(() => window.electronAPI.narrative.getRecentEvents(groupId))
     if (r?.success) recentEvents.value = r.data
@@ -80,9 +99,9 @@ export const useNarrativeStore = defineStore('narrative', () => {
 
   return {
     emotions, relationships, eventSuggestions, recentEvents,
-    staleness, aftermathMessages,
+    staleness, aftermathMessages, eventSuggestionsLoading, eventSuggestionsSource,
     fetchEmotions, fetchRelationships, setRelationship, removeRelationship,
-    fetchEventSuggestions, fetchRecentEvents, triggerEvent, deleteEvent,
+    fetchEventSuggestions, generateEventSuggestions, fetchRecentEvents, triggerEvent, deleteEvent,
     checkStaleness, setupAftermathListener, clearAftermath
   }
 })

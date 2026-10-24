@@ -3,10 +3,18 @@
     <div class="panel-header">
       <h4>推荐事件</h4>
       <span class="current-scene">{{ sceneLabel }}</span>
-      <button class="btn-refresh" @click="refresh" title="换一批">换一批</button>
+      <button
+        class="btn-refresh"
+        :disabled="narrativeStore.eventSuggestionsLoading"
+        @click="refresh"
+        title="换一批"
+      >换一批</button>
     </div>
 
-    <div v-if="suggestions.length === 0" class="empty-tip">
+    <div v-if="narrativeStore.eventSuggestionsLoading" class="empty-tip">
+      生成中…
+    </div>
+    <div v-else-if="suggestions.length === 0" class="empty-tip">
       暂无推荐事件
     </div>
 
@@ -65,7 +73,8 @@ onMounted(() => { loadSceneLabels(); refresh() })
 watch(() => props.groupId, () => { refresh() })
 
 async function refresh() {
-  await narrativeStore.fetchEventSuggestions(props.groupId, props.sceneType)
+  // LLM 动态生成（后端失败时自动回退静态池）；生成期间面板显示加载态
+  await narrativeStore.generateEventSuggestions(props.groupId, props.sceneType)
   suggestions.value = narrativeStore.eventSuggestions
   await narrativeStore.fetchRecentEvents(props.groupId)
   recentEvents.value = narrativeStore.recentEvents
