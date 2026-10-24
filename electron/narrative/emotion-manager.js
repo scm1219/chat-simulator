@@ -112,9 +112,9 @@ export class EmotionManager {
     this._saveEmotion(db, characterId, emotion, Math.min(1, Math.max(0, intensity)), 'llm')
   }
 
-  updateFromEvent(db, characterId, impact) {
+  updateFromEvent(db, characterId, impact, jitter = 0) {
     if (!impact) return
-    // "平静"事件：重置为平静（强度 0），不再写入事件强度
+    // "平静"事件：重置为平静（强度 0），不参与抖动
     if (impact === '平静') {
       this._saveEmotion(db, characterId, '平静', 0, 'event')
       return
@@ -126,7 +126,10 @@ export class EmotionManager {
       return
     }
     const config = this.keywords[standardEmotion]
-    const intensity = config ? config.intensity * 0.8 : 0.6
+    const base = config ? config.intensity * 0.8 : 0.6
+    // 抖动：强度乘以 [1-jitter, 1+jitter] 内的随机因子，避免全员整齐划一
+    const jitterFactor = jitter > 0 ? 1 + (Math.random() * 2 - 1) * jitter : 1
+    const intensity = Math.min(1, Math.max(0, base * jitterFactor))
     this._saveEmotion(db, characterId, standardEmotion, intensity, 'event')
   }
 
