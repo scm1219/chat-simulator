@@ -86,6 +86,18 @@ export function createClientForCharacter(character, group, llmProfiles, apiKey) 
     }
   }
 
+  return createClientForGroup(group, llmProfiles, apiKey)
+}
+
+/**
+ * 用群组自身的 LLM 配置创建客户端（无角色级 Profile 时的公共路径）
+ * 供角色客户端回退与非角色场景（叙事事件生成等）共用
+ * @param {object} group - 群组对象
+ * @param {Array} llmProfiles - 所有 LLM Profile 列表
+ * @param {string} apiKey - API Key
+ * @returns {{ client: LLMClient|OllamaNativeClient, profileId: null }}
+ */
+export function createClientForGroup(group, llmProfiles, apiKey) {
   // 使用群组默认配置：优先精确匹配（含 baseURL 和 apiKey），回退到 provider+model 匹配
   const currentProfile = llmProfiles.find(p =>
     p.provider === group.llm_provider &&

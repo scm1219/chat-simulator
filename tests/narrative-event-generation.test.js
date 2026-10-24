@@ -128,7 +128,7 @@ function makeFakeDb(rows = {}) {
   return {
     prepare(sql) {
       const stmt = {
-        all: (...a) => {
+        all: (..._a) => {
           if (sql.includes('FROM character_emotions')) return rows.emotions || []
           if (sql.includes('FROM character_relationships')) return rows.relationships || []
           if (sql.includes('FROM characters')) return rows.characters || []

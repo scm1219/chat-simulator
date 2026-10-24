@@ -161,6 +161,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     triggerEvent: (groupId, eventKey, content, impact) => ipcRenderer.invoke('narrative:triggerEvent', groupId, eventKey, content, impact),
     getRecentEvents: (groupId, limit) => ipcRenderer.invoke('narrative:getRecentEvents', groupId, limit),
     getEventSuggestions: (groupId, sceneType, count) => ipcRenderer.invoke('narrative:getEventSuggestions', groupId, sceneType, count),
+    generateEventSuggestions: (groupId, sceneType, count) => ipcRenderer.invoke('narrative:generateEventSuggestions', groupId, sceneType, count),
     checkStaleness: (groupId) => ipcRenderer.invoke('narrative:checkStaleness', groupId),
     deleteEvent: (groupId, eventId) => ipcRenderer.invoke('narrative:deleteEvent', groupId, eventId),
     onAftermath: createEventListener('narrative:aftermath')

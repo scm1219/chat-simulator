@@ -4,6 +4,11 @@
 import { ipcMain } from 'electron'
 import { SCENE_LABELS, EMOTION_KEYWORDS } from '../../narrative/constants.js'
 import { createHandler } from '../handler-wrapper.js'
+import { prepareCached } from '../../utils/statement-cache.js'
+import { createClientForGroup, resolveApiKey } from './llm-client-factory.js'
+import { getLLMProfiles } from '../../config/llm-profiles.js'
+import { getGlobalLLMConfig } from '../../config/manager.js'
+import { getProviderConfig } from '../../llm/providers/index.js'
 
 export function setupNarrativeHandlers(narrativeEngine) {
   ipcMain.handle('narrative:getEmotions', createHandler(async (event, groupId) => {
@@ -85,6 +90,21 @@ export function setupNarrativeHandlers(narrativeEngine) {
     const db = narrativeEngine.getGroupDB(groupId)
     const suggestions = narrativeEngine.getEventSuggestions(db, groupId, sceneType, count || 3)
     return { success: true, data: suggestions }
+  }))
+
+  // LLM 动态生成推荐事件（失败时引擎内部回退静态池）
+  ipcMain.handle('narrative:generateEventSuggestions', createHandler(async (event, groupId, sceneType, count) => {
+    const db = narrativeEngine.getGroupDB(groupId)
+    const group = prepareCached(db, 'SELECT * FROM groups WHERE id = ?').get(groupId)
+    if (!group) return { success: false, error: '群组不存在' }
+    // 供应商需要 Key 而群组没有可用 Key 时不建客户端，引擎直接走静态池
+    const apiKey = resolveApiKey(group, getGlobalLLMConfig())
+    const needApiKey = getProviderConfig(group.llm_provider)?.needApiKey !== false
+    const client = (needApiKey && !apiKey)
+      ? null
+      : createClientForGroup(group, getLLMProfiles(), apiKey).client
+    const data = await narrativeEngine.generateEventSuggestions(db, group, sceneType || 'general', count || 3, client)
+    return { success: true, data }
   }))
 
   ipcMain.handle('narrative:checkStaleness', createHandler(async (event, groupId) => {
