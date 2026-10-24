@@ -36,16 +36,30 @@ export const useNarrativeStore = defineStore('narrative', () => {
     await fetchRelationships(groupId)
   }
 
+  const eventSuggestionsLoading = ref(false)
+  const eventSuggestionsSource = ref('fallback')
+  // 事件数据当前所属群组：换群的第一笔请求先清空旧群数据。
+  // 覆盖两种残留路径：新群请求静默失败（silent 返回 null 不写状态）、
+  // 旧群慢响应被 seq 丢弃后组件仍拷贝 store
+  let eventGroupId = null
+  function resetEventsIfGroupChanged(groupId) {
+    if (eventGroupId === groupId) return
+    eventGroupId = groupId
+    eventSuggestions.value = []
+    eventSuggestionsSource.value = 'fallback'
+    recentEvents.value = []
+  }
+
   async function fetchEventSuggestions(groupId, sceneType) {
+    resetEventsIfGroupChanged(groupId)
     const r = await silent(() => window.electronAPI.narrative.getEventSuggestions(groupId, sceneType))
     if (r?.success) eventSuggestions.value = r.data
   }
 
-  const eventSuggestionsLoading = ref(false)
-  const eventSuggestionsSource = ref('fallback')
   let suggestionsSeq = 0 // 生成请求序号：LLM 生成耗时数秒，防止快速切换群组时慢响应覆盖新群组数据
 
   async function generateEventSuggestions(groupId, sceneType) {
+    resetEventsIfGroupChanged(groupId)
     const seq = ++suggestionsSeq
     eventSuggestionsLoading.value = true
     try {
@@ -61,6 +75,7 @@ export const useNarrativeStore = defineStore('narrative', () => {
   }
 
   async function fetchRecentEvents(groupId) {
+    resetEventsIfGroupChanged(groupId)
     const r = await silent(() => window.electronAPI.narrative.getRecentEvents(groupId))
     if (r?.success) recentEvents.value = r.data
   }
