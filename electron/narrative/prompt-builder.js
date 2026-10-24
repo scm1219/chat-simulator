@@ -3,10 +3,82 @@
  * 将情绪、关系、事件状态注入 LLM system prompt
  */
 
-import { TONE_HINTS, getFavorabilityLevel, getRelationshipType } from './constants.js'
+import { TONE_HINTS, EMOTION_KEYWORDS, getFavorabilityLevel, getRelationshipType } from './constants.js'
 import { prepareCached } from '../utils/statement-cache.js'
 
 export class NarrativePromptBuilder {
+
+  /**
+   * 构建 LLM 事件推荐 prompt（纯函数，不访问 db）
+   * @param {object} input - 上下文数据
+   * @param {string} input.sceneLabel - 场景中文标签
+   * @param {string|null} input.background - 群背景
+   * @param {Array<{id: string, name: string, system_prompt: string}>} input.characters - 群成员
+   * @param {Array<{character_id: string, emotion: string, intensity: number}>} input.emotions - 活跃情绪
+   * @param {Array<{from_id: string, to_id: string, type: string, favorability: number}>} input.relationships - 角色关系
+   * @param {Array<{content: string, impact: string}>} input.sampleEvents - 静态池示例事件
+   * @param {Array<{role: string, character_name: string|null, content: string}>} input.recentMessages - 最近对话
+   * @param {number} input.count - 生成事件数
+   * @returns {string} 完整 prompt
+   */
+  buildEventSuggestionPrompt({ sceneLabel, background, characters, emotions, relationships, sampleEvents, recentMessages, count }) {
+    const sections = []
+
+    sections.push(`请为下面这个群聊生成 ${count} 个突发事件，用来推动剧情发展。`)
+
+    const sceneParts = [`场景：${sceneLabel}`]
+    if (background) sceneParts.push(`背景：${background}`)
+    sections.push(sceneParts.join('\n'))
+
+    const memberLines = characters.map(c => {
+      const firstLine = c.system_prompt?.split('\n').find(l => l.trim()) || c.name
+      const summary = firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine
+      return `- ${c.name}: ${summary}`
+    })
+    if (memberLines.length > 0) sections.push(`群成员：\n${memberLines.join('\n')}`)
+
+    if (emotions && emotions.length > 0) {
+      const nameMap = new Map(characters.map(c => [c.id, c.name]))
+      const emotionLines = emotions.map(e =>
+        `- ${nameMap.get(e.character_id) || '未知角色'}（${e.emotion} ${Number(e.intensity).toFixed(1)}）`
+      )
+      sections.push(`当前情绪：\n${emotionLines.join('\n')}`)
+    }
+
+    if (relationships && relationships.length > 0) {
+      const nameMap = new Map(characters.map(c => [c.id, c.name]))
+      const relLines = relationships.map(r => {
+        const level = getFavorabilityLevel(r.favorability)
+        const typeConfig = getRelationshipType(r.type)
+        return `- ${nameMap.get(r.from_id) || '未知角色'} → ${nameMap.get(r.to_id) || '未知角色'}：${typeConfig.label}（好感度 ${r.favorability}，${level.label}）`
+      })
+      sections.push(`角色关系：\n${relLines.join('\n')}`)
+    }
+
+    if (recentMessages && recentMessages.length > 0) {
+      const chatLines = recentMessages.map(m => {
+        const prefix = m.role === 'assistant' ? (m.character_name || '角色') : '用户'
+        return `${prefix}：${m.content}`
+      })
+      sections.push(`最近对话：\n${chatLines.join('\n')}`)
+    }
+
+    if (sampleEvents && sampleEvents.length > 0) {
+      const sampleLines = sampleEvents.map(e => `- ${e.content}（${e.impact}）`)
+      sections.push(`事件风格示例（仅作参考，不要照抄）：\n${sampleLines.join('\n')}`)
+    }
+
+    const emotionWords = Object.keys(EMOTION_KEYWORDS).join('、')
+    sections.push(`输出要求：
+- 只返回 JSON，格式 {"events":[{"content":"事件描述","impact":"情绪词"}]}，不要输出其他内容
+- 恰好 ${count} 条
+- impact 只能从这些词中选：${emotionWords}
+- 每条 content 不超过 40 字
+- 事件要贴合当前剧情、场景与人物关系，可以涉及具体角色
+- 事件应能引发讨论、推动对话`)
+
+    return sections.join('\n\n')
+  }
 
   buildNarrativeContext(db, characterId, groupId, allCharacters) {
     const contextMessages = []

@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EmotionManager } from '../electron/narrative/emotion-manager.js'
 import { EventTrigger } from '../electron/narrative/event-trigger.js'
+import { NarrativePromptBuilder } from '../electron/narrative/prompt-builder.js'
 
 // 记录 INSERT 参数的 fake db：prepareCached 仅依赖 db.prepare 存在性
 function makeRecordingDb() {
@@ -85,4 +86,38 @@ test('parseGeneratedEvents 超出 count 截断', () => {
   const events = Array.from({ length: 5 }, (_, i) => ({ content: `事件${i}`, impact: '好奇' }))
   const result = new EventTrigger().parseGeneratedEvents(JSON.stringify({ events }), 3)
   assert.equal(result.length, 3)
+})
+
+const PROMPT_INPUT = {
+  sceneLabel: '聚会', background: '一家互联网公司的日常',
+  characters: [
+    { id: 'c1', name: '张三', system_prompt: '张三是后端工程师\n喜欢摸鱼' },
+    { id: 'c2', name: '李四', system_prompt: '李四是产品经理' }
+  ],
+  emotions: [{ character_id: 'c1', emotion: '焦虑', intensity: 0.6 }],
+  relationships: [{ from_id: 'c1', to_id: 'c2', type: 'colleague', favorability: -30 }],
+  sampleEvents: [{ content: '办公室突然停电了', impact: '惊讶' }],
+  recentMessages: [
+    { role: 'user', character_name: null, content: '今天好累' },
+    { role: 'assistant', character_name: '张三', content: '我也是' }
+  ],
+  count: 3
+}
+
+test('buildEventSuggestionPrompt 包含角色/情绪/关系/示例/对话各段', () => {
+  const p = new NarrativePromptBuilder().buildEventSuggestionPrompt(PROMPT_INPUT)
+  assert.ok(p.includes('张三') && p.includes('李四'))
+  assert.ok(p.includes('焦虑'))
+  assert.ok(p.includes('同事') && p.includes('不满'))   // 类型标签 + 好感度等级
+  assert.ok(p.includes('办公室突然停电了'))
+  assert.ok(p.includes('张三：我也是') && p.includes('用户：今天好累'))
+  assert.ok(p.includes('聚会'))                         // 场景段（sceneLabel）
+})
+
+test('buildEventSuggestionPrompt 固定输出约束（count、JSON 结构、情绪词白名单、字数）', () => {
+  const p = new NarrativePromptBuilder().buildEventSuggestionPrompt(PROMPT_INPUT)
+  assert.ok(p.includes('"events"'))
+  assert.ok(p.includes('3'))
+  assert.ok(p.includes('开心') && p.includes('恐慌'))   // 情绪白名单抽样
+  assert.ok(p.includes('40'))                           // content 字数约束
 })
