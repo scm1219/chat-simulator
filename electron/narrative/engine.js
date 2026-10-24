@@ -13,6 +13,7 @@ import { createLogger } from '../utils/logger.js'
 import { prepareCached } from '../utils/statement-cache.js'
 import { nowTimestampMs } from '../utils/timestamp.js'
 import { escapeRegExp } from '../utils/text.js'
+import { SCENE_LABELS } from './constants.js'
 
 const log = createLogger('Narrative')
 
@@ -208,6 +209,76 @@ export class NarrativeEngine {
 
   checkStaleness(db, groupId) {
     return this.eventTrigger.checkStaleness(db, groupId)
+  }
+
+  /**
+   * LLM 动态生成推荐事件（任一步失败回退静态池）
+   * @param {object} db - 群组数据库
+   * @param {object|null} group - 群组行（含 narrative_enabled/background）
+   * @param {string} sceneType - 场景类型 key
+   * @param {number} count - 生成事件数
+   * @param {object|null} client - LLM 客户端（null 时直接回退静态池）
+   * @returns {Promise<{ source: 'generated'|'fallback', events: Array<{key, content, impact}> }>}
+   */
+  async generateEventSuggestions(db, group, sceneType, count = 3, client = null) {
+    // 降级统一出口：静态池随机推荐
+    const fallback = () => ({
+      source: 'fallback',
+      events: this.eventTrigger.getEventSuggestions(db, group.id, sceneType, count)
+    })
+
+    if (!group || group.narrative_enabled !== 1 || !client) return fallback()
+
+    try {
+      const characters = prepareCached(db,
+        'SELECT * FROM characters WHERE group_id = ? AND enabled = 1'
+      ).all(group.id)
+      const emotions = prepareCached(db,
+        'SELECT * FROM character_emotions WHERE intensity > 0.1'
+      ).all()
+      const relationships = prepareCached(db,
+        'SELECT * FROM character_relationships'
+      ).all()
+      const recentMessages = prepareCached(db, `
+        SELECT m.*, c.name AS character_name FROM messages m
+        LEFT JOIN characters c ON c.id = m.character_id
+        WHERE m.group_id = ? ORDER BY m.timestamp DESC LIMIT 10
+      `).all(group.id).reverse()
+      // 静态池抽 4 条作 few-shot 示例（Fisher-Yates 洗牌）
+      const pool = [...this.eventTrigger.getEventPool(sceneType)]
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]]
+      }
+      const sampleEvents = pool.slice(0, 4)
+
+      const prompt = this.promptBuilder.buildEventSuggestionPrompt({
+        sceneLabel: SCENE_LABELS[sceneType] || '通用',
+        background: group.background,
+        characters,
+        emotions,
+        relationships,
+        sampleEvents,
+        recentMessages,
+        count
+      })
+
+      const result = await client.chat([
+        {
+          role: 'system',
+          content: '你是群聊剧情事件生成器。只返回 JSON，格式 {"events":[{"content":"事件描述","impact":"情绪词"}]}，不要输出其他内容。'
+        },
+        { role: 'user', content: prompt }
+      ], { maxTokens: 400, thinkingEnabled: false, responseFormat: { type: 'json_object' } })
+
+      if (!result.success || !result.content) return fallback()
+      const events = this.eventTrigger.parseGeneratedEvents(result.content, count)
+      if (events.length === 0) return fallback()
+      return { source: 'generated', events }
+    } catch (err) {
+      log.warn('LLM 事件推荐生成失败，回退静态池:', err.message)
+      return fallback()
+    }
   }
 
   getEventSuggestions(db, groupId, sceneType, count = 3) {

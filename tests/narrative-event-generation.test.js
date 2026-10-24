@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { EmotionManager } from '../electron/narrative/emotion-manager.js'
 import { EventTrigger } from '../electron/narrative/event-trigger.js'
 import { NarrativePromptBuilder } from '../electron/narrative/prompt-builder.js'
+import { NarrativeEngine } from '../electron/narrative/engine.js'
 
 // 记录 INSERT 参数的 fake db：prepareCached 仅依赖 db.prepare 存在性
 function makeRecordingDb() {
@@ -120,4 +121,65 @@ test('buildEventSuggestionPrompt 固定输出约束（count、JSON 结构、情�
   assert.ok(p.includes('3'))
   assert.ok(p.includes('开心') && p.includes('恐慌'))   // 情绪白名单抽样
   assert.ok(p.includes('40'))                           // content 字数约束
+})
+
+// 按 SQL 关键字分发的 fake db（better-sqlite3 无法在纯 Node 加载）
+function makeFakeDb(rows = {}) {
+  return {
+    prepare(sql) {
+      const stmt = {
+        all: (...a) => {
+          if (sql.includes('FROM character_emotions')) return rows.emotions || []
+          if (sql.includes('FROM character_relationships')) return rows.relationships || []
+          if (sql.includes('FROM characters')) return rows.characters || []
+          if (sql.includes('FROM messages')) return rows.messages || []
+          if (sql.includes('FROM narrative_events')) return rows.recentEvents || []
+          return []
+        }
+      }
+      return stmt
+    }
+  }
+}
+
+const GROUP = { id: 'g1', narrative_enabled: 1, background: '办公室日常' }
+const CHARACTERS = [{ id: 'c1', name: '张三', system_prompt: '工程师' }]
+
+function goodClient() {
+  return { chat: async () => ({
+    success: true,
+    content: JSON.stringify({ events: [{ content: '服务器宕机了', impact: '惊慌' }] })
+  })}
+}
+
+test('generateEventSuggestions LLM 成功返回 generated', async () => {
+  const engine = new NarrativeEngine()
+  const result = await engine.generateEventSuggestions(makeFakeDb({ characters: CHARACTERS }), GROUP, 'office', 3, goodClient())
+  assert.equal(result.source, 'generated')
+  assert.equal(result.events[0].content, '服务器宕机了')
+})
+
+test('generateEventSuggestions chat 失败/抛异常/空 events 回退静态池', async () => {
+  const engine = new NarrativeEngine()
+  const db = makeFakeDb({ characters: CHARACTERS })
+  const fail = { chat: async () => ({ success: false, error: 'x' }) }
+  const thrower = { chat: async () => { throw new Error('network') } }
+  const empty = { chat: async () => ({ success: true, content: '{"events":[]}' }) }
+  for (const client of [fail, thrower, empty]) {
+    const r = await engine.generateEventSuggestions(db, GROUP, 'office', 3, client)
+    assert.equal(r.source, 'fallback')
+    assert.ok(r.events.length > 0 && r.events.length <= 3)  // 静态池事件
+  }
+})
+
+test('generateEventSuggestions narrative 关闭或 client 为 null 直接回退且不调 LLM', async () => {
+  const engine = new NarrativeEngine()
+  const db = makeFakeDb({ characters: CHARACTERS })
+  let called = 0
+  const counting = { chat: async () => { called++; return { success: true, content: '{}' } } }
+  const off = await engine.generateEventSuggestions(db, { ...GROUP, narrative_enabled: 0 }, 'office', 3, counting)
+  const noClient = await engine.generateEventSuggestions(db, GROUP, 'office', 3, null)
+  assert.equal(off.source, 'fallback')
+  assert.equal(noClient.source, 'fallback')
+  assert.equal(called, 0)
 })
