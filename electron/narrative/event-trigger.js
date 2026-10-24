@@ -4,8 +4,9 @@
  */
 
 import { generateUUID } from '../utils/uuid.js'
-import { SCENE_LABELS } from './constants.js'
+import { SCENE_LABELS, mapEventImpactToEmotion } from './constants.js'
 import { prepareCached } from '../utils/statement-cache.js'
+import { extractJSON } from '../utils/json-extractor.js'
 
 const DEFAULT_EVENT_POOL = {
   office: [
@@ -161,6 +162,27 @@ export class EventTrigger {
       ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
     return shuffled.slice(0, count)
+  }
+
+  /**
+   * 解析 LLM 生成的事件推荐 JSON，逐条校验后返回
+   * 校验失败的条目被过滤（不丢弃整批），全部无效时返回空数组（由调用方回退静态池）
+   * @param {string} rawContent - LLM 原始返回内容
+   * @param {number} count - 最多保留的事件数
+   * @returns {Array<{key: string, content: string, impact: string}>}
+   */
+  parseGeneratedEvents(rawContent, count = 3) {
+    const parsed = extractJSON(rawContent)
+    if (!parsed.success || !parsed.data || !Array.isArray(parsed.data.events)) return []
+    const timestamp = Date.now()
+    return parsed.data.events
+      .filter(e => typeof e?.content === 'string' && e.content.trim() && e.content.length <= 50)
+      .slice(0, count)
+      .map((e, i) => ({
+        key: `llm_${timestamp}_${i}`,
+        content: e.content,
+        impact: mapEventImpactToEmotion(e.impact)
+      }))
   }
 
   checkStaleness(db, groupId) {
