@@ -183,3 +183,26 @@ test('generateEventSuggestions narrative 关闭或 client 为 null 直接回退�
   assert.equal(noClient.source, 'fallback')
   assert.equal(called, 0)
 })
+
+test('generateEventSuggestions group 为 null 时安全返回空回退（不抛错、不调 LLM）', async () => {
+  const engine = new NarrativeEngine()
+  const db = makeFakeDb({ characters: CHARACTERS })
+  let called = 0
+  const counting = { chat: async () => { called++; return { success: true, content: '{}' } } }
+  const r = await engine.generateEventSuggestions(db, null, 'office', 3, counting)
+  assert.equal(r.source, 'fallback')
+  assert.deepEqual(r.events, [])
+  assert.equal(called, 0)
+})
+
+test('preGenerate 事件消息跳过关键词情绪更新（保留事件写入的强度不被衰减）', async () => {
+  const engine = new NarrativeEngine()
+  let keywordCalls = 0
+  engine.emotion.updateFromMessage = () => { keywordCalls++ }
+  const db = makeFakeDb({ characters: CHARACTERS })
+  const chars = [{ id: 'c1', name: '张三' }]
+  engine.preGenerate(db, 'c1', 'g1', '消防警报突然响了', null, chars, 'event')
+  assert.equal(keywordCalls, 0, '事件消息不应走关键词情绪更新（避免每角色衰减一次）')
+  engine.preGenerate(db, 'c1', 'g1', '今天真开心', null, chars, 'normal')
+  assert.equal(keywordCalls, 1, '普通消息保持关键词情绪更新')
+})

@@ -59,11 +59,15 @@ export class NarrativeEngine {
    * 对话前处理：更新所有角色情绪 + 构建叙事上下文
    * 所有角色（含发言角色）都会通过关键词快速更新情绪
    * 发言角色后续在 postCharacterResponse 中还会进行 LLM 深度推断
+   * 事件消息跳过关键词更新：情绪已由 updateFromEvent 写入，
+   * 关键词通道的无匹配衰减会按角色数逐次削弱事件强度
    */
-  preGenerate(db, characterId, groupId, userContent, senderCharacterId, allCharacters) {
-    // 关键词快速判断情绪更新（所有角色）
-    for (const char of allCharacters) {
-      this.emotion.updateFromMessage(db, char.id, userContent)
+  preGenerate(db, characterId, groupId, userContent, senderCharacterId, allCharacters, messageType = 'normal') {
+    if (messageType !== 'event') {
+      // 关键词快速判断情绪更新（所有角色）
+      for (const char of allCharacters) {
+        this.emotion.updateFromMessage(db, char.id, userContent)
+      }
     }
     return this.promptBuilder.buildNarrativeContext(db, characterId, groupId, allCharacters)
   }
@@ -221,13 +225,16 @@ export class NarrativeEngine {
    * @returns {Promise<{ source: 'generated'|'fallback', events: Array<{key, content, impact}> }>}
    */
   async generateEventSuggestions(db, group, sceneType, count = 3, client = null) {
+    // group 为 null 时无从查静态池（按 group 去重），安全返回空列表
+    if (!group) return { source: 'fallback', events: [] }
+
     // 降级统一出口：静态池随机推荐
     const fallback = () => ({
       source: 'fallback',
       events: this.eventTrigger.getEventSuggestions(db, group.id, sceneType, count)
     })
 
-    if (!group || group.narrative_enabled !== 1 || !client) return fallback()
+    if (group.narrative_enabled !== 1 || !client) return fallback()
 
     try {
       const characters = prepareCached(db,

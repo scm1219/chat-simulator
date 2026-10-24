@@ -204,7 +204,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
           const narrativeEnabled = group.narrative_enabled === 1
           const narrativeContext = (narrativeEngine && narrativeEnabled)
-            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters, messageType)
             : []
           return generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
             thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
@@ -242,7 +242,7 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
         for (const character of orderedCharacters) {
           const { client } = createClientForCharacter(character, group, llmProfiles, apiKey)
           const narrativeContext = (narrativeEngine && group.narrative_enabled === 1)
-            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters)
+            ? narrativeEngine.preGenerate(db, character.id, groupId, userContent, userCharacter?.id, allCharacters, messageType)
             : []
           const response = await generateCharacterResponse(client, character, history, userContent, event, groupId, db, {
             thinkingEnabled, background: group.background, systemPrompt: group.system_prompt,
