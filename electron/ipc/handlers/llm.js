@@ -182,6 +182,13 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
       // 保存用户消息
       saveUserMessage(db, groupId, userContent, userCharacter, event, messageType, eventImpact)
 
+      // 事件消息：将 impact 写入所有启用角色的情绪（±20% 抖动，避免整齐划一）
+      if (messageType === 'event' && eventImpact && narrativeEngine && group.narrative_enabled === 1) {
+        for (const char of characters) {
+          narrativeEngine.emotion.updateFromEvent(db, char.id, eventImpact, 0.2)
+        }
+      }
+
       // 根据回复模式调用 LLM
       const responseMode = group.response_mode || 'sequential'
       const thinkingEnabled = group.thinking_enabled === 1
