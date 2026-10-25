@@ -1,5 +1,8 @@
+# better-sqlite3: false —— 它的安装脚本默认下载 Node ABI 二进制，与 Electron 不通用；
+# 二进制由根 postinstall（scripts/rebuild-sqlite.mjs）统一安装 Electron 版本，
+# 因此显式拒绝其构建脚本（false = 已审阅并拒绝，pnpm 不会报 ERR_PNPM_IGNORED_BUILDS）。
 allowBuilds:
   '@parcel/watcher': true
-  better-sqlite3: true
+  better-sqlite3: false
   electron: true
   esbuild: true

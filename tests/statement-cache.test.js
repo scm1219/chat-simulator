@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { prepareCached } from '../electron/utils/statement-cache.js'
 
-// 说明：better-sqlite3 原生模块经 electron-rebuild 编译为 Electron ABI，
+// 说明：better-sqlite3 原生模块为 Electron ABI（postinstall 安装 Electron 预编译），
 // 纯 Node 测试进程无法加载（ERR_DLOPEN_FAILED）。
 // prepareCached 仅依赖 db.prepare 的存在性与对象身份（WeakMap 键），
 // 因此用鸭子类型 fake db 覆盖缓存逻辑；SQL 执行语义由 better-sqlite3 自身保证。
