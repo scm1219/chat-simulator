@@ -12,7 +12,7 @@ import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { extractJSON } from '../../utils/json-extractor.js'
 import { createHandler } from '../handler-wrapper.js'
 import { isDecisionProfile } from '../../../src/utils/llm-providers.js'
-import { resolveClientProxy, createLLMClient, createClientForCharacter, resolveApiKey } from './llm-client-factory.js'
+import { resolveClientProxy, createLLMClient, createClientForCharacter, createDecisionClientFromGlobal, resolveApiKey } from './llm-client-factory.js'
 import { saveUserMessage, generateCharacterResponse, safeSend } from './llm-response-handler.js'
 import { prepareCached } from '../../utils/statement-cache.js'
 import { prefilterHistoryMessages } from './llm-context-builder.js'
@@ -163,6 +163,29 @@ export function setupLLMHandlers(dbManager, memoryManager = null, narrativeEngin
     const result = await client.testConnection()
     return result
   }, 'LLM:testConnection'))
+
+  // 通用决策调用（系统级决策模型，入参 state + questions，返回判定结果）
+  ipcMain.handle('llm:decide', createHandler(async (event, state, questions) => {
+    const { client, error } = createDecisionClientFromGlobal()
+    if (error) {
+      return { success: false, error }
+    }
+
+    const result = await client.decide(state, questions)
+    if (!result.success) {
+      return result
+    }
+    return {
+      success: true,
+      data: {
+        answers: result.answers,
+        usage: result.usage,
+        latencyMs: result.latencyMs,
+        model: result.model,
+        requestId: result.requestId
+      }
+    }
+  }, 'LLM:decide'))
 
   // 生成 AI 回复（多角色对话）
   ipcMain.handle('llm:generate', createHandler(async (event, groupId, userContent, options = {}) => {
