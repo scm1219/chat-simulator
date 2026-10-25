@@ -53,3 +53,16 @@ export function sortProfilesByProvider(profiles) {
     return a.name.localeCompare(b.name)
   })
 }
+
+// 决策模型判定：供应商注册表 modelType 为 'decision'（决策模型不生成文本，
+// 只做分类/是非/评分判定，永远不能作为聊天模型使用）
+export function isDecisionProfile(profile) {
+  return LLM_PROVIDERS[profile?.provider]?.modelType === 'decision'
+}
+
+// 聊天模型过滤：剔除决策模型 Profile，供聊天模型选择面与聊天回退路径使用
+// （ProfileManager 管理列表不过滤，仍需展示决策模型配置）
+export function filterChatProfiles(profiles) {
+  if (!Array.isArray(profiles)) return []
+  return profiles.filter(profile => !isDecisionProfile(profile))
+}

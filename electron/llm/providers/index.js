@@ -101,6 +101,16 @@ export const LLM_PROVIDERS = {
       thinking: false
     }
   },
+  'bailian-decision': {
+    id: 'bailian-decision',
+    name: '百炼决策',
+    baseURL: '', // 用户必填 workspace 地址，如 https://{业务空间ID}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    models: ['decision-model-preview'],
+    needApiKey: true,
+    needBaseUrl: true,
+    protocol: 'systemone', // System One 协议（/systemone 端点，非 chat completions）
+    modelType: 'decision' // 决策模型：系统级配置，不进入聊天模型选择
+  },
   custom: {
     id: 'custom',
     name: '自定义',

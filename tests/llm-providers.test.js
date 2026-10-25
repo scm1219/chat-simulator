@@ -5,8 +5,11 @@ import {
   getProviderName,
   getGenderLabel,
   groupProfilesByProvider,
-  sortProfilesByProvider
+  sortProfilesByProvider,
+  isDecisionProfile,
+  filterChatProfiles
 } from '../src/utils/llm-providers.js'
+import { LLM_PROVIDERS } from '../electron/llm/providers/index.js'
 
 test('getProviderName 已知 id 返回供应商名', () => {
   assert.equal(getProviderName('openai'), 'OpenAI')
@@ -61,4 +64,32 @@ test('sortProfilesByProvider 供应商声明顺序优先、同供应商按名称
 test('sortProfilesByProvider 空/非数组防御', () => {
   assert.deepEqual(sortProfilesByProvider([]), [])
   assert.deepEqual(sortProfilesByProvider(undefined), [])
+})
+
+test('isDecisionProfile 按供应商 modelType 判定，未知/空安全', () => {
+  assert.equal(isDecisionProfile({ provider: 'bailian-decision' }), true)
+  assert.equal(isDecisionProfile({ provider: 'openai' }), false)
+  assert.equal(isDecisionProfile({}), false)
+  assert.equal(isDecisionProfile(null), false)
+})
+
+test('filterChatProfiles 过滤决策模型且保持顺序', () => {
+  const profiles = [
+    { id: '1', provider: 'openai' },
+    { id: '2', provider: 'bailian-decision' },
+    { id: '3', provider: 'deepseek' }
+  ]
+  assert.deepEqual(filterChatProfiles(profiles).map(p => p.id), ['1', '3'])
+  assert.deepEqual(filterChatProfiles([]), [])
+  assert.deepEqual(filterChatProfiles(null), [])
+})
+
+test('bailian-decision 供应商注册条目字段完整', () => {
+  const config = LLM_PROVIDERS['bailian-decision']
+  assert.equal(config.name, '百炼决策')
+  assert.deepEqual(config.models, ['decision-model-preview'])
+  assert.equal(config.protocol, 'systemone')
+  assert.equal(config.modelType, 'decision')
+  assert.equal(config.needApiKey, true)
+  assert.equal(config.needBaseUrl, true)
 })
