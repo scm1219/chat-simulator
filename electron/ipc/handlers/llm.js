@@ -11,6 +11,7 @@ import { getGlobalLLMConfig, getGachaConfig, getQuickGroupConfig } from '../../c
 import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { extractJSON } from '../../utils/json-extractor.js'
 import { createHandler } from '../handler-wrapper.js'
+import { isDecisionProfile } from '../../../src/utils/llm-providers.js'
 import { resolveClientProxy, createLLMClient, createClientForCharacter, resolveApiKey } from './llm-client-factory.js'
 import { saveUserMessage, generateCharacterResponse, safeSend } from './llm-response-handler.js'
 import { prepareCached } from '../../utils/statement-cache.js'
@@ -41,11 +42,15 @@ export async function callLLMForJSON({ profileId, messages, temperature = 0.9, m
 
   let profile = profileId ? llmProfiles.find(p => p.id === profileId) : null
   if (!profile) {
-    // 显式指定的 Profile 不存在时直接报错，仅在未指定时回退第一个
+    // 显式指定的 Profile 不存在时直接报错，仅在未指定时回退第一个聊天模型
     if (profileId) {
       return { success: false, error: '指定的 LLM 配置不存在，请重新选择' }
     }
-    profile = llmProfiles[0]
+    // 决策模型无 chat() 能力，回退时跳过，避免"第一个 Profile 是决策模型"时静默坏掉
+    profile = llmProfiles.find(p => !isDecisionProfile(p))
+    if (!profile) {
+      return { success: false, error: '请先在 LLM 配置管理中添加聊天模型配置' }
+    }
   }
 
   const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)

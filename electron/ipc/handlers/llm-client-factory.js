@@ -6,7 +6,11 @@ import { LLMClient } from '../../llm/client.js'
 import { AnthropicClient } from '../../llm/anthropic-client.js'
 import { createLogger } from '../../utils/logger.js'
 import { OllamaNativeClient } from '../../llm/ollama-client.js'
+import { DecisionClient } from '../../llm/decision-client.js'
 import { getProviderConfig } from '../../llm/providers/index.js'
+import { pickDecisionProfile } from '../../llm/decision-protocol.js'
+import { getGlobalLLMConfig } from '../../config/manager.js'
+import { getLLMProfiles } from '../../config/llm-profiles.js'
 import { resolveProfileProxy } from '../../llm/proxy.js'
 import { decryptSecret } from '../../utils/secure-storage.js'
 
@@ -52,7 +56,41 @@ export function createLLMClient(config) {
     })
   }
 
+  // System One 协议供应商（百炼决策模型）
+  if (providerConfig?.protocol === 'systemone') {
+    return new DecisionClient({
+      ...rest,
+      baseURL,
+      proxy,
+      bypassRules
+    })
+  }
+
   return new LLMClient({ provider, baseURL, proxy, bypassRules, ...rest })
+}
+
+/**
+ * 用全局系统级配置创建决策客户端
+ * 决策模型由 llm-config.json 的 decisionProfileId 全局指定，聊天中不可切换
+ * @returns {{ client?: DecisionClient, error?: string }}
+ */
+export function createDecisionClientFromGlobal() {
+  const { decisionProfileId } = getGlobalLLMConfig()
+  const { profile, error } = pickDecisionProfile(getLLMProfiles(), decisionProfileId)
+  if (error) {
+    return { error }
+  }
+
+  const { proxy: resolvedProxy, bypassRules } = resolveClientProxy(profile, profile.baseURL)
+  const client = createLLMClient({
+    provider: profile.provider,
+    apiKey: profile.apiKey,
+    baseURL: profile.baseURL,
+    model: profile.model,
+    proxy: resolvedProxy,
+    bypassRules
+  })
+  return { client }
 }
 
 /**
