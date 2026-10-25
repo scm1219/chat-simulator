@@ -9,7 +9,7 @@ import {
   isDecisionProfile,
   filterChatProfiles
 } from '../src/utils/llm-providers.js'
-import { LLM_PROVIDERS } from '../electron/llm/providers/index.js'
+import { LLM_PROVIDERS, getModelType } from '../electron/llm/providers/index.js'
 
 test('getProviderName 已知 id 返回供应商名', () => {
   assert.equal(getProviderName('openai'), 'OpenAI')
@@ -92,4 +92,14 @@ test('bailian-decision 供应商注册条目字段完整', () => {
   assert.equal(config.modelType, 'decision')
   assert.equal(config.needApiKey, true)
   assert.equal(config.needBaseUrl, true)
+})
+
+// 迁移推断用例：老 Profile 无 modelType 字段时按供应商推断（llm-profiles.js 迁移调用此函数）
+test('getModelType 按供应商注册表推断模型类型', () => {
+  assert.equal(getModelType('bailian-decision'), 'decision')
+  assert.equal(getModelType('openai'), 'chat')
+  assert.equal(getModelType('qwen'), 'chat')
+  // 未知供应商回退 chat
+  assert.equal(getModelType('nonexistent'), 'chat')
+  assert.equal(getModelType(undefined), 'chat')
 })

@@ -7,7 +7,7 @@ import path from 'path'
 import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
-import { getProviderConfig } from '../llm/providers/index.js'
+import { getModelType } from '../llm/providers/index.js'
 import { ensureConfigDir } from '../utils/config-dir.js'
 import { atomicWriteJson } from '../utils/atomic-write.js'
 import { createLogger } from '../utils/logger.js'
@@ -82,9 +82,7 @@ export function getLLMProfiles() {
         // 迁移：为没有 modelType 字段的配置按供应商推断补齐
         // （决策模型供应商 → 'decision'，其余 → 'chat'）
         if (profile.modelType === undefined) {
-          profile.modelType = getProviderConfig(profile.provider)?.modelType === 'decision'
-            ? 'decision'
-            : 'chat'
+          profile.modelType = getModelType(profile.provider)
           migrated = true
         }
         // 迁移：为没有 proxy 字段的配置添加默认值

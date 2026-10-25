@@ -137,6 +137,14 @@ export function getProviderDefaultBaseURL(providerId) {
 }
 
 /**
+ * 获取供应商的模型类型（'chat' | 'decision'），未知供应商回退 'chat'
+ * Profile 迁移（llm-profiles.js）与决策判定共用此单一来源
+ */
+export function getModelType(providerId) {
+  return LLM_PROVIDERS[providerId]?.modelType === 'decision' ? 'decision' : 'chat'
+}
+
+/**
  * 获取所有供应商列表
  */
 export function getAllProviders() {

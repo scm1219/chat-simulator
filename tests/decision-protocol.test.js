@@ -47,6 +47,18 @@ test('validateDecisionRequest 拒绝 undefined/null state', () => {
   assert.equal(validateDecisionRequest(null, { q: { type: 'noul' } }).valid, false)
 })
 
+test('validateDecisionRequest 拒绝序列化后为空的 state', () => {
+  // 空字符串 / 空对象 / 空数组本地拒绝，不发请求
+  assert.equal(validateDecisionRequest('', { q: { type: 'noul' } }).valid, false)
+  assert.equal(validateDecisionRequest({}, { q: { type: 'noul' } }).valid, false)
+  assert.equal(validateDecisionRequest([], { q: { type: 'noul' } }).valid, false)
+  // 非空各类型不受影响
+  assert.equal(validateDecisionRequest('x', { q: { type: 'noul' } }).valid, true)
+  assert.equal(validateDecisionRequest({ a: 1 }, { q: { type: 'noul' } }).valid, true)
+  assert.equal(validateDecisionRequest([1], { q: { type: 'noul' } }).valid, true)
+  assert.equal(validateDecisionRequest(0, { q: { type: 'noul' } }).valid, true)
+})
+
 test('validateDecisionRequest 拒绝空 questions 与非对象 questions', () => {
   assert.equal(validateDecisionRequest('s', {}).valid, false)
   assert.equal(validateDecisionRequest('s', null).valid, false)

@@ -299,7 +299,13 @@ async function toggleCharacterThinking() {
 async function toggleCustomModel() {
   try {
     const char = props.character
-    const newValue = char.custom_llm_profile_id ? null : (filterChatProfiles(llmProfilesStore.profiles)[0]?.id || null)
+    // 开启时取第一个聊天模型；全部为决策模型时提示并跳过，避免开关静默无效
+    const chatProfiles = filterChatProfiles(llmProfilesStore.profiles)
+    if (!char.custom_llm_profile_id && chatProfiles.length === 0) {
+      toast.warning('请先在 LLM 配置管理中添加聊天模型配置')
+      return
+    }
+    const newValue = char.custom_llm_profile_id ? null : (chatProfiles[0]?.id || null)
     await charactersStore.updateCharacter(char.id, {
       customLlmProfileId: newValue
     })

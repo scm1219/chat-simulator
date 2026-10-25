@@ -5,7 +5,7 @@
  * 无 electron/axios 依赖，供 node --test 直接测试；
  * HTTP 行为由 DecisionClient 负责，本模块不触及
  */
-import { getProviderConfig } from './providers/index.js'
+import { getModelType } from './providers/index.js'
 
 // 协议限制（阿里云百炼 decision-model-preview 文档）
 const MAX_QUESTIONS = 16
@@ -24,6 +24,13 @@ const QUESTION_TYPES = ['choice', 'noul', 'score']
 export function validateDecisionRequest(state, questions) {
   if (state === undefined || state === null) {
     return { valid: false, error: 'state 不能为空' }
+  }
+
+  // 序列化后为空的 state 本地拒绝（空字符串/空对象/空数组），不发无效请求
+  if (state === '' ||
+      (typeof state === 'object' && !Array.isArray(state) && Object.keys(state).length === 0) ||
+      (Array.isArray(state) && state.length === 0)) {
+    return { valid: false, error: 'state 序列化后为空，请提供有效的业务状态' }
   }
 
   if (!questions || typeof questions !== 'object' || Array.isArray(questions)) {
@@ -107,7 +114,7 @@ export function pickDecisionProfile(profiles, decisionProfileId) {
     return { error: '决策模型配置不存在，请重新选择' }
   }
 
-  if (getProviderConfig(profile.provider)?.modelType !== 'decision') {
+  if (getModelType(profile.provider) !== 'decision') {
     return { error: '所选配置不是决策模型' }
   }
 
