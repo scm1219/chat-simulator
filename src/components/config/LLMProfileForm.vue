@@ -161,7 +161,8 @@
       </small>
     </div>
 
-    <div class="form-group">
+    <!-- 决策模型协议不支持流式，隐藏开关 -->
+    <div v-if="currentProvider?.modelType !== 'decision'" class="form-group">
       <label class="checkbox-label">
         <input
           v-model="form.streamEnabled"
@@ -175,7 +176,8 @@
       </small>
     </div>
 
-    <div class="form-group">
+    <!-- 决策模型无思考概念，隐藏开关 -->
+    <div v-if="currentProvider?.modelType !== 'decision'" class="form-group">
       <label class="checkbox-label">
         <input
           v-model="form.thinkingEnabled"

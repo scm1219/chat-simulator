@@ -42,7 +42,8 @@
             </div>
 
             <div class="profile-actions">
-              <label class="thinking-toggle" title="思考模式">
+              <!-- 决策模型协议无思考概念，隐藏思考开关 -->
+              <label v-if="!isDecisionProfile(profile)" class="thinking-toggle" title="思考模式">
                 <input
                   type="checkbox"
                   :checked="profile.thinkingEnabled === true"
@@ -111,7 +112,8 @@ import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
 import { useDialog } from '../../composables/useDialog'
 import { LLM_PROVIDERS } from '../../../electron/llm/providers/index.js'
-import { groupProfilesByProvider } from '../../utils/llm-providers.js'
+import { groupProfilesByProvider, isDecisionProfile } from '../../utils/llm-providers.js'
+import { useConfigStore } from '../../stores/config.js'
 import BaseDialog from '../common/BaseDialog.vue'
 
 // 表单组件按需异步加载，减小首屏 bundle 体积
@@ -119,6 +121,7 @@ const LLMProfileForm = defineAsyncComponent(() => import('./LLMProfileForm.vue')
 
 const store = useLLMProfilesStore()
 const toast = useToastStore()
+const configStore = useConfigStore()
 const { confirm } = useDialog()
 
 const profiles = computed(() => store.profiles)
@@ -132,7 +135,11 @@ const formData = ref({})
 const formSubmitting = ref(false)
 const testingId = ref(null)
 
-onMounted(() => store.loadProfiles())
+onMounted(() => {
+  store.loadProfiles()
+  // 决策模型删除清理需要读取全局 decisionProfileId
+  configStore.loadLLMConfig()
+})
 
 // 添加配置（面板头部按钮与对话框底部按钮统一走这里）
 function openAdd() {
@@ -206,6 +213,18 @@ async function handleDelete(profile) {
   const result = await store.deleteProfile(profile.id)
   if (!result.success) {
     toast.error('删除失败: ' + result.error)
+    return
+  }
+
+  // 删除的是系统级决策模型时，同步清空全局选择，避免 decisionProfileId 悬空
+  if (configStore.llmConfig?.decisionProfileId === profile.id) {
+    const saved = await configStore.saveLLMConfig({
+      ...configStore.llmConfig,
+      decisionProfileId: ''
+    })
+    if (saved) {
+      toast.info('已停用决策模型选择（该配置已被删除）', 5000)
+    }
   }
 }
 
