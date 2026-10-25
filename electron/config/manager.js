@@ -27,7 +27,8 @@ const DEFAULT_LLM_CONFIG = {
   provider: 'openai',
   apiKey: '',
   model: 'gpt-3.5-turbo',
-  baseURL: ''
+  baseURL: '',
+  decisionProfileId: '' // 系统级决策模型 Profile（空 = 未启用；聊天中不可切换）
 }
 
 /**

@@ -7,6 +7,7 @@ import path from 'path'
 import { app } from 'electron'
 import { generateUUID } from '../utils/uuid.js'
 import { DEFAULT_PROFILE_PROXY } from '../llm/proxy.js'
+import { getProviderConfig } from '../llm/providers/index.js'
 import { ensureConfigDir } from '../utils/config-dir.js'
 import { atomicWriteJson } from '../utils/atomic-write.js'
 import { createLogger } from '../utils/logger.js'
@@ -78,6 +79,14 @@ export function getLLMProfiles() {
           migrated = true
           log.info(`已将 Ollama 配置"${profile.name}"迁移为原生 API 模式`)
         }
+        // 迁移：为没有 modelType 字段的配置按供应商推断补齐
+        // （决策模型供应商 → 'decision'，其余 → 'chat'）
+        if (profile.modelType === undefined) {
+          profile.modelType = getProviderConfig(profile.provider)?.modelType === 'decision'
+            ? 'decision'
+            : 'chat'
+          migrated = true
+        }
         // 迁移：为没有 proxy 字段的配置添加默认值
         if (profile.proxy === undefined) {
           profile.proxy = { ...DEFAULT_PROFILE_PROXY }
@@ -97,7 +106,7 @@ export function getLLMProfiles() {
       // 如果有迁移，保存更新后的配置（入写队列，避免与并发写操作交错）
       if (migrated) {
         enqueueWrite(() => saveLLMProfiles(profiles))
-        log.info('已迁移配置：补充 streamEnabled/useNativeApi/proxy 字段并统一 thinkingEnabled 命名')
+        log.info('已迁移配置：补充 streamEnabled/useNativeApi/modelType/proxy 字段并统一 thinkingEnabled 命名')
       }
 
       return profiles
