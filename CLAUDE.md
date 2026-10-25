@@ -1,10 +1,16 @@
 # Chat - LLM 角色扮演聊天模拟器
 
-> 最后更新：2026-10-24
+> 最后更新：2026-10-25
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-10-25
+- **新增**：决策模型类型接入（百炼 `decision-model-preview`，System One 协议 `POST {baseURL}/systemone`；`bailian-decision` 供应商注册 + `DecisionClient` + `decision-protocol.js` 协议纯函数）
+- **新增**：Profile 新增 `modelType: 'chat' | 'decision'` 字段（存量读取时按供应商推断迁移）；全局 `llm-config.json` 新增 `decisionProfileId` 系统级选择（设置面板 LLM 配置顶部选择区，聊天中不可选/不可切换）
+- **新增**：通用决策调用 IPC `llm:decide`（state + questions → answers 含概率分布/置信度）
+- **防护**：决策模型从全部聊天路径隔离——五处聊天选择面（ChatWindow 切换器/建群/快速建群/角色卡/全局角色重生成）与 `callLLMForJSON` 回退均过滤决策模型
 
 ### 2026-10-24
 - **新增**：LLM 动态事件推荐（`narrative:generateEventSuggestions` IPC，事件面板刷新改为按剧情上下文生成，失败回退静态池；`llm-client-factory` 提取 `createClientForGroup` 群组级客户端工厂）

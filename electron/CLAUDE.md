@@ -2,11 +2,17 @@
 
 [根目录](../CLAUDE.md) > **electron**
 
-> 最后更新：2026-04-18
+> 最后更新：2026-10-25
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-10-25
+- **新增**：决策模型接入——`bailian-decision` 供应商（System One 协议）、`llm/decision-client.js`（DecisionClient）、`llm/decision-protocol.js`（校验/解析/挑选纯函数）
+- **新增**：`llm:decide` IPC（state + questions → answers）；客户端工厂新增 systemone 协议分支与 `createDecisionClientFromGlobal`（按全局 `decisionProfileId` 建客户端）
+- **新增**：Profile 迁移 `modelType: 'chat' | 'decision'`；`DEFAULT_LLM_CONFIG` 新增 `decisionProfileId`
+- **防护**：`callLLMForJSON` 未指定 Profile 的回退跳过决策模型（避免抽卡等静默路由到无 chat() 的 DecisionClient）
 
 ### 2026-04-18
 - **重构**：叙事引擎提取共享常量到 `constants.js`（情绪词典、关系类型、好感度等级、互动模式、事件映射、语气提示）
@@ -206,6 +212,7 @@ memoryManager.close()
 | `generateCharacterCommand(...)` | 群组/角色/指令 | 流式事件 | 单角色指令回复 |
 | `generateCharacter(hint)` | 提示词 | `{ success, data }` | AI 角色抽卡 |
 | `generateGroup(description, profileId)` | 描述, Profile ID | `{ success, data }` | AI 快速建群 |
+| `decide(state, questions)` | 业务状态, 问题集 | `{ success, data: { answers, usage, latencyMs, model, requestId } }` | 通用决策调用（系统级决策模型） |
 | `onProgress(callback)` | 回调函数 | 清理函数 | 监听生成进度 |
 
 **Handler 实现**：`electron/ipc/handlers/llm.js`
@@ -361,6 +368,14 @@ memoryManager.close()
 - 支持 Ollama 原生 API
 - 支持原生 think 参数
 - 与 OpenAI 客户端接口统一
+
+### 决策模型客户端（System One 协议）
+**路径**：`electron/llm/decision-client.js`、`electron/llm/decision-protocol.js`
+
+- 百炼 `decision-model-preview`：`POST {baseURL}/systemone`（workspace 域名，用户必填 baseURL）
+- `decide(state, questions)`：一次前向返回分类（choice）/是非（noul）/评分（score）及概率分布与置信度；不生成文本、不支持流式
+- 协议校验/解析为纯函数模块（`decision-protocol.js`，零 electron 依赖，可 node --test）
+- 决策模型为系统级配置（全局 `decisionProfileId`），聊天路径全部过滤，不可用于对话生成
 
 ### LLM 供应商配置
 **路径**：`electron/llm/providers/index.js`

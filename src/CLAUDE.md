@@ -2,11 +2,16 @@
 
 [根目录](../CLAUDE.md) > **src**
 
-> 最后更新：2026-09-01
+> 最后更新：2026-10-25
 
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-10-25
+- **新增**：`utils/llm-providers.js` 新增 `isDecisionProfile`/`filterChatProfiles`（决策模型判定与聊天模型过滤）
+- **新增**：`LLMConfigPanel.vue` 顶部决策模型（系统级）选择区（读写全局 `decisionProfileId`）
+- **适配**：五处聊天选择面（ChatWindow 切换器、CreateGroupDialog、QuickGroupDialog、CharacterCard、GlobalCharacterDialog）过滤决策模型；ProfileManager 决策 Profile 隐藏思考开关并在删除时清空全局选择；LLMProfileForm 决策供应商隐藏流式/思考开关
 
 ### 2026-09-01
 - **重构**：`CharacterPanel.vue`（约 1460 行）拆分为 `CharacterCard.vue`、`GroupSettingsSection.vue`、`MemoryDialog.vue`，瘦身至 230 行
