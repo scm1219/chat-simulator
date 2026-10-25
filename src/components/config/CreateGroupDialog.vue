@@ -110,7 +110,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useGroupsStore } from '../../stores/groups.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
-import { getProviderName, sortProfilesByProvider } from '../../utils/llm-providers.js'
+import { getProviderName, sortProfilesByProvider, filterChatProfiles } from '../../utils/llm-providers.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import FormGroup from '../common/FormGroup.vue'
 import ProfileManagerDialog from './ProfileManagerDialog.vue'
@@ -130,7 +130,8 @@ const form = ref({
   background: ''
 })
 
-const llmProfiles = computed(() => sortProfilesByProvider(profilesStore.profiles))
+// 建群只选聊天模型（决策模型不生成文本）
+const llmProfiles = computed(() => sortProfilesByProvider(filterChatProfiles(profilesStore.profiles)))
 const loadingProfiles = computed(() => profilesStore.loading)
 const showProfileManager = ref(false)
 const templates = ref([])

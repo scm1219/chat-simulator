@@ -214,6 +214,7 @@ import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useMemoryStore } from '../../stores/memory.js'
 import { useToastStore } from '../../stores/toast'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
+import { filterChatProfiles } from '../../utils/llm-providers.js'
 import { useDialog } from '../../composables/useDialog'
 import TagSelector from '../common/TagSelector.vue'
 import BaseDialog from '../common/BaseDialog.vue'
@@ -251,8 +252,9 @@ const selectedStyle = ref('daily')
 const selectedProfileId = ref('')
 const originalSystemPrompt = ref('')
 
+// 提示词重生成需要文本生成能力，仅列聊天模型（决策模型不生成文本）
 const sortedProfiles = computed(() =>
-  [...llmProfilesStore.profiles].sort((a, b) => a.model.localeCompare(b.model))
+  filterChatProfiles(llmProfilesStore.profiles).sort((a, b) => a.model.localeCompare(b.model))
 )
 const newMemoryContent = ref('')
 

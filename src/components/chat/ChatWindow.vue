@@ -217,7 +217,7 @@ import { useMessagesStore } from '../../stores/messages.js'
 import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useToastStore } from '../../stores/toast'
-import { getProviderName } from '../../utils/llm-providers.js'
+import { getProviderName, filterChatProfiles } from '../../utils/llm-providers.js'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 import StalenessTip from './StalenessTip.vue'
@@ -282,9 +282,10 @@ const switchingModel = ref(false)
 const exporting = ref(false)
 
 // 按供应商分组的模型列表（供应商名称排序，组内模型名称排序）
+// 决策模型不生成文本，切换器只展示聊天模型
 const profileGroups = computed(() => {
   const groups = {}
-  llmProfilesStore.profiles.forEach(profile => {
+  filterChatProfiles(llmProfilesStore.profiles).forEach(profile => {
     const providerId = profile.provider
     const providerName = getProviderName(providerId)
     if (!groups[providerId]) {

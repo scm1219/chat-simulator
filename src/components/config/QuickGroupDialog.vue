@@ -222,7 +222,7 @@ import { useCharactersStore } from '../../stores/characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useToastStore } from '../../stores/toast'
-import { getProviderName, sortProfilesByProvider } from '../../utils/llm-providers.js'
+import { getProviderName, sortProfilesByProvider, filterChatProfiles } from '../../utils/llm-providers.js'
 import { createLogger } from '../../utils/logger.js'
 import BaseDialog from '../common/BaseDialog.vue'
 import PromptSettingsTab from './PromptSettingsTab.vue'
@@ -255,8 +255,8 @@ const preview = reactive({
   characters: []
 })
 
-// 按供应商定义顺序排序，同供应商内按名称字典序
-const llmProfiles = computed(() => sortProfilesByProvider(profilesStore.profiles))
+// 按供应商定义顺序排序，同供应商内按名称字典序（仅聊天模型，决策模型不能生成群组内容）
+const llmProfiles = computed(() => sortProfilesByProvider(filterChatProfiles(profilesStore.profiles)))
 const loadingProfiles = computed(() => profilesStore.loading)
 
 const canCreate = computed(() => {

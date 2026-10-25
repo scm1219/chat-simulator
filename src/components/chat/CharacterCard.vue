@@ -163,7 +163,7 @@ import { useGlobalCharactersStore } from '../../stores/global-characters.js'
 import { useLLMProfilesStore } from '../../stores/llm-profiles.js'
 import { useNarrativeStore } from '../../stores/narrative.js'
 import { useDialog } from '../../composables/useDialog'
-import { groupProfilesByProvider } from '../../utils/llm-providers.js'
+import { groupProfilesByProvider, filterChatProfiles } from '../../utils/llm-providers.js'
 import { createLogger } from '../../utils/logger.js'
 import EmotionTag from './EmotionTag.vue'
 
@@ -190,7 +190,8 @@ const librarySynced = ref(false)
 const syncing = ref(false)
 const commandDraft = ref('') // 指令输入草稿（本地状态，避免直改 store）
 
-const profileGroups = computed(() => groupProfilesByProvider(llmProfilesStore.profiles))
+// 角色独立模型列表（仅聊天模型，决策模型不能用于对话生成）
+const profileGroups = computed(() => groupProfilesByProvider(filterChatProfiles(llmProfilesStore.profiles)))
 
 // 获取角色情绪
 function getCharEmotion(characterId) {
@@ -298,7 +299,7 @@ async function toggleCharacterThinking() {
 async function toggleCustomModel() {
   try {
     const char = props.character
-    const newValue = char.custom_llm_profile_id ? null : (llmProfilesStore.profiles[0]?.id || null)
+    const newValue = char.custom_llm_profile_id ? null : (filterChatProfiles(llmProfilesStore.profiles)[0]?.id || null)
     await charactersStore.updateCharacter(char.id, {
       customLlmProfileId: newValue
     })
