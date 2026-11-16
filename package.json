@@ -53,25 +53,25 @@
     ]
   },
   "dependencies": {
-    "@tanstack/vue-virtual": "^3.13.48",
+    "@tanstack/vue-virtual": "^3.13.52",
     "archiver": "^7.0.1",
-    "axios": "^1.20.0",
+    "axios": "^1.21.1",
     "pinia": "^3.0.4",
     "socks-proxy-agent": "^8.0.5",
     "uuid": "^13.0.2",
-    "vue": "^3.5.44"
+    "vue": "^3.5.45"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@vitejs/plugin-vue": "^6.0.10",
+    "@vitejs/plugin-vue": "^6.0.11",
     "better-sqlite3": "^12.11.1",
     "electron": "^41.10.7",
     "electron-vite": "^5.0.0",
-    "eslint": "^10.13.0",
-    "eslint-plugin-vue": "^10.11.1",
-    "globals": "^17.13.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-vue": "^10.12.1",
+    "globals": "^17.14.0",
     "prebuild-install": "^7.1.3",
-    "sass": "^1.106.1",
-    "vite": "^8.3.5"
+    "sass": "^1.108.2",
+    "vite": "^8.3.8"
   }
 }
